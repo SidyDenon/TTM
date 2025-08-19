@@ -3,7 +3,7 @@ import React from 'react'
 function Histoire() {
   return (
     <div className='flex text-white ' > 
-      <div className='z-5 h-screen  bg-[#D9D9D990] flex justify-center items-center gap-20' >
+      <div className='z-5 h-screen  bg-white/80 flex justify-center items-center gap-20' >
         <div className="histoireBloc text-black w-[30%] h-[50%] overflow-hidden">
                 <h1 className='font-bold text-2xl'>Notre Histoire</h1>
                 <p className="mt-5 font-medium leading-7">

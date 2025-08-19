@@ -7,7 +7,7 @@ import AcccueilInfo from './AcccueilInfo';
 import Histoire from './Histoire';
 import Services from './Services';
 import Avis from './Avis';
-
+import Tarifs from './Tarifs';
 
  
  const App = () => {
@@ -19,6 +19,8 @@ import Avis from './Avis';
       <Histoire />
       <Services />
       <Avis />
+      <Tarifs />
+
      </>
    )
  }

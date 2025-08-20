@@ -1,52 +1,44 @@
-import React from 'react'
+import React from "react";
 
-function Services() {
+const SERVICES = [
+  { icon: "fa-wrench",        title: "Dépannage",         desc: "Intervention rapide sur place." },
+  { icon: "fa-truck-monster", title: "Remorquage",        desc: "Prise en charge sécurisée." },
+  { icon: "fa-car-battery",   title: "Batterie",          desc: "Boost / remplacement." },
+  { icon: "fa-gas-pump",      title: "Carburant",         desc: "Livraison panne sèche." },
+  { icon: "fa-key",           title: "Ouverture de porte",desc: "Sans endommager la serrure." },
+  { icon: "fa-screwdriver-wrench", title: "Diagnostic",   desc: "Contrôle rapide des pannes." },
+];
+
+function ServiceCard({ icon, title, desc }) {
   return (
-    <div className='w-full h-screen flex text-black'>
-        <div className="z-5 bg-black/50 h-full w-full flex  flex-col py-[80px] items-center gap-4 ">
-            <h1 className='text-3xl font-bold text-white flex flex-wrap gap-5'>Nos Services</h1>
-            <div className="w-[80%] h-[80%] my-10 flex flex-wrap justify-center gap-10 overflow-hidden">
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-                <div className="w-[30%] text-center rounded-xl bg-white flex flex-col gap-3 py-3 items-center cursor-pointer relative overflow-hidden flex-wrap ">
-                    <div className="fa-solid fa-wrench text-5xl "></div>
-                    <h3 className='font-medium '>Dépannage</h3>
-                    <span>Lorem ipsum dolor, sit amet consectetur adipisicing elit. Voluptate, fugit.</span>
-                    <div className="absolute bg-[#800E08] w-[90%] h-full top-[90%] rounded-t-2xl "></div>
-                </div>
-            </div>
-        
-        </div>
+    <div className="group relative overflow-hidden rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-zinc-200">
+      <div className="relative z-10 space-y-2 transition duration-500 group-hover:opacity-0">
+        <i className={`fa-solid ${icon} text-4xl text-[#800E08]`} />
+        <h3 className="font-semibold text-zinc-900">{title}</h3>
+        <p className="text-sm text-zinc-600">{desc}</p>
+      </div>
+
+      {/* Overlay rouge */}
+      <div className="absolute inset-x-0 bottom-0 h-full translate-y-[100%] bg-[#800E08] flex items-center justify-center 
+                      transition-transform duration-500 ease-out group-hover:translate-y-0">
+        <button className="text-white font-semibold text-lg cursor-pointer">En savoir plus</button>
+      </div>
     </div>
-  )
+  );
 }
 
-export default Services
+export default function Services() {
+  return (
+    <section className="w-full min-h-screen flex">
+      <div className="z-5 h-full w-full bg-black/50 text-white flex flex-col items-center gap-6 py-20 px-4">
+        <h1 className="text-3xl font-bold">Nos Services</h1>
+
+        <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {SERVICES.map((s, i) => (
+            <ServiceCard key={i} {...s} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

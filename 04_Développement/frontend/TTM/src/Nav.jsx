@@ -2,7 +2,7 @@ import React from 'react'
 
 function Nav() {
   return (
-    <div className=" fixed w-full h-12 border-b-3 text-white border-[#800E08] bg-[#000000ed] flex justify-between px-5 items-center z-10 shadow-xl "> 
+    <div className=" fixed w-full h-15 border-b-3 text-white border-[#800E08] bg-[#000000ed] flex justify-between px-5 items-center z-10 shadow-xl/50 "> 
         <div src="/assets/react.svg">Logo</div>
         <div className=" flex justify-around gap-10">
             <a href="#">Accueil</a>

@@ -1,43 +1,45 @@
-// import React from "react";
+import React from "react";
 
-// const TARIFS = [
-//   { title: "Remorquage", price: "À partir de", amount: "20 000 FCFA", img: "/assets/accueil.png" },
-//   { title: "Crevaison",  price: "À partir de", amount: "10 000 FCFA", img: "/assets/accueil.png" },
-//   { title: "Batterie",   price: "À partir de", amount: "8 000 FCFA",  img: "/assets/accueil.png" },
-//   { title: "Panne sèche",price: "À partir de", amount: "5 000 FCFA",  img: "/assets/accueil.png" },
-//   { title: "Ouverture de porte", price: "À partir de", amount: "12 000 FCFA", img: "/assets/accueil.png" },
-//   { title: "Diagnostic rapide", price: "À partir de", amount: "7 000 FCFA", img: "/assets/accueil.png" },
-// ];
+const SERVICES = [
+  { icon: "fa-wrench",        title: "Dépannage",         desc: "Intervention rapide sur place." },
+  { icon: "fa-truck-monster", title: "Remorquage",        desc: "Prise en charge sécurisée." },
+  { icon: "fa-car-battery",   title: "Batterie",          desc: "Boost / remplacement." },
+  { icon: "fa-gas-pump",      title: "Carburant",         desc: "Livraison panne sèche." },
+  { icon: "fa-key",           title: "Ouverture de porte",desc: "Sans endommager la serrure." },
+  { icon: "fa-screwdriver-wrench", title: "Diagnostic",   desc: "Contrôle rapide des pannes." },
+];
 
-// function Tarifs() {
-//   return (
-//     <div className="w-full bg-black/50 text-white py-12">
-//       <div className="max-w-7xl mx-auto px-6">
-//         <h1 className="text-3xl font-bold text-center mb-8">Nos Tarifs</h1>
-        
-//         <div className="text-center mb-10">
-//           <h2 className="text-2xl font-bold italic">NOS TARIFS LES MEILLEURS SUR LE MARCHÉ</h2>
-//           <p className="text-sm text-gray-300 mt-2">En savoir plus</p>
-//         </div>
+function ServiceCard({ icon, title, desc }) {
+  return (
+    <div className="group relative overflow-hidden rounded-xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200 transition hover:-translate-y-0.5">
+      <div className="relative z-10 space-y-2">
+        <i className={`fa-solid ${icon} text-4xl text-[#800E08]`} />
+        <h3 className="font-semibold text-zinc-900">{title}</h3>
+        <p className="text-sm text-zinc-600">{desc}</p>
+      </div>
 
-//         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-//           {TARIFS.map((item, i) => (
-//             <div key={i} className="rounded-2xl overflow-hidden bg-white text-black shadow-md hover:shadow-lg transition flex flex-col">
-//               <img src={item.img} alt={item.title} className="w-full h-36 object-cover" loading="lazy" />
-//               <div className="p-4 flex flex-col items-center text-center gap-2">
-//                 <h3 className="font-bold text-lg">{item.title}</h3>
-//                 <p className="text-xs text-zinc-600">{item.price}</p>
-//                 <h4 className="font-bold text-[#800E08]">{item.amount}</h4>
-//                 <button className="mt-2 w-[150px] rounded-2xl border-2 border-[#800E08] text-[#800E08] py-1 text-sm font-medium hover:bg-[#800E08] hover:text-white transition">
-//                   En savoir plus
-//                 </button>
-//               </div>
-//             </div>
-//           ))}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
+      {/* Bande bordeaux qui remonte au hover */}
+      <div className="absolute inset-x-3 bottom-0 h-full translate-y-[88%] rounded-t-2xl bg-[#800E08] transition-transform duration-500 ease-out
+                      group-hover:translate-y-[55%]" />
 
-// export default Tarifs;
+      {/* Liseré fin au-dessus de l’image (effet glossy) */}
+      <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-black/5" />
+    </div>
+  );
+}
+
+export default function Services() {
+  return (
+    <section className="w-full min-h-screen flex">
+      <div className="z-5 h-full w-full bg-black/50 text-white flex flex-col items-center gap-6 py-20 px-4">
+        <h1 className="text-3xl font-bold">Nos Services</h1>
+
+        <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {SERVICES.map((s, i) => (
+            <ServiceCard key={i} {...s} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

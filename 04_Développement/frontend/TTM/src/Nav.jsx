@@ -81,7 +81,7 @@ export default function Nav() {
             <img
               src="/assets/logo1.png"
               alt="TTM"
-              className="h-10 md:h-10 w-auto"
+              className="h-16 md:h-16 w-auto"
               draggable="false"
             />
           </a>

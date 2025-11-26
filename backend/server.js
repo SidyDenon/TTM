@@ -424,8 +424,6 @@ app.use("/api/admin/rbac/roles", rbacRolesRoutes(db));
 app.use("/api/admin/rbac/users", rbacUsersRoutes(db));
 // ✅ Toutes les routes /api/admin sont protégées automatiquement
 app.use("/api", authRoutes(db));
-app.options("*", cors());
-
 // ================= DEBUG REQUESTS =================
 app.get("/api/admin/requests/_debug", async (req, res) => {
   try {

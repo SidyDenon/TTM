@@ -29,17 +29,7 @@ import operatorRoutes from "./routes/operator/requests.js";
 import rbacRolesRoutes from "./routes/admin/rbac.roles.js";
 import rbacUsersRoutes from "./routes/admin/rbac.users.js";
 import { loadAdminPermissions } from "./middleware/checkPermission.js";
-import cors from "cors";
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "http://192.168.11.174:5173",
-    "https://ttm-production-d022.up.railway.app"
-  ],
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  credentials: true,
-}));
 dotenv.config();
 
 const app = express();

@@ -35,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
 
-  android: {
+   android: {
     ...config.android,
     adaptiveIcon: {
       foregroundImage: "./assets/images/logo1.png",
@@ -54,13 +54,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     // 👉 package final pour Play Store
     package: "com.towtruckmali.app",
-    googleServicesFile: "./android/app/google-services.json",
+    // ❌ on retire googleServicesFile pour le moment
     config: {
       googleMaps: {
         apiKey: "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI",
       },
     },
   },
+
 
   web: {
     ...config.web,

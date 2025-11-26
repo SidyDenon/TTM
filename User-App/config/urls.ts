@@ -1,7 +1,8 @@
 ﻿import { Platform } from "react-native";
 
-// 👉 Renseigne l'IP locale de ton PC (même réseau que le téléphone)
-// Exemple tolérant: "http:// 192.168.11.174:5000" ou "192.168.11.174"
+// ============================================================
+// 🟢 CONFIG ORIGINALE (on la garde) MAIS on ne l'utilise plus
+// ============================================================
 const LOCAL_IP = "192.168.11.174";
 const PORT = 5000;
 
@@ -21,14 +22,20 @@ function withPort(host: string, port: number): string {
 const DEV_HOST = withPort(normalizeHost(LOCAL_IP), PORT);
 const DEV_BASE_HTTP = `http://${DEV_HOST}`;
 
-export const API_URL = __DEV__
-  ? Platform.OS === "android"
-    ? `http://10.0.2.2:${PORT}/api`
-    : `${DEV_BASE_HTTP}/api`
-  : "https://mon-api-production.com/api";
+// ============================================================
+// 🔥 VERSION RAILWAY (DEV + PROD)
+// ============================================================
+const RAILWAY_BASE = "https://ttm-production-d022.up.railway.app";
 
-export const API_BASE = API_URL.replace(/\/+api$/, "");
+// 👉 Toujours utiliser Railway (/api)
+export const API_URL = `${RAILWAY_BASE}/api`;
 
+// 👉 Base URL sans /api
+export const API_BASE = RAILWAY_BASE;
+
+// ============================================================
+// 📌 buildApiPath ET buildBasePath — identiques à ton code
+// ============================================================
 export const buildApiPath = (endpoint: string = "") => {
   const path = String(endpoint || "");
   if (!path) return API_URL;
@@ -43,6 +50,9 @@ export const buildBasePath = (endpoint: string = "") => {
   return `${API_BASE}${path.startsWith("/") ? path : "/" + path}`;
 };
 
+// ============================================================
+// 🔍 DEBUG DEV
+// ============================================================
 if (__DEV__) {
   console.log("📡 API_URL utilisé:", API_URL);
   console.log("📡 API_BASE utilisé:", API_BASE);

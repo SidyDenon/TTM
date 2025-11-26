@@ -1,26 +1,30 @@
 {
   "expo": {
     "name": "Tow Truck Mali",
-    "slug": "towtruck",
+    "slug": "User-App",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo1.png",
     "scheme": "userapp",
     "userInterfaceStyle": "light",
-
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "bundleIdentifier": "com.towtruckmali.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Cette application a besoin d'accéder à la caméra pour prendre des photos.",
         "NSPhotoLibraryUsageDescription": "Cette application a besoin d'accéder à la galerie pour sélectionner des photos.",
         "NSLocationWhenInUseUsageDescription": "Cette application utilise votre localisation pour identifier votre position pendant les dépannages.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position même en arrière-plan pour permettre au client de suivre votre progression en temps réel.",
         "NSLocationAlwaysUsageDescription": "L'application a besoin d'accéder à votre position en permanence pour le suivi de mission.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
-
     "android": {
+      "package": "com.towtruckmali.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo1.png",
         "backgroundColor": "#000000"
@@ -36,20 +40,17 @@
         "FOREGROUND_SERVICE",
         "POST_NOTIFICATIONS"
       ],
-      "package": "com.userapp",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI"
         }
       }
     },
-
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -77,15 +78,13 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true
     },
-
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d9ff4e1c-41e6-49eb-8a59-27b874102d9a"
+        "projectId": "38248df3-3a7c-43ff-817f-5161e57ab39f"
       }
     }
   }

@@ -1,11 +1,9 @@
 import { ConfigContext, ExpoConfig } from "expo/config";
 
-const projectId = process.env.EAS_PROJECT_ID || "d9ff4e1c-41e6-49eb-8a59-27b874102d9a";
-
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Tow Truck Mali",
-  slug: "towtruck",
+  slug: "towtruck", // EAS vient de créer le projet @sidydenon63/towtruck
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/logo1.png",
@@ -14,23 +12,31 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
+
   ios: {
+    ...config.ios,
     supportsTablet: true,
     infoPlist: {
-      NSCameraUsageDescription: "Cette application a besoin d'accéder à la caméra pour prendre des photos.",
-      NSPhotoLibraryUsageDescription: "Cette application a besoin d'accéder à la galerie pour sélectionner des photos.",
+      NSCameraUsageDescription:
+        "Cette application a besoin d'accéder à la caméra pour prendre des photos.",
+      NSPhotoLibraryUsageDescription:
+        "Cette application a besoin d'accéder à la galerie pour sélectionner des photos.",
       NSLocationWhenInUseUsageDescription:
         "Cette application utilise votre localisation pour identifier votre position pendant les dépannages.",
       NSLocationAlwaysAndWhenInUseUsageDescription:
         "Cette application a besoin d'accéder à votre position même en arrière-plan pour permettre au client de suivre votre progression en temps réel.",
-      NSLocationAlwaysUsageDescription: "L'application a besoin d'accéder à votre position en permanence pour le suivi de mission.",
+      NSLocationAlwaysUsageDescription:
+        "L'application a besoin d'accéder à votre position en permanence pour le suivi de mission.",
       NSLocationTemporaryUsageDescriptionDictionary: {
-        default: "TowTruck a besoin de votre localisation temporaire pour router correctement l'opérateur et le client.",
+        default:
+          "TowTruck a besoin de votre localisation temporaire pour router correctement l'opérateur et le client.",
       },
       UIBackgroundModes: ["location", "fetch"],
     },
   },
+
   android: {
+    ...config.android,
     adaptiveIcon: {
       foregroundImage: "./assets/images/logo1.png",
       backgroundColor: "#000000",
@@ -46,7 +52,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "FOREGROUND_SERVICE",
       "POST_NOTIFICATIONS",
     ],
-    package: "com.ttm.app",
+    // 👉 package final pour Play Store
+    package: "com.towtruckmali.app",
     googleServicesFile: "./android/app/google-services.json",
     config: {
       googleMaps: {
@@ -54,11 +61,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     },
   },
+
   web: {
+    ...config.web,
     bundler: "metro",
     output: "static",
     favicon: "./assets/images/favicon.png",
   },
+
   plugins: [
     "expo-router",
     [
@@ -86,10 +96,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
   ],
+
   extra: {
-    router: {},
+    // 🟢 Très important : on garde extra, et on laisse EAS gérer eas.projectId
+    ...(config.extra || {}),
+    router: {
+      ...(config.extra?.router || {}),
+    },
     eas: {
-      projectId,
+      ...(config.extra?.eas || {}),
+      // ⚠️ PAS de projectId ici, EAS va l’ajouter lui-même
     },
   },
 });

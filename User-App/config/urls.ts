@@ -34,6 +34,12 @@ export const API_URL = `${RAILWAY_BASE}/api`;
 export const API_BASE = RAILWAY_BASE;
 
 // ============================================================
+// 🌍 GOOGLE MAPS KEY — VERSION SÉCURISÉE
+// ============================================================
+// ⚠️ IMPORTANT : cette clé DOIT être restreinte dans Google Cloud
+export const GOOGLE_MAPS_API_KEY = "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
+
+// ============================================================
 // 📌 buildApiPath ET buildBasePath — identiques à ton code
 // ============================================================
 export const buildApiPath = (endpoint: string = "") => {
@@ -56,4 +62,5 @@ export const buildBasePath = (endpoint: string = "") => {
 if (__DEV__) {
   console.log("📡 API_URL utilisé:", API_URL);
   console.log("📡 API_BASE utilisé:", API_BASE);
+  console.log("🗺️ GOOGLE_MAPS_API_KEY:", GOOGLE_MAPS_API_KEY);
 }

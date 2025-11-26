@@ -1,0 +1,22 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "mysql2": "^3.14.4",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.6",
+    "react-native-root-toast": "^4.0.1",
+    "react-native-toast-message": "^2.3.3",
+    "socket.io": "^4.8.1",
+    "twilio": "^5.10.1"
+  }
+}

@@ -1,0 +1,1 @@
+export const OPERATOR_MISSION_RADIUS_KM = 30;

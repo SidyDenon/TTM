@@ -1,0 +1,34 @@
+# Node / build artefacts
+node_modules/
+*.log
+logs/
+*.tmp
+tmp/
+dist/
+build/
+.expo/
+.expo-shared/
+.expo-dev/
+.expo-debug/
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Expo / React Native caches
+android/.gradle/
+android/app/build/
+ios/build/
+ios/DerivedData/
+
+# Misc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

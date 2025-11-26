@@ -1,0 +1,1036 @@
+// src/pages/admin/Settings.jsx
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent } from "react-icons/fa";
+import { AiOutlineLoading3Quarters } from "react-icons/ai";
+import { API_BASE } from "../../config/urls";
+import { useAuth } from "../../context/AuthContext";
+import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
+
+export default function Settings() {
+  const { user, token } = useAuth();
+
+  // ─────────── Permissions (RBAC)
+  const canViewServices =
+    isSuper(user) || can(user, "services_view") || can(user, "services_manage");
+  const canManageServices = isSuper(user) || can(user, "services_manage");
+
+  const canViewConfig =
+    isSuper(user) || can(user, "config_view") || can(user, "config_manage");
+  const canManageConfig = isSuper(user) || can(user, "config_manage");
+
+  // La page reste accessible (profil) ; sections Services/Business sont RBACées
+  const canAccessPage = true;
+
+  // ─────────── Profile
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const [profile, setProfile] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+  });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+
+  const [pwd, setPwd] = useState({ current: "", next: "", confirm: "" });
+
+  // ─────────── Services
+  const [services, setServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [inlineSaving, setInlineSaving] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", price: "" });
+  const [addIcon, setAddIcon] = useState(null);
+  const [servicesOpen, setServicesOpen] = useState(true);
+
+  // ─────────── Business config
+  const [commission, setCommission] = useState("");              // %
+  const [towingPricePerKm, setTowingPricePerKm] = useState("");  // prix / km
+  const [towingBasePrice, setTowingBasePrice] = useState("");    // prix de base
+  const [currency, setCurrency] = useState("FCFA");               // devise
+  const [supportPhone, setSupportPhone] = useState("");
+  const [supportWhatsApp, setSupportWhatsApp] = useState("");
+  const [businessOpen, setBusinessOpen] = useState(true);
+  const [supportOpen, setSupportOpen] = useState(true);
+
+  const [savingBusinessConfig, setSavingBusinessConfig] = useState(false);
+  const [savingSupportContacts, setSavingSupportContacts] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  const isLogged = useMemo(() => Boolean(token), [token]);
+
+  const buildConfigPayload = (currValue) => ({
+    commission_percent: Number(commission),
+    towing_price_per_km: Number(towingPricePerKm),
+    towing_base_price: Number(towingBasePrice),
+    currency: currValue,
+    support_phone: supportPhone.trim(),
+    support_whatsapp: supportWhatsApp.trim(),
+  });
+
+  // ─────────── Fetchers
+  const loadServices = async () => {
+    if (!canViewServices) return; // RBAC
+    setLoadingServices(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/services`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur chargement services");
+      setServices(data.data || []);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  const loadConfig = async () => {
+    if (!canViewConfig) return; // RBAC
+    setLoadingConfig(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/config`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur chargement config");
+
+      // ✅ map sur la réponse du backend
+      setCommission(String(data.commission_percent ?? "0"));
+      setTowingPricePerKm(String(data.towing_price_per_km ?? "0"));
+      setTowingBasePrice(String(data.towing_base_price ?? "0"));
+      setCurrency(data.currency || "FCFA");
+      setSupportPhone(data.support_phone || "");
+      setSupportWhatsApp(data.support_whatsapp || "");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLogged) return;
+    loadServices();
+    loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLogged, canViewServices, canViewConfig]);
+
+  if (!canAccessPage) {
+    return (
+      <div
+        className="p-6 rounded theme-fade"
+        style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+      >
+        <h2 className="text-xl font-bold text-red-500">⛔ Accès refusé</h2>
+        <p>Vous n’avez pas les droits pour consulter cette page.</p>
+      </div>
+    );
+  }
+
+  // ─────────── Handlers (profil)
+  const onPickAvatar = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const saveProfile = async () => {
+    try {
+      setSavingProfile(true);
+      const formData = new FormData();
+      formData.append("name", profile.name || "");
+      formData.append("email", profile.email || "");
+      formData.append("phone", profile.phone || "");
+      if (avatarFile) formData.append("avatar", avatarFile);
+
+      const res = await fetch(
+        `${API_BASE}/api/admin/dashboard/utilisateurs/${user.id}`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour profil");
+      toast.success("Profil mis à jour ✅");
+      setProfileOpen(false);
+      setAvatarFile(null);
+      setAvatarPreview("");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const savePassword = async () => {
+    if (!pwd.current || !pwd.next)
+      return toast.error("Champs mot de passe requis");
+    if (pwd.next !== pwd.confirm)
+      return toast.error("Les mots de passe ne correspondent pas");
+    try {
+      setSavingPassword(true);
+      const res = await fetch(`${API_BASE}/api/auth/password`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          current: pwd.current,
+          new: pwd.next,
+          confirm: pwd.confirm,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur changement mot de passe");
+      toast.success("Mot de passe mis à jour ✅");
+      setPwd({ current: "", next: "", confirm: "" });
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  // ─────────── Handlers (services)
+  const saveInlinePrice = async (srv) => {
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour modifier les services."
+      );
+    }
+    const price = Number(srv.price);
+    if (isNaN(price) || price < 0) return toast.error("Prix invalide");
+    try {
+      setInlineSaving(srv.id);
+      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ price }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour prix");
+      toast.success(`Prix de "${srv.name}" mis à jour ✅`);
+      setServices((prev) =>
+        prev.map((s) => (s.id === srv.id ? { ...s, price } : s))
+      );
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  };
+
+  const deleteService = async (srv) => {
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour supprimer un service."
+      );
+    }
+    if (!confirm(`Supprimer le service "${srv.name}" ?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur suppression service");
+      toast.success(`Service "${srv.name}" supprimé ✅`);
+      setServices((prev) => prev.filter((s) => s.id !== srv.id));
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
+
+  const addService = async () => {
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour ajouter un service."
+      );
+    }
+    const price = Number(addForm.price);
+    if (!addForm.name) return toast.error("Nom du service requis");
+    if (isNaN(price) || price < 0) return toast.error("Prix invalide");
+    try {
+      setAdding(true);
+      const fd = new FormData();
+      fd.append("name", addForm.name);
+      fd.append("price", String(price));
+      if (addIcon) fd.append("icon", addIcon);
+
+      const res = await fetch(`${API_BASE}/api/admin/services`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur ajout service");
+      toast.success("Service ajouté ✅");
+      setAddForm({ name: "", price: "" });
+      setAddIcon(null);
+      setServices((prev) => [data.data, ...prev]);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // ─────────── Handlers (config business)
+  const saveBusinessConfig = async () => {
+    if (!canManageConfig) {
+      return toast.error(
+        "Vous n’avez pas les droits pour modifier les paramètres business."
+      );
+    }
+
+    const pct = Number(commission);
+    const priceKm = Number(towingPricePerKm);
+    const basePrice = Number(towingBasePrice);
+
+    if (isNaN(pct) || pct < 0 || pct > 100) {
+      return toast.error("Pourcentage invalide (0–100)");
+    }
+    if (isNaN(priceKm) || priceKm < 0) {
+      return toast.error("Prix par km invalide");
+    }
+    if (isNaN(basePrice) || basePrice < 0) {
+      return toast.error("Prix de base invalide");
+    }
+
+    const curr =
+      typeof currency === "string" && currency.trim()
+        ? currency.trim()
+        : "FCFA";
+
+    try {
+      setSavingBusinessConfig(true);
+      const res = await fetch(`${API_BASE}/api/admin/config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(buildConfigPayload(curr)),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur mise à jour configuration");
+      toast.success("Paramètres business mis à jour ✅");
+      setCurrency(curr);
+      setSupportPhone(data.support_phone || "");
+      setSupportWhatsApp(data.support_whatsapp || "");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSavingBusinessConfig(false);
+    }
+  };
+
+  const saveSupportContacts = async () => {
+    if (!canManageConfig) {
+      return toast.error(
+        "Vous n’avez pas les droits pour modifier les coordonnées."
+      );
+    }
+
+    const curr =
+      typeof currency === "string" && currency.trim()
+        ? currency.trim()
+        : "FCFA";
+
+    try {
+      setSavingSupportContacts(true);
+      const res = await fetch(`${API_BASE}/api/admin/config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(buildConfigPayload(curr)),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur mise à jour coordonneés");
+      toast.success("Coordonnées service client mises à jour ✅");
+      setSupportPhone(data.support_phone || "");
+      setSupportWhatsApp(data.support_whatsapp || "");
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSavingSupportContacts(false);
+    }
+  };
+
+  // ─────────── Render
+  return (
+    <div className="space-y-8 theme-fade">
+      {/* ──────────────── Section Profil (toujours visible) */}
+      <section
+        className="p-6 rounded shadow"
+        style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+      >
+        <button
+          onClick={() => setProfileOpen((s) => !s)}
+          className="w-full flex items-center justify-between mb-6 px-2 py-1"
+        >
+          <h2 className="text-xl font-bold">👤 Profil</h2>
+          <span
+            style={{
+              transition: "transform 0.25s ease",
+              transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          >
+            ⌄
+          </span>
+        </button>
+
+        <div
+          className="transition-all duration-300"
+          style={{
+            maxHeight: profileOpen ? "800px" : "0",
+            overflow: "hidden",
+            opacity: profileOpen ? 1 : 0,
+          }}
+        >
+          <div className="flex items-center gap-5 mb-4">
+            <div
+              className="w-20 h-20 rounded-full overflow-hidden border"
+              style={{
+                background: "var(--bg-card)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center opacity-60">
+                  A
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1">
+              <p className="text-lg font-semibold">{user?.name || "—"}</p>
+              <p className="opacity-70">{user?.email || "—"}</p>
+              <p className="opacity-70">{user?.phone || "—"}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Infos */}
+            <div
+              className="p-4 rounded"
+              style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+            >
+              <h3 className="font-semibold mb-3">✏️ Modifier mes infos</h3>
+              <label className="block text-sm opacity-70 mb-1">
+                Photo de profil
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onPickAvatar}
+                className="w-full mb-3"
+              />
+
+              <label className="block text-sm opacity-70 mb-1">Nom</label>
+              <input
+                type="text"
+                value={profile.name}
+                onChange={(e) =>
+                  setProfile({ ...profile, name: e.target.value })
+                }
+                className="w-full mb-3 p-2 rounded border"
+                style={{
+                  background: "var(--bg-card)",
+                  color: "var(--text-color)",
+                  borderColor: "var(--border-color)",
+                }}
+              />
+              <label className="block text-sm opacity-70 mb-1">Email</label>
+              <input
+                type="email"
+                value={profile.email}
+                onChange={(e) =>
+                  setProfile({ ...profile, email: e.target.value })
+                }
+                className="w-full mb-3 p-2 rounded border"
+                style={{
+                  background: "var(--bg-card)",
+                  color: "var(--text-color)",
+                  borderColor: "var(--border-color)",
+                }}
+              />
+              <label className="block text-sm opacity-70 mb-1">
+                Téléphone
+              </label>
+              <input
+                type="text"
+                value={profile.phone}
+                onChange={(e) =>
+                  setProfile({ ...profile, phone: e.target.value })
+                }
+                className="w-full mb-4 p-2 rounded border"
+                style={{
+                  background: "var(--bg-card)",
+                  color: "var(--text-color)",
+                  borderColor: "var(--border-color)",
+                }}
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={saveProfile}
+                  disabled={savingProfile}
+                  style={{ background: "var(--accent)", color: "#fff" }}
+                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                >
+                  {savingProfile ? (
+                    <AiOutlineLoading3Quarters className="animate-spin" />
+                  ) : (
+                    <FaSave />
+                  )}
+                  Enregistrer
+                </button>
+                <button
+                  onClick={() => setProfileOpen(false)}
+                  className="px-4 py-2 rounded border"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+
+            {/* Mot de passe */}
+            <div
+              className="p-4 rounded"
+              style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+            >
+              <h3 className="font-semibold mb-3">🔑 Changer le mot de passe</h3>
+              {["current", "next", "confirm"].map((key, i) => (
+                <div key={i} className="mb-3">
+                  <label className="block text-sm opacity-70 mb-1">
+                    {key === "current"
+                      ? "Mot de passe actuel"
+                      : key === "next"
+                      ? "Nouveau mot de passe"
+                      : "Confirmer"}
+                  </label>
+                  <input
+                    type="password"
+                    value={pwd[key]}
+                    onChange={(e) =>
+                      setPwd({ ...pwd, [key]: e.target.value })
+                    }
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  />
+                </div>
+              ))}
+              <button
+                onClick={savePassword}
+                disabled={savingPassword}
+                style={{ background: "var(--accent)", color: "#fff" }}
+                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+              >
+                {savingPassword ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaSave />
+                )}
+                Mettre à jour
+              </button>
+            </div>
+          </div>
+          </div>
+
+        
+      </section>
+
+      {/* ──────────────── Section Services (RBAC) */}
+      {canViewServices && (
+        <section
+          className="p-6 rounded shadow theme-fade"
+          style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+        >
+          <button
+            onClick={() => setServicesOpen((s) => !s)}
+            className="w-full flex items-center justify-between mb-4"
+          >
+            <h2 className="text-xl font-bold">🧰 Gestion des services</h2>
+            <span
+              style={{
+                transition: "transform 0.25s ease",
+                transform: servicesOpen ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              ⌄
+            </span>
+          </button>
+          <div
+            className="transition-all duration-300"
+            style={{
+              maxHeight: servicesOpen ? "2000px" : "0",
+              overflow: "hidden",
+              opacity: servicesOpen ? 1 : 0,
+            }}
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+              <thead
+                style={{ color: "var(--muted)", borderColor: "var(--border-color)" }}
+              >
+                <tr>
+                  <th className="px-3 py-2 text-left">Icône</th>
+                  <th className="px-3 py-2 text-left">Nom</th>
+                  <th className="px-3 py-2 text-left">Prix (FCFA)</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingServices ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
+                      <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
+                      Chargement...
+                    </td>
+                  </tr>
+                ) : services.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
+                      Aucun service.
+                    </td>
+                  </tr>
+                ) : (
+                  services.map((s) => (
+                    <tr key={s.id} style={{ borderColor: "var(--border-color)" }}>
+                      <td className="px-3 py-2">
+                        {s.icon_url ? (
+                          <img
+                            src={s.icon_url}
+                            alt=""
+                            className="w-7 h-7 object-contain"
+                          />
+                        ) : (
+                          <div
+                            className="w-7 h-7 rounded flex items-center justify-center opacity-50"
+                            style={{ background: "var(--bg-card)" }}
+                          >
+                            <FaPlus />
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">{s.name}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={s.price}
+                          onChange={(e) =>
+                            setServices((prev) =>
+                              prev.map((x) =>
+                                x.id === s.id
+                                  ? { ...x, price: e.target.value }
+                                  : x
+                              )
+                            )
+                          }
+                          disabled={!canManageServices}
+                          className="w-32 p-2 rounded border"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right space-x-2">
+                        <button
+                          onClick={() => saveInlinePrice(s)}
+                          disabled={inlineSaving === s.id || !canManageServices}
+                          style={{ background: "var(--accent)", color: "#fff" }}
+                          className="px-3 py-1 rounded disabled:opacity-70"
+                          title={
+                            canManageServices ? "" : "Droit requis: services_manage"
+                          }
+                        >
+                          {inlineSaving === s.id ? (
+                            <AiOutlineLoading3Quarters className="inline animate-spin" />
+                          ) : (
+                            <FaSave className="inline" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => deleteService(s)}
+                          disabled={!canManageServices}
+                          className="px-3 py-1 rounded"
+                          style={{ background: "#e5372e", color: "#fff" }}
+                          title={
+                            canManageServices ? "" : "Droit requis: services_manage"
+                          }
+                        >
+                          <FaTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              </table>
+            </div>
+
+            {/* Ajout service (seulement si canManageServices) */}
+            {canManageServices && (
+              <div className="mt-6 p-4 rounded" style={{ background: "var(--bg-card)" }}>
+                <h3 className="font-semibold mb-3">➕ Ajouter un service</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                  <div>
+                    <label className="block text-sm opacity-70 mb-1">Nom</label>
+                    <input
+                      type="text"
+                      value={addForm.name}
+                      onChange={(e) =>
+                        setAddForm({ ...addForm, name: e.target.value })
+                      }
+                      className="w-full p-2 rounded border"
+                      style={{
+                        background: "var(--bg-card)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                      placeholder="Ex: Remorquage"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm opacity-70 mb-1">Prix (FCFA)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={addForm.price}
+                      onChange={(e) =>
+                        setAddForm({ ...addForm, price: e.target.value })
+                      }
+                      className="w-full p-2 rounded border"
+                      style={{
+                        background: "var(--bg-card)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                      placeholder="Ex: 150"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm opacity-70 mb-1">
+                      Icône (png/jpg/svg)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.svg"
+                      onChange={(e) => setAddIcon(e.target.files?.[0] || null)}
+                      className="w-full text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addService}
+                      disabled={adding}
+                      style={{ background: "var(--accent)", color: "#fff" }}
+                      className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                    >
+                      {adding ? (
+                        <AiOutlineLoading3Quarters className="animate-spin" />
+                      ) : (
+                        <FaPlus />
+                      )}
+                      Ajouter
+                    </button>
+                    <button
+                      onClick={() => setAddForm({ name: "", price: "" })}
+                      className="px-4 py-2 rounded border"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ──────────────── Section Business (RBAC) */}
+      {canViewConfig && (
+        <section
+          className="p-6 rounded shadow theme-fade"
+          style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+        >
+          <button
+            onClick={() => setBusinessOpen((s) => !s)}
+            className="w-full flex items-center justify-between mb-4"
+          >
+            <h2 className="text-xl font-bold">💼 Paramètres Business</h2>
+            <span
+              style={{
+                transition: "transform 0.25s ease",
+                transform: businessOpen ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              ⌄
+            </span>
+          </button>
+          <div
+            className="transition-all duration-300"
+            style={{
+              maxHeight: businessOpen ? "2000px" : "0",
+              overflow: "hidden",
+              opacity: businessOpen ? 1 : 0,
+            }}
+          >
+            {loadingConfig ? (
+              <p className="opacity-70">
+                <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
+                Chargement config…
+              </p>
+            ) : (
+              <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Commission */}
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Commission admin (%)
+                  </label>
+                  <div className="relative">
+                    <FaPercent className="absolute left-2 top-1/2 -translate-y-1/2 opacity-70" />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={commission}
+                      onChange={(e) => setCommission(e.target.value)}
+                      disabled={!canManageConfig}
+                      className="pl-8 w-full p-2 rounded border"
+                      style={{
+                        background: "var(--bg-card)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Prix remorquage / km */}
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Prix remorquage par km
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={towingPricePerKm}
+                    onChange={(e) => setTowingPricePerKm(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Ex: 500"
+                  />
+                </div>
+
+                {/* Prix de base remorquage */}
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Prix de base remorquage
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={towingBasePrice}
+                    onChange={(e) => setTowingBasePrice(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Ex: 3000"
+                  />
+                </div>
+
+                {/* Devise */}
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Devise
+                  </label>
+                  <input
+                    type="text"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border uppercase"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Ex: FCFA"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={saveBusinessConfig}
+                  disabled={savingBusinessConfig || !canManageConfig}
+                  style={{ background: "var(--accent)", color: "#fff" }}
+                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                  title={canManageConfig ? "" : "Droit requis: config_manage"}
+                >
+                  {savingBusinessConfig ? (
+                    <AiOutlineLoading3Quarters className="animate-spin" />
+                  ) : (
+                    <FaSave />
+                  )}
+                  Mettre à jour
+                </button>
+              </div>
+            </>
+          )}
+          </div>
+        </section>
+      )}
+
+      {canViewConfig && (
+        <section
+          className="p-6 rounded shadow theme-fade"
+          style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+        >
+          <button
+            onClick={() => setSupportOpen((s) => !s)}
+            className="w-full flex items-center justify-between mb-4"
+          >
+            <h2 className="text-xl font-bold">📞 Coordonnées service client</h2>
+            <span
+              style={{
+                transition: "transform 0.25s ease",
+                transform: supportOpen ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              ⌄
+            </span>
+          </button>
+          <div
+            className="transition-all duration-300"
+            style={{
+              maxHeight: supportOpen ? "1600px" : "0",
+              overflow: "hidden",
+              opacity: supportOpen ? 1 : 0,
+            }}
+          >
+            {loadingConfig ? (
+              <p className="opacity-70">
+                <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
+                Chargement coordonnées…
+              </p>
+            ) : (
+<>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Numéro d’appel
+                  </label>
+                  <input
+                    type="tel"
+                    value={supportPhone}
+                    onChange={(e) => setSupportPhone(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="+22300000000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    WhatsApp (international)
+                  </label>
+                  <input
+                    type="tel"
+                    value={supportWhatsApp}
+                    onChange={(e) => setSupportWhatsApp(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="00223…"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 text-sm opacity-70">
+                Seuls les utilisateurs disposant du droit <code>config_manage</code> peuvent modifier
+                ces coordonnées.
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={saveSupportContacts}
+                  disabled={savingSupportContacts || !canManageConfig}
+                  style={{ background: "var(--accent)", color: "#fff" }}
+                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                  title={canManageConfig ? "" : "Droit requis: config_manage"}
+                >
+                  {savingSupportContacts ? (
+                    <AiOutlineLoading3Quarters className="animate-spin" />
+                  ) : (
+                    <FaSave />
+                  )}
+                  Enregistrer les coordonnées
+                </button>
+              </div>
+            </>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}

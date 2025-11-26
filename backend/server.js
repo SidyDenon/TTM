@@ -29,7 +29,17 @@ import operatorRoutes from "./routes/operator/requests.js";
 import rbacRolesRoutes from "./routes/admin/rbac.roles.js";
 import rbacUsersRoutes from "./routes/admin/rbac.users.js";
 import { loadAdminPermissions } from "./middleware/checkPermission.js";
+import cors from "cors";
 
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "http://192.168.11.174:5173",
+    "https://ttm-production-d022.up.railway.app"
+  ],
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true,
+}));
 dotenv.config();
 
 const app = express();
@@ -424,6 +434,7 @@ app.use("/api/admin/rbac/roles", rbacRolesRoutes(db));
 app.use("/api/admin/rbac/users", rbacUsersRoutes(db));
 // ✅ Toutes les routes /api/admin sont protégées automatiquement
 app.use("/api", authRoutes(db));
+app.options("*", cors());
 
 // ================= DEBUG REQUESTS =================
 app.get("/api/admin/requests/_debug", async (req, res) => {

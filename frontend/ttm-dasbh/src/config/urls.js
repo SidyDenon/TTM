@@ -1,4 +1,4 @@
-﻿const RAW_BASE = import.meta.env?.VITE_API_URL || "http://localhost:5000";
+﻿const RAW_BASE = import.meta.env?.VITE_API_URL || "https://ttm-production-d022.up.railway.app/" || "http://localhost:5000";
 
 export const API_BASE = String(RAW_BASE).trim().replace(/\/+$/g, "");
 

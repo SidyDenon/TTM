@@ -63,7 +63,7 @@ function Layout() {
   useEffect(() => {
     if (permission === "granted") {
       sendNotification("🚀 Tow Truck Mali", {
-        body: "Bienvenue, administrateur ! Votre tableau de bord est opérationnel.",
+        body: "Bienvenue, administrateur ! Votre tableau de bord est bien opérationnel.",
         icon: "/vite.svg",
       });
     }

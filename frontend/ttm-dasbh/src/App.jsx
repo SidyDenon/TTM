@@ -3,7 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import usePushNotifications from "./hooks/usePushNotifications";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 
 import Dashboard from "./pages/admin/dashboard/Dashboard";
@@ -16,12 +16,15 @@ import Settings from "./pages/admin/Settings";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
+import { initApiBase } from "./config/urls"; // ton fichier
+
 
 // Toastify
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function PrivateRoute({ children }) {
+  
   const { status, token, user } = useAuth();
   const location = useLocation();
 
@@ -55,6 +58,7 @@ function PrivateRoute({ children }) {
 
 function Layout() {
   const { supported, permission, requestPermission, sendNotification } = usePushNotifications();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (supported && permission === "default") requestPermission();
@@ -64,22 +68,28 @@ function Layout() {
     if (permission === "granted") {
       sendNotification("🚀 Tow Truck Mali", {
         body: "Bienvenue, administrateur ! Votre tableau de bord est bien opérationnel.",
-        icon: "/vite.svg",
+        icon: "/logoApp.png",
       });
     }
   }, [permission, sendNotification]);
 
   return (
     <div
-      className="flex min-h-screen transition-all"
+      className="layout-shell flex min-h-screen transition-all"
       style={{
         background: "var(--bg-main)",
         color: "var(--text-color)",
       }}
     >
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
         <main
           className="flex-1 p-6 overflow-y-auto transition-all"
           style={{
@@ -95,6 +105,9 @@ function Layout() {
 }
 
 export default function App() {
+  useEffect(() => {
+    initApiBase(); // 💥 auto-detect local → prod (1 seule fois)
+  }, []);
   return (
     <AuthProvider>
       <Router>

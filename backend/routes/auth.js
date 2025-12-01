@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 import authMiddleware from "../middleware/auth.js";
+import { getSchemaColumns } from "../utils/schema.js";
 
 export default (db) => {
   const router = express.Router();
@@ -141,6 +142,24 @@ router.post("/login", async (req, res) => {
 
     if (!userMatch) {
       return res.status(400).json({ error: "Mot de passe incorrect" });
+    }
+
+    // 🚫 Blocage opérateur (dispo = 0)
+    if (canonicalRole(userMatch.role) === "operator") {
+      try {
+        const { operatorDispo } = await getSchemaColumns(req.db);
+        if (operatorDispo) {
+          const [[opRow]] = await req.db.query(
+            `SELECT ${operatorDispo} AS dispo FROM operators WHERE user_id = ? LIMIT 1`,
+            [userMatch.id]
+          );
+          if (opRow && Number(opRow.dispo) === 0) {
+            return res.status(403).json({ error: "Compte opérateur bloqué. Contactez un administrateur." });
+          }
+        }
+      } catch (e) {
+        console.warn("⚠️ Vérification blocage opérateur échouée:", e?.message || e);
+      }
     }
 
     const u = userMatch;

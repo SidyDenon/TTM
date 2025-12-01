@@ -7,6 +7,25 @@ import { getCommissionPercent } from "../../utils/commission.js";
 const router = express.Router();
 
 export default (db) => {
+  let hasCommissionColumn = null;
+  const ensureTxCommissionColumn = async () => {
+    if (hasCommissionColumn !== null) return hasCommissionColumn;
+    try {
+      const [[col]] = await db.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'commission_percent'`
+      );
+      if (!col) {
+        await db.query(
+          "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
+        );
+      }
+      hasCommissionColumn = true;
+    } catch {
+      hasCommissionColumn = false;
+    }
+    return hasCommissionColumn;
+  };
   // Injecte la DB
   router.use((req, _res, next) => {
     req.db = db;
@@ -19,7 +38,9 @@ export default (db) => {
   // 🧾 Liste des transactions + totaux (lecture)
   router.get("/", checkPermission("transactions_view"), async (req, res) => {
     try {
+      await ensureTxCommissionColumn();
       const { status } = req.query;
+      const normalizedStatus = String(status || "").toLowerCase().replace(/\s+/g, "_");
       let sql = `
         SELECT 
           t.*, 
@@ -37,9 +58,9 @@ export default (db) => {
       `;
 
       const params = [];
-      if (status && status !== "toutes") {
-        sql += " AND t.status = ?";
-        params.push(status);
+      if (status && normalizedStatus !== "toutes") {
+        sql += " AND (LOWER(REPLACE(t.status,' ','_')) = ?)";
+        params.push(normalizedStatus);
       }
 
       sql += " ORDER BY t.created_at DESC";
@@ -59,7 +80,7 @@ export default (db) => {
           SELECT
             COALESCE(SUM(amount), 0) AS total,
             SUM(CASE WHEN status = 'confirmée' THEN amount ELSE 0 END) AS total_confirme,
-            SUM(CASE WHEN status = 'en_attente' THEN amount ELSE 0 END) AS total_attente
+            SUM(CASE WHEN LOWER(REPLACE(status,' ','_')) = 'en_attente' THEN amount ELSE 0 END) AS total_attente
           FROM transactions
         `);
       } catch (e) {
@@ -95,16 +116,19 @@ export default (db) => {
   // ➕ Ajouter une transaction manuelle (écriture)
   router.post("/", checkPermission("transactions_manage"), async (req, res) => {
     try {
+      await ensureTxCommissionColumn();
       const { operator_id, request_id, amount, currency = "FCFA", status = "en_attente" } = req.body;
 
       if (!operator_id || !request_id || !amount) {
         return res.status(400).json({ error: "Champs requis manquants" });
       }
 
+      const commissionPercent = await getCommissionPercent(req.db);
+
       const [result] = await req.db.query(
-        `INSERT INTO transactions (operator_id, request_id, amount, currency, status, created_at)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [operator_id, request_id, amount, currency, status]
+        `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+        [operator_id, request_id, amount, currency, status, commissionPercent]
       );
 
       const id = result?.insertId;
@@ -130,6 +154,7 @@ export default (db) => {
   // ♻️ Changer le statut (écriture)
   router.patch("/:id/status", checkPermission("transactions_manage"), async (req, res) => {
     try {
+      await ensureTxCommissionColumn();
       const { id } = req.params;
       const { status } = req.body;
 
@@ -161,6 +186,7 @@ export default (db) => {
   router.patch("/:id/confirm", checkPermission("transactions_manage"), async (req, res) => {
     let connection;
     try {
+      await ensureTxCommissionColumn();
       const { id } = req.params;
 
       connection = await req.db.getConnection();
@@ -184,11 +210,26 @@ export default (db) => {
         return res.status(404).json({ error: "Profil opérateur introuvable" });
       }
 
+      // 2bis) Alignement montant avec la mission (estimation finale)
+      let txAmount = Number(tx.amount || 0);
+      if (tx.request_id) {
+        const [[reqRow]] = await connection.query(
+          "SELECT estimated_price FROM requests WHERE id = ? LIMIT 1",
+          [tx.request_id]
+        );
+        if (reqRow && reqRow.estimated_price != null && Number.isFinite(Number(reqRow.estimated_price))) {
+          txAmount = Number(reqRow.estimated_price);
+          if (txAmount !== Number(tx.amount)) {
+            await connection.query("UPDATE transactions SET amount = ? WHERE id = ?", [txAmount, id]);
+          }
+        }
+      }
+
       // 3) Calculs
-      const commissionPercent = await getCommissionPercent(connection);
+      const commissionPercent = tx.commission_percent != null ? Number(tx.commission_percent) : await getCommissionPercent(connection);
       const COMM = commissionPercent / 100;
-      const commission = tx.amount * COMM;
-      const netAmount = tx.amount - commission;
+      const commission = txAmount * COMM;
+      const netAmount = txAmount - commission;
 
       // 4) Maj transaction
       await connection.query(
@@ -209,7 +250,7 @@ export default (db) => {
       io.to("admins").emit("transaction_confirmed", {
         id,
         operator_id: tx.operator_id,
-        amount: tx.amount,
+        amount: txAmount,
         netAmount,
         commission,
         message: `Transaction #${id} confirmée ✅`,
@@ -217,15 +258,15 @@ export default (db) => {
 
       notifyUser(op.user_id, "transaction_update", {
         id,
-        amount: tx.amount,
+        amount: txAmount,
         netAmount,
         commission,
-        message: `Votre paiement de ${tx.amount} FCFA a été validé. Vous recevez ${netAmount} FCFA après 10% de commission.`,
+        message: `Votre paiement de ${txAmount} FCFA a été validé. Vous recevez ${netAmount} FCFA après commission.`,
       });
 
       res.json({
         message: `Transaction #${id} confirmée ✅`,
-        data: { id, operator_id: tx.operator_id, amount: tx.amount, netAmount, commission, status: "confirmée" },
+        data: { id, operator_id: tx.operator_id, amount: txAmount, netAmount, commission, status: "confirmée" },
       });
     } catch (err) {
       console.error("❌ Erreur PATCH /transactions/:id/confirm:", err);

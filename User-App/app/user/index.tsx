@@ -21,6 +21,13 @@ import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import { API_URL } from "../../utils/api";
 
+const FALLBACK_REGION: Region = {
+  latitude: 12.6392,
+  longitude: -8.0029,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
 function HomeContent() {
   const [region, setRegion] = useState<Region | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,12 +129,7 @@ function HomeContent() {
           "Localisation indisponible",
           "Impossible de récupérer ta position actuelle. Nous utilisons la position par défaut (Bamako)."
         );
-        setRegion({
-          latitude: 12.6392,
-          longitude: -8.0029,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        });
+        setRegion(FALLBACK_REGION);
       } finally {
         setLoading(false);
       }
@@ -155,14 +157,8 @@ function HomeContent() {
       setRegion(newRegion);
       mapRef.current.animateToRegion(newRegion, 1000);
     } catch (err) {
-      const fallback = {
-        latitude: 12.6392,
-        longitude: -8.0029,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-      setRegion(fallback);
-      mapRef.current.animateToRegion(fallback, 1000);
+      setRegion(FALLBACK_REGION);
+      mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
       Alert.alert(
         "Localisation indisponible",
         "Impossible de récupérer ta position. Position par défaut (Bamako) utilisée."
@@ -181,8 +177,29 @@ function HomeContent() {
 
   if (!region) {
     return (
-      <View style={styles.loader}>
-        <Text>Impossible de récupérer la localisation</Text>
+      <View style={styles.emptyWrap}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="location-outline" size={36} color="#E53935" />
+        </View>
+        <Text style={styles.emptyTitle}>Localisation indisponible</Text>
+        <Text style={styles.emptySubtitle}>
+          Active la localisation ou réessaie pour afficher les dépanneuses proches.
+        </Text>
+        <View style={styles.emptyActions}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={recenterMap}>
+            <Ionicons name="refresh" size={18} color="#fff" />
+            <Text style={styles.primaryText}>Réessayer</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => {
+              setRegion(FALLBACK_REGION);
+            }}
+          >
+            <Ionicons name="map" size={18} color="#E53935" />
+            <Text style={styles.secondaryText}>Position par défaut</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -241,8 +258,7 @@ function HomeContent() {
           style={styles.helpBtn}
           onPress={() => router.push("/user/request")}
         >
-          <Ionicons name="car-sport" size={22} color="#fff" />
-          <Text style={styles.helpText}> DEMANDER UNE DÉPANNEUSE</Text>
+          <Text style={styles.helpText}>🚨DEMANDER UNE DÉPANNEUSE</Text>
         </TouchableOpacity>
       </View>
 
@@ -344,6 +360,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
   },
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    backgroundColor: "#fff",
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#ffe5e5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#222", marginBottom: 6 },
+  emptySubtitle: { fontSize: 13, color: "#666", textAlign: "center", marginBottom: 16 },
+  emptyActions: { flexDirection: "row", gap: 10 },
+  primaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#E53935",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  primaryText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E53935",
+  },
+  secondaryText: { color: "#E53935", fontWeight: "700", fontSize: 14 },
   header: {
     position: "absolute",
     top: 50,

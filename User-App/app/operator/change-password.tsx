@@ -1,28 +1,44 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { API_URL } from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
-import { useRouter } from "expo-router";
 
-export default function ChangePassword() {
-  const [oldPassword, setOldPassword] = useState("");
+export default function OperatorChangePassword() {
+  const router = useRouter();
+  const { token, refreshUser } = useAuth();
+
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const { token, refreshUser } = useAuth();
-  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleChangePassword = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs");
+    setErrorMsg(null);
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert("Erreur", "Tous les champs sont obligatoires.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 6 caractères.");
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Erreur", "Les mots de passe ne correspondent pas");
+      Alert.alert("Erreur", "Les mots de passe ne correspondent pas.");
       return;
     }
 
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/password`, {
         method: "PUT",
@@ -31,7 +47,7 @@ export default function ChangePassword() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          current: oldPassword,
+          current: currentPassword,
           new: newPassword,
           confirm: confirmPassword,
         }),
@@ -39,89 +55,114 @@ export default function ChangePassword() {
 
       const data = await res.json();
       if (!res.ok) {
-        Alert.alert("Erreur", data.error || "Impossible de changer le mot de passe");
-        return;
+        const message = data.error || "Erreur lors du changement de mot de passe.";
+        throw new Error(message);
       }
 
       await refreshUser();
-      Alert.alert("✅ Succès", "Mot de passe modifié avec succès !", [
+      Alert.alert("✅ Succès", "Mot de passe mis à jour.", [
         { text: "OK", onPress: () => router.replace("/operator") },
       ]);
-      setOldPassword("");
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (err) {
-      console.error("❌ Erreur API:", err);
-      Alert.alert("Erreur", "Impossible de contacter le serveur");
+    } catch (err: any) {
+      console.error("❌ Erreur:", err.message);
+      const message = err.message || "Une erreur est survenue.";
+      setErrorMsg(message);
+      Alert.alert("Erreur", message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>🔑 Changer mon mot de passe</Text>
-
-      <View style={styles.inputGroup}>
-        <MaterialIcons name="lock-outline" size={20} color="#E53935" />
-        <TextInput
-          style={styles.input}
-          placeholder="Ancien mot de passe"
-          placeholderTextColor="#888"
-          secureTextEntry
-          value={oldPassword}
-          onChangeText={setOldPassword}
-        />
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <MaterialIcons name="arrow-back" size={26} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Changer le mot de passe</Text>
+        <View style={{ width: 26 }} />
       </View>
 
-      <View style={styles.inputGroup}>
-        <MaterialIcons name="lock" size={20} color="#E53935" />
+      {/* Formulaire */}
+      <View style={styles.form}>
+        <Text style={styles.label}>Mot de passe actuel</Text>
         <TextInput
           style={styles.input}
-          placeholder="Nouveau mot de passe"
-          placeholderTextColor="#888"
           secureTextEntry
+          placeholder="••••••••"
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+        />
+
+        <Text style={styles.label}>Nouveau mot de passe</Text>
+        <TextInput
+          style={styles.input}
+          secureTextEntry
+          placeholder="••••••••"
           value={newPassword}
           onChangeText={setNewPassword}
         />
-      </View>
 
-      <View style={styles.inputGroup}>
-        <MaterialIcons name="lock" size={20} color="#E53935" />
+        <Text style={styles.label}>Confirmer le nouveau mot de passe</Text>
         <TextInput
           style={styles.input}
-          placeholder="Confirmer le mot de passe"
-          placeholderTextColor="#888"
           secureTextEntry
+          placeholder="••••••••"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
         />
-      </View>
 
-      <TouchableOpacity style={styles.btn} onPress={handleChangePassword}>
-        <Text style={styles.btnText}>✅ Modifier</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+        <TouchableOpacity
+          style={[styles.btn, loading && { opacity: 0.6 }]}
+          onPress={handleChangePassword}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.btnText}>Mettre à jour</Text>
+          )}
+        </TouchableOpacity>
+
+        {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 20 },
-  title: { fontSize: 20, fontWeight: "bold", marginBottom: 20, color: "#E53935" },
-  inputGroup: {
+  container: { flex: 1, backgroundColor: "#fff" },
+  header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 15,
+    backgroundColor: "#fff",
+  },
+  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#E53935" },
+
+  form: { padding: 20 },
+  label: { color: "#555", fontWeight: "600", marginTop: 15, marginBottom: 6 },
+  input: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    marginBottom: 15,
+    padding: 12,
+    backgroundColor: "#fafafa",
   },
-  input: { flex: 1, padding: 12, color: "#000" },
   btn: {
     backgroundColor: "#E53935",
-    padding: 15,
+    marginTop: 30,
     borderRadius: 10,
+    paddingVertical: 14,
     alignItems: "center",
-    marginTop: 10,
   },
   btnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  errorText: { color: "#E53935", marginTop: 12, fontWeight: "600" },
 });

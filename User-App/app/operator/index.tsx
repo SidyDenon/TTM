@@ -9,14 +9,20 @@ import {
   FlatList,
   ActivityIndicator,
   Dimensions,
-  Animated,
-  PanResponder,
   Platform,
+  ToastAndroid,
   Alert,
   LayoutAnimation,
   UIManager,
+  Animated as RNAnimated,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import MapView, { Marker, PROVIDER_GOOGLE, Callout } from "react-native-maps";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
 import { API_URL } from "../../utils/api";
@@ -39,6 +45,9 @@ type Mission = {
   address: string;
   description?: string;
   estimated_price?: number;
+  preview_final_price?: number | null;
+  preview_total_km?: number | null;
+  final_price?: number | null;
   photos?: string[];
   user_name?: string;
   user_phone?: string;
@@ -76,11 +85,17 @@ const normalizeMissionPayload = (mission: any): Mission | null => {
     description: mission.description || "",
     estimated_price:
       mission.estimated_price != null ? cleanNumber(mission.estimated_price) : undefined,
+    preview_final_price:
+      mission.preview_final_price != null ? cleanNumber(mission.preview_final_price) : undefined,
+    preview_total_km:
+      mission.preview_total_km != null ? cleanNumber(mission.preview_total_km) : undefined,
     photos,
     user_name: mission.user_name || mission.client_name || mission.user || "",
     user_phone: mission.user_phone || mission.client_phone || mission.phone || "",
     distance:
-      mission.distance != null
+      mission.preview_total_km != null
+        ? cleanNumber(mission.preview_total_km)
+        : mission.distance != null
         ? cleanNumber(mission.distance)
         : mission.totalKm != null
         ? cleanNumber(mission.totalKm)
@@ -96,8 +111,11 @@ const normalizeMissionPayload = (mission: any): Mission | null => {
 };
 
 const { height } = Dimensions.get("window");
-const SNAP_TOP = 0; // panneau calé en haut par défaut
-const SNAP_BOTTOM = height * 0.90;
+const SHEET_OPEN_HEIGHT = height * 0.47; 
+const SHEET_CLOSED_HEIGHT = height * 0.1; 
+const SNAP_TOP = 0;
+const SNAP_BOTTOM = SHEET_OPEN_HEIGHT - SHEET_CLOSED_HEIGHT; 
+const BOTTOM_SHEET_HEIGHT = SHEET_OPEN_HEIGHT; // 60% écran
 
 export default function OperatorScreen() {
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -106,6 +124,7 @@ export default function OperatorScreen() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeMissionId, setActiveMissionId] = useState<number | null>(null);
   const [checkingActiveMission, setCheckingActiveMission] = useState(true);
+  const [isInternal, setIsInternal] = useState(false);
 
   const router = useRouter();
   const { token, logout, user } = useAuth();
@@ -118,27 +137,51 @@ export default function OperatorScreen() {
 const [menuVisible, setMenuVisible] = useState(false);
 const [supportVisible, setSupportVisible] = useState(false);
 
-  // Animation panneau
-  const translateY = useRef(new Animated.Value(SNAP_TOP)).current;
-  const offsetY = useRef(SNAP_TOP);
+  // Récupérer flag interne pour masquer wallet/mission libres
+  useEffect(() => {
+    const fetchInternalFlag = async () => {
+      try {
+        const res = await fetch(`${API_URL}/operator/wallet`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (res.ok && data?.is_internal !== undefined) {
+          setIsInternal(!!data.is_internal);
+        }
+      } catch {
+        // silencieux
+      }
+    };
+    if (token) fetchInternalFlag();
+  }, [token]);
+
+  // Animation Bottom Sheet (Reanimated)
+  const translateY = useSharedValue(SNAP_TOP); // démarre en haut (max)
   const isScrolling = useRef(false);
+  const missionBounce = useRef(new RNAnimated.Value(1)).current;
+
+  // 🧩 Force le bottom sheet à se placer directement en position BAS (10%)
+useEffect(() => {
+  translateY.value = withTiming(SNAP_BOTTOM, { duration: 0 });
+}, []);
+
 
 // --- états animations ---
-const slideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current; // menu à droite
-const fadeAnim = useRef(new Animated.Value(0)).current; // overlay invisible
+const slideAnim = useRef(new RNAnimated.Value(Dimensions.get("window").width)).current; // menu à droite
+const fadeAnim = useRef(new RNAnimated.Value(0)).current; // overlay invisible
 const { socket, isConnected } = useSocket();
 const lastProfileSyncRef = useRef(0);
 const cancellationNotifiedRef = useRef(false);
 // --- ouvrir menu ---
 const openMenu = () => {
   setMenuVisible(true);
-  Animated.parallel([
-    Animated.timing(slideAnim, {
+  RNAnimated.parallel([
+    RNAnimated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }),
-    Animated.timing(fadeAnim, {
+    RNAnimated.timing(fadeAnim, {
       toValue: 1,
       duration: 300,
       useNativeDriver: true,
@@ -148,13 +191,13 @@ const openMenu = () => {
 
 // --- fermer menu ---
 const closeMenu = () => {
-  Animated.parallel([
-    Animated.timing(slideAnim, {
+  RNAnimated.parallel([
+    RNAnimated.timing(slideAnim, {
       toValue: Dimensions.get("window").width,
       duration: 300,
       useNativeDriver: true,
     }),
-    Animated.timing(fadeAnim, {
+    RNAnimated.timing(fadeAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
@@ -162,6 +205,17 @@ const closeMenu = () => {
   ]).start(() => setMenuVisible(false));
 };
 
+  // Effet bounce plus visible sur les pins (scale 1 → 1.2)
+  useEffect(() => {
+    const loop = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(missionBounce, { toValue: 1.2, duration: 600, useNativeDriver: true }),
+        RNAnimated.timing(missionBounce, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [missionBounce]);
 
   // ✅ Vérifie mission active à chaque focus
   useFocusEffect(
@@ -201,14 +255,25 @@ const closeMenu = () => {
     }, [token, router])
   );
 
-  useEffect(() => {
-    const id = translateY.addListener(({ value }) => {
-      offsetY.current = value;
-    });
-    return () => {
-      translateY.removeListener(id);
-    };
-  }, [translateY]);
+  // util clamp pour rester dans les bornes
+  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+
+  // Sync profil opérateur (déclaré avant usage)
+  const pushProfileLocation = useCallback(
+    async (coords: { lat: number; lng: number }) => {
+      if (!token) return;
+      const now = Date.now();
+      if (now - lastProfileSyncRef.current < 30000) return;
+      lastProfileSyncRef.current = now;
+      try {
+        await syncOperatorLocation(token, coords);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("⚠️ Sync profil opérateur:", msg);
+      }
+    },
+    [token]
+  );
 // 🔗 Connexion socket.io
 useEffect(() => {
   if (isConnected && user) {
@@ -217,11 +282,15 @@ useEffect(() => {
   }
 }, [isConnected, user]);
 
-// 🧠 Écoute des updates en temps réel
+// 
+
+
+  // Gesture pour snap (10% / 60%)
 useEffect(() => {
   if (!socket) return;
 
-  console.log("📡 [Socket] Écoute mission events sur l’écran opérateur");
+  console.log("📡 [Socket] Listening (Operator Screen)");
+
   const removalStatuses = new Set([
     "acceptee",
     "assignee",
@@ -232,144 +301,142 @@ useEffect(() => {
     "annulee_client",
   ]);
 
-  const notify = (
-    title: string,
-    message: string,
-    type: "success" | "info" | "error" = "info",
-    position: "top" | "bottom" = "bottom"
-  ) => {
+  const notify = (title: string, message: string, type = "info") => {
     Toast.show({
       type,
       text1: title,
       text2: message,
       visibilityTime: 3000,
-      position,
-      topOffset: position === "top" ? 55 : undefined,
+      position: "bottom",
     });
   };
 
-    const handleMissionCreated = (mission: any) => {
-      const normalized = normalizeMissionPayload(mission);
-      if (!normalized) return;
-      console.log("📩 mission:created", normalized.id);
-      setMissions((prev) => {
-        if (prev.some((m) => m.id === normalized.id)) return prev;
-        animateList();
-        return [normalized, ...prev];
-      });
-      notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`);
-    };
-
-  const handleMissionUpdated = (mission: any) => {
-    if (!mission?.id) return;
+  // -------------------------------
+  // 🔄 Fonction commune pour ADD/UPDATE
+  // -------------------------------
+  const updateLocalMission = (mission: any) => {
     const normalized = normalizeMissionPayload(mission);
-    const statusKey = String(mission.status || normalized?.status || "").toLowerCase();
-    console.log("📩 mission:updated", mission.id, statusKey);
-    if (removalStatuses.has(statusKey)) {
-      setMissions((prev) => {
-        const next = prev.filter((m) => m.id !== Number(mission.id));
-        if (next !== prev) animateList();
-        return next;
-      });
-      if (!cancellationNotifiedRef.current) {
-        cancellationNotifiedRef.current = true;
-        notify(
-          "Mission annulée",
-          mission.message || `Mission #${mission.id} indisponible`,
-          "error",
-          "top"
-        );
-      }
-      return;
-    }
     if (!normalized) return;
+
     setMissions((prev) => {
-      const idx = prev.findIndex((m) => m.id === normalized.id);
-      if (idx === -1) {
+      const exists = prev.find((m) => m.id === normalized.id);
+
+      if (exists) {
+        // UPDATE
+        return prev.map((m) =>
+          m.id === normalized.id ? { ...m, ...normalized } : m
+        );
+      } else {
+        // ADD
         return [normalized, ...prev];
       }
-      const next = [...prev];
-      next[idx] = { ...next[idx], ...normalized };
-      return next;
     });
   };
 
-  const handleMissionStatusChanged = (payload: { id: number | string; status?: string }) => {
-    const missionId = payload?.id;
-    if (!missionId) return;
-    const statusKey = payload.status ? String(payload.status).toLowerCase() : "";
-    console.log("📩 mission:status_changed", missionId, payload.status);
-    if (removalStatuses.has(statusKey)) {
-      setMissions((prev) => {
-        const next = prev.filter((m) => m.id !== Number(missionId));
-        if (next !== prev) animateList();
-        return next;
-      });
-      if (!cancellationNotifiedRef.current) {
-        cancellationNotifiedRef.current = true;
-        notify("Mission annulée", `Mission #${missionId} indisponible`, "error", "top");
-      }
+  // -------------------------------
+  // 🗑 Fonction commune pour REMOVE
+  // -------------------------------
+  const removeLocalMission = (id: number) => {
+    setMissions((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  // -------------------------------
+  // 📩 HANDLERS UNIFIÉS
+  // -------------------------------
+  const onMissionCreated = (mission: any) => {
+    const normalized = normalizeMissionPayload(mission);
+    if (!normalized) return;
+
+    console.log("📩 mission:created", normalized.id);
+    updateLocalMission(normalized);
+
+    notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`, "info");
+  };
+
+  const onMissionUpdated = (mission: any) => {
+    const normalized = normalizeMissionPayload(mission);
+    if (!normalized) return;
+
+    console.log("📩 mission:updated", normalized.id);
+
+    const status = normalized.status?.toLowerCase() || "";
+
+    if (removalStatuses.has(status)) {
+      console.log("🗑 Suppression via updated");
+      removeLocalMission(normalized.id);
+      notify("Mission retirée", `#${normalized.id} indisponible`, "error");
       return;
     }
-    setMissions((prev) => {
-      const idx = prev.findIndex((m) => m.id === Number(missionId));
-      if (idx === -1) return prev;
-      const next = [...prev];
-      next[idx] = { ...next[idx], status: payload.status || next[idx].status };
-      return next;
-    });
+
+    updateLocalMission(normalized);
   };
 
-  const handleMissionDeleted = (data: any) => {
-    const id = typeof data === "object" ? data?.id : data;
-    if (!id) return;
-    console.log("📩 mission:deleted", id);
-    setMissions((prev) => {
-      const next = prev.filter((m) => m.id !== Number(id));
-      if (next !== prev) animateList();
-      return next;
-    });
-    if (!cancellationNotifiedRef.current) {
-      cancellationNotifiedRef.current = true;
-      notify("Mission supprimée", `Mission #${id} retirée`, "error", "top");
+  const onMissionStatus = (payload: any) => {
+    const id = Number(payload?.id);
+    const status = String(payload?.status || "").toLowerCase();
+
+    console.log("📩 mission:status_changed", id, status);
+
+    if (removalStatuses.has(status)) {
+      removeLocalMission(id);
+      notify("Mission annulée", `Mission #${id} retirée`, "error");
+      return;
     }
+
+    updateLocalMission({ id, status });
   };
 
-  socket.on("mission:created", handleMissionCreated);
-  socket.on("mission:updated", handleMissionUpdated);
-  socket.on("mission:status_changed", handleMissionStatusChanged);
-  socket.on("mission:deleted", handleMissionDeleted);
+  const onMissionDeleted = (data: any) => {
+    const id = Number(data?.id || data);
 
+    console.log("📩 mission:deleted", id);
+    removeLocalMission(id);
+
+    notify("Mission supprimée", `Mission #${id} retirée`, "error");
+  };
+
+  // -------------------------------
+  // 📡 ABONNEMENT
+  // -------------------------------
+  socket.on("mission:created", onMissionCreated);
+  socket.on("mission:updated", onMissionUpdated);
+  socket.on("mission:status_changed", onMissionStatus);
+  socket.on("mission:deleted", onMissionDeleted);
+
+  // -------------------------------
+  // 🧹 CLEAN-UP
+  // -------------------------------
   return () => {
-    socket.off("mission:created", handleMissionCreated);
-    socket.off("mission:updated", handleMissionUpdated);
-    socket.off("mission:status_changed", handleMissionStatusChanged);
-    socket.off("mission:deleted", handleMissionDeleted);
+    socket.off("mission:created", onMissionCreated);
+    socket.off("mission:updated", onMissionUpdated);
+    socket.off("mission:status_changed", onMissionStatus);
+    socket.off("mission:deleted", onMissionDeleted);
   };
 }, [socket]);
 
+// 🎯 Gesture Bottom Sheet (SNAP 10% / 60%)
+const panGesture = React.useMemo(
+  () =>
+    Gesture.Pan()
+      .onUpdate((e) => {
+        if (isScrolling.current) return;
+        translateY.value = Math.min(
+          Math.max(SNAP_TOP + e.translationY, SNAP_TOP),
+          SNAP_BOTTOM
+        );
+      })
+      .onEnd((e) => {
+        const midpoint = (SNAP_BOTTOM - SNAP_TOP) / 2;
+        const dest = e.translationY < midpoint ? SNAP_TOP : SNAP_BOTTOM;
+        translateY.value = withTiming(dest, { duration: 200 });
+      }),
+  []
+);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => {
-        if (isScrolling.current) return false; // ✅ désactive pendant scroll
-        return Math.abs(gesture.dy) > 5;
-      },
-      onPanResponderMove: (_, gesture) => {
-        let newY = offsetY.current + gesture.dy;
-        if (newY < SNAP_TOP) newY = SNAP_TOP;
-        if (newY > SNAP_BOTTOM) newY = SNAP_BOTTOM;
-        translateY.setValue(newY);
-      },
-      onPanResponderRelease: (_, gesture) => {
-        const shouldOpen = gesture.dy < 0;
-        Animated.spring(translateY, {
-          toValue: shouldOpen ? SNAP_TOP : SNAP_BOTTOM,
-          useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
  const recentrerCarte = () => {
   if (!mapRef.current) return;
@@ -430,9 +497,12 @@ useEffect(() => {
           .map((m: any) => normalizeMissionPayload(m))
           .filter(Boolean) as Mission[];
 
-        const filtered = missionsNormalisées.filter(
-          (mission) => mission.status === "publiee" || (mission.operatorId && user?.id === mission.operatorId)
-        );
+        const filtered = missionsNormalisées.filter((mission) => {
+          const isAssignedToMe = mission.operatorId && user?.id === mission.operatorId;
+          const isPublishedFree =
+            mission.status === "publiee" && (!mission.operatorId || mission.operatorId === user?.id);
+          return isPublishedFree || isAssignedToMe;
+        });
 
         animateList();
         setMissions(filtered);
@@ -609,22 +679,6 @@ const filteredMissions = missions.filter((m) => {
   return matchType;
 });
 
-  const pushProfileLocation = useCallback(
-    async (coords: { lat: number; lng: number }) => {
-      if (!token) return;
-      const now = Date.now();
-      if (now - lastProfileSyncRef.current < 30000) return;
-      lastProfileSyncRef.current = now;
-      try {
-        await syncOperatorLocation(token, coords);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn("⚠️ Sync profil opérateur:", msg);
-      }
-    },
-    [token]
-  );
-
   const accepterMission = (id: number) => {
     Alert.alert("Confirmation", "Voulez-vous accepter cette mission ?", [
       { text: "Annuler", style: "cancel" },
@@ -733,6 +787,8 @@ const filteredMissions = missions.filter((m) => {
 {filteredMissions.map((mission) => (
   <Marker
     key={mission.id}
+    anchor={{ x: 0.5, y: 1 }} // callout bien au-dessus du pin
+    calloutAnchor={{ x: 0.5, y: 0 }}
     coordinate={{
       latitude: Number(mission.lat),
       longitude: Number(mission.lng),
@@ -740,17 +796,21 @@ const filteredMissions = missions.filter((m) => {
     title={`Mission #${mission.id}`}
     description={mission.address || "Adresse non précisée"}
   >
-    <View
-      style={{
-        backgroundColor: "#E53935",
-        padding: 6,
-        borderRadius: 20,
-        borderWidth: 2,
-        borderColor: "#fff",
-      }}
-    >
-      <MaterialIcons name="location-on" size={26} color="#fff" />
-    </View>
+    <RNAnimated.View style={[styles.pinIconWrap, { transform: [{ scale: missionBounce }] }]}>
+      <MaterialIcons name="location-on" size={34} color="#E53935" />
+    </RNAnimated.View>
+    <Callout onPress={() => router.push(`/operator/details/${mission.id}`)}>
+      <View style={styles.calloutBox}>
+        <Text style={styles.calloutTitle}>Mission #{mission.id}</Text>
+        <Text style={styles.calloutSub}>{mission.address || "Adresse non précisée"}</Text>
+        <TouchableOpacity
+          style={styles.calloutButton}
+          onPress={() => router.push(`/operator/details/${mission.id}`)}
+        >
+          <Text style={styles.calloutButtonText}>Voir détails</Text>
+        </TouchableOpacity>
+      </View>
+    </Callout>
   </Marker>
 ))}
 
@@ -759,8 +819,10 @@ const filteredMissions = missions.filter((m) => {
 
 
 
-    {/* ✅ Panneau des missions */}
-    <Animated.View style={styles.panel}>
+    {/* ✅ Bottom Sheet missions (Reanimated, 10%/60%) */}
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.panel, sheetStyle]}>
+      <View style={styles.handle} />
       <View style={styles.headerCard}>
         <Text style={styles.headerText}>
           {filteredMissions.length} missions disponibles
@@ -790,76 +852,114 @@ const filteredMissions = missions.filter((m) => {
       </ScrollView>
 
       {/* Liste des missions */}
-      {filteredMissions.length === 0 ? (
-        <View style={styles.noMissionContainer}>
-          <Text style={styles.noMissionText}>⚠️ Aucune mission trouvée</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredMissions}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingBottom: 16 }}
-          showsVerticalScrollIndicator
-          renderItem={({ item }) => (
-            <View style={styles.missionCard}>
-              <View style={styles.photoBadge}>
-                <MaterialIcons name="photo-library" size={16} color="#fff" />
-                <Text style={styles.photoBadgeText}>{item.photos?.length || 0}</Text>
-              </View>
+      <View
+  style={{
+    flexGrow: 0,
+    maxHeight: filteredMissions.length === 1 
+      ? undefined    // ← 1 mission → mode normal
+      : SHEET_OPEN_HEIGHT - 150, // ← plusieurs missions → scroll limité
+  }}
+>
+  {filteredMissions.length === 0 ? (
+    <View style={styles.noMissionContainer}>
+      <Text style={styles.noMissionText}> Aucune mission trouvée</Text>
+    </View>
+  ) : (
+    <FlatList
+      data={filteredMissions}
+      keyExtractor={(item) => item.id.toString()}
+      contentContainerStyle={{ paddingBottom: 30 }}
+      showsVerticalScrollIndicator={false}
+      style={{
+        maxHeight:
+          filteredMissions.length === 1
+            ? undefined // ← UNE MISSION → pas de scroll → card tout en haut
+            : SHEET_OPEN_HEIGHT - 150, // ← plusieurs missions → scroll
+      }}
+      renderItem={({ item }) => (
+        <View style={styles.missionCard}>
+          
+          <View style={styles.photoBadge}>
+            <MaterialIcons name="photo-library" size={16} color="#fff" />
+            <Text style={styles.photoBadgeText}>
+              {item.photos?.length || 0}
+            </Text>
+          </View>
 
-              <View style={styles.missionHeader}>
-                <Text style={styles.missionTitle}>
-                  Mission #{item.id} {item.type || "Inconnu"}
-                </Text>
-              </View>
-              <View style={styles.rowInfo}>
-                <MaterialIcons name="place" size={16} color="#777" />
-                <Text style={styles.missionInfoText} numberOfLines={1}>
-                  {item.address || "Adresse non précisée"}
-                </Text>
-              </View>
+          {/* Titre */}
+          <View style={styles.missionHeader}>
+            <Text style={styles.missionTitle}>
+              Mission #{item.id} {item.type || "Inconnu"}
+            </Text>
+          </View>
 
-              {item.distance != null && Number.isFinite(item.distance) && (
-                <View style={styles.rowInfo}>
-                  <MaterialIcons name="straighten" size={16} color="#777" />
-                  <Text style={styles.missionInfoText}>
-                    {Number(item.distance).toFixed(1)} km
-                  </Text>
-                </View>
-              )}
-              {item.estimated_price !== undefined && (
-                <View style={styles.rowInfo}>
-                  <MaterialIcons name="payments" size={16} color="#777" />
-                  <Text style={styles.missionInfoText}>
-                    {formatCurrency(roundTo50(item.estimated_price))}
-                  </Text>
-                </View>
-              )}
+          {/* Adresse */}
+          <View style={styles.rowInfo}>
+            <MaterialIcons name="place" size={16} color="#777" />
+            <Text style={styles.missionInfoText} numberOfLines={1}>
+              {item.address || "Adresse non précisée"}
+            </Text>
+          </View>
 
-              <View style={styles.btnRow}>
-                <TouchableOpacity
-                  style={styles.acceptBtn}
-                  onPress={() => accepterMission(item.id)}
-                >
-                  <Text style={styles.buttonText}>Accepter</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => router.push(`/operator/details/${item.id}`)}
-                >
-                  <Text style={[styles.buttonText, { color: "#444" }]}>Voir détails</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Distance */}
+          {item.distance != null && (
+            <View style={styles.rowInfo}>
+              <MaterialIcons name="straighten" size={16} color="#777" />
+              <Text style={styles.missionInfoText}>
+                {Number(item.distance).toFixed(1)} km
+              </Text>
             </View>
           )}
-        />
+
+          {/* Prix */}
+          {item.preview_final_price !== undefined ||
+          item.final_price !== undefined ||
+          item.estimated_price !== undefined ? (
+            <View style={styles.rowInfo}>
+              <MaterialIcons name="payments" size={16} color="#777" />
+              <Text style={styles.missionInfoText}>
+                {formatCurrency(
+                  roundTo50(
+                    item.preview_final_price ??
+                      item.final_price ??
+                      item.estimated_price ??
+                      0
+                  )
+                )}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Boutons */}
+          <View style={styles.btnRow}>
+            <TouchableOpacity
+              style={styles.acceptBtn}
+              onPress={() => accepterMission(item.id)}
+            >
+              <Text style={styles.buttonText}>Accepter</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.detailsBtn}
+              onPress={() => router.push(`/operator/details/${item.id}`)}
+            >
+              <Text style={[styles.buttonText, { color: "#444" }]}>
+                Voir détails
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
-    </Animated.View>
+    />
+  )}
+</View>
+
+      </Animated.View>
+    </GestureDetector>
 
     {/* ✅ Menu latéral */}
     {menuVisible && (
-      <Animated.View
+      <RNAnimated.View
         style={[styles.menuOverlay, { opacity: fadeAnim }]} // overlay fade in/out
       >
         <TouchableOpacity
@@ -867,7 +967,7 @@ const filteredMissions = missions.filter((m) => {
           activeOpacity={1}
           onPress={closeMenu}
         >
-          <Animated.View
+          <RNAnimated.View
             style={[
               styles.menuContainer,
               { transform: [{ translateX: slideAnim }] }, // slide du menu
@@ -909,20 +1009,23 @@ const filteredMissions = missions.filter((m) => {
                 <Text style={styles.menuText}>Historique</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-              closeMenu();
-              router.push("/operator/wallet");
-            }}
-          >
-            <MaterialIcons
-              name="account-balance-wallet"
-              size={22}
-              color="#E53935"
-            />
-            <Text style={styles.menuText}>Mes gains</Text>
-          </TouchableOpacity>
+              {/* Masqué pour opérateurs internes */}
+              {!(user as any)?.is_internal && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    closeMenu();
+                    router.push("/operator/wallet");
+                  }}
+                >
+                  <MaterialIcons
+                    name="account-balance-wallet"
+                    size={22}
+                    color="#E53935"
+                  />
+                  <Text style={styles.menuText}>Mes gains</Text>
+                </TouchableOpacity>
+              )}
 
           <TouchableOpacity
             style={styles.menuItem}
@@ -949,9 +1052,9 @@ const filteredMissions = missions.filter((m) => {
                 </Text>
               </TouchableOpacity>
             </ScrollView>
-          </Animated.View>
+          </RNAnimated.View>
         </TouchableOpacity>
-      </Animated.View>
+      </RNAnimated.View>
     )}
       <SupportModal visible={supportVisible} onClose={() => setSupportVisible(false)} />
     </View>
@@ -961,7 +1064,7 @@ const filteredMissions = missions.filter((m) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-  map: { height: 0, width: "100%" },
+  map: { flex: 1 },
 
   // ✅ Top bar
   topBar: {
@@ -988,11 +1091,26 @@ const styles = StyleSheet.create({
   },
 
   panel: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 30,
+  backgroundColor: "#fff",
+  height: SHEET_OPEN_HEIGHT,
+  paddingHorizontal: 12,
+
+  paddingTop: 4,        // ← au lieu de 12
+  paddingBottom: 0,     // ← enlève le padding qui pousse vers le haut
+
+  borderTopLeftRadius: 16,
+  borderTopRightRadius: 16,
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  elevation: 4,
+},
+
   handle: {
     width: 60,
     height: 6,
@@ -1001,20 +1119,19 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 8,
   },
-  headerCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#eee",
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#eee",
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-  },
+ headerCard: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  backgroundColor: "#eee",
+  padding: 12,
+  borderRadius: 10,
+  borderWidth: 1,
+  borderColor: "#eee",
+
+  marginBottom: 4, // ← au lieu de 10
+},
+
   headerText: { fontSize: 13, fontWeight: "600", color: "#E53935" },
   recenterBtn: {
     paddingVertical: 4,
@@ -1067,7 +1184,7 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   acceptBtn: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#E53935",
     paddingVertical: 10,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -1110,6 +1227,33 @@ const styles = StyleSheet.create({
     marginLeft: 3,
     fontWeight: "bold",
   },
+  calloutBox: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: 180,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  pinIconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calloutTitle: { fontWeight: "700", marginBottom: 4 },
+  calloutSub: { color: "#555", fontSize: 12, marginBottom: 8, maxWidth: 180 },
+  calloutButton: {
+    backgroundColor: "#E53935",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  calloutButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
 
  menuOverlay: {
   position: "absolute",

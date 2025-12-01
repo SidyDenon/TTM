@@ -20,6 +20,21 @@ export default (db) => {
   // ---------------------------------------------------------
   async function ensureConfigRow(db) {
     try {
+      // Ajoute support_email si la table existe déjà mais sans la colonne
+      try {
+        const [[col]] = await db.query(
+          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'support_email'`
+        );
+        if (!col) {
+          await db.query(
+            "ALTER TABLE configurations ADD COLUMN support_email VARCHAR(120) NOT NULL DEFAULT 'support@ttm.com'"
+          );
+        }
+      } catch (e) {
+        // ignore si table absente, traité plus bas
+      }
+
       const [[row]] = await db.query(
         "SELECT * FROM configurations LIMIT 1"
       );
@@ -27,8 +42,8 @@ export default (db) => {
       if (!row) {
         await db.query(`
           INSERT INTO configurations 
-          (commission_percent, towing_price_per_km, towing_base_price, currency, support_phone, support_whatsapp, created_at, updated_at)
-          VALUES (10, 500, 0, 'FCFA', '+22373585046', '0022373585046', NOW(), NOW())
+          (commission_percent, towing_price_per_km, towing_base_price, currency, support_phone, support_whatsapp, support_email, created_at, updated_at)
+          VALUES (10, 500, 0, 'FCFA', '+22373585046', '0022373585046', 'support@ttm.com', NOW(), NOW())
         `);
 
         const [[created]] = await db.query(
@@ -51,6 +66,7 @@ export default (db) => {
             currency VARCHAR(10) NOT NULL DEFAULT 'FCFA',
             support_phone VARCHAR(30) NOT NULL DEFAULT '+22373585046',
             support_whatsapp VARCHAR(30) NOT NULL DEFAULT '0022373585046',
+            support_email VARCHAR(120) NOT NULL DEFAULT 'support@ttm.com',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -58,8 +74,8 @@ export default (db) => {
 
         await db.query(`
           INSERT INTO configurations 
-          (commission_percent, towing_price_per_km, towing_base_price, currency, support_phone, support_whatsapp)
-          VALUES (10, 500, 0, 'FCFA', '+22373585046', '0022373585046')
+          (commission_percent, towing_price_per_km, towing_base_price, currency, support_phone, support_whatsapp, support_email)
+          VALUES (10, 500, 0, 'FCFA', '+22373585046', '0022373585046', 'support@ttm.com')
         `);
 
         const [[created]] = await db.query(
@@ -90,6 +106,7 @@ export default (db) => {
         currency: cfg.currency || "FCFA",
         support_phone: cfg.support_phone || "+22373585046",
         support_whatsapp: cfg.support_whatsapp || "0022373585046",
+        support_email: cfg.support_email || "support@ttm.com",
       });
     } catch (err) {
       console.error("❌ Erreur GET /admin/config:", err);
@@ -116,6 +133,7 @@ export default (db) => {
         currency,
         support_phone,
         support_whatsapp,
+        support_email,
       } = req.body;
 
       const rawCommission =
@@ -150,6 +168,11 @@ export default (db) => {
           ? support_whatsapp.trim()
           : cfg.support_whatsapp || "0022373585046";
 
+      const email =
+        typeof support_email === "string" && support_email.trim()
+          ? support_email.trim()
+          : cfg.support_email || "support@ttm.com";
+
       const pct = Number(rawCommission);
       const priceKm = Number(rawPriceKm);
       const basePrice = Number(rawBasePrice);
@@ -170,9 +193,9 @@ export default (db) => {
       // ✅ Update
       await req.db.query(
         `UPDATE configurations 
-         SET commission_percent=?, towing_price_per_km=?, towing_base_price=?, currency=?, support_phone=?, support_whatsapp=?, updated_at=NOW()
+         SET commission_percent=?, towing_price_per_km=?, towing_base_price=?, currency=?, support_phone=?, support_whatsapp=?, support_email=?, updated_at=NOW()
          WHERE id=?`,
-        [pct, priceKm, basePrice, curr, phone, whatsapp, id]
+        [pct, priceKm, basePrice, curr, phone, whatsapp, email, id]
       );
 
       res.json({
@@ -184,6 +207,7 @@ export default (db) => {
         currency: curr,
         support_phone: phone,
         support_whatsapp: whatsapp,
+        support_email: email,
       });
     } catch (err) {
       console.error("❌ Erreur PUT /admin/config:", err);

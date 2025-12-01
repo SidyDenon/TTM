@@ -1,51 +1,46 @@
-// src/utils/socket.js
 import { io } from "socket.io-client";
-import { API_BASE } from "../config/urls";
+import { getApiBase } from "../config/urls";
 
-// ✅ Crée une instance globale et stable du socket
-export const socket = io(API_BASE, {
-  transports: ["websocket"],
-  autoConnect: false, // ❌ pas de connexion auto avant authentification
-  reconnection: true, // ✅ permet la reconnexion automatique
-  reconnectionAttempts: 10, // 🔁 jusqu’à 10 essais
-  reconnectionDelay: 1500, // ⏳ délai entre les tentatives
-});
+// Instance globale initialisée à la demande (prend la valeur courante de l'API après initApiBase)
+let socket = null;
 
-// ✅ Méthode pour se connecter avec un token JWT
+const getSocket = () => {
+  if (socket) return socket;
+  const url = getApiBase(); // host sans /api
+  socket = io(url, {
+    transports: ["websocket"],
+    autoConnect: false,
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1500,
+  });
+
+  // Logs debug
+  socket.on("connect", () => console.log("🟢 Socket connecté :", socket.id));
+  socket.on("disconnect", (reason) => console.log("🔴 Socket déconnecté :", reason));
+  socket.on("reconnect_attempt", (attempt) => console.log(`♻️ Tentative de reconnexion (${attempt})...`));
+  socket.on("connect_error", (err) => console.warn("⚠️ Erreur socket :", err.message));
+
+  return socket;
+};
+
+// Connexion sécurisée avec token
 export const connectSocket = (token) => {
   if (!token) {
     console.warn("⚠️ Aucun token fourni, socket non connecté");
     return;
   }
-
-  // 🔐 Envoie le token au handshake
-  socket.auth = { token };
-
-  if (!socket.connected) {
-    socket.connect();
-  }
+  const s = getSocket();
+  s.auth = { token };
+  if (!s.connected) s.connect();
 };
 
-// ✅ Déconnexion propre
+// Déconnexion
 export const disconnectSocket = () => {
-  if (socket.connected) {
+  if (socket?.connected) {
     socket.disconnect();
   }
 };
 
-// 🧠 Logs pour le débogage
-socket.on("connect", () => {
-  console.log("🟢 Socket connecté :", socket.id);
-});
-
-socket.on("disconnect", (reason) => {
-  console.log("🔴 Socket déconnecté :", reason);
-});
-
-socket.on("reconnect_attempt", (attempt) => {
-  console.log(`♻️ Tentative de reconnexion (${attempt})...`);
-});
-
-socket.on("connect_error", (err) => {
-  console.warn("⚠️ Erreur socket :", err.message);
-});
+// Export facultatif si certains modules ont besoin d'accéder à l'instance
+export { socket };

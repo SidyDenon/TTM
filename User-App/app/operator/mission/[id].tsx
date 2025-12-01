@@ -28,6 +28,18 @@ import polyline from "@mapbox/polyline";
 import { startBackgroundLocation, stopBackgroundLocation } from "../../../utils/backgroundLocation";
 import { syncOperatorLocation } from "../../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../../constants/operator";
+import { SupportModal } from "../../../components/SupportModal";
+
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 type Mission = {
   id: number;
@@ -42,6 +54,8 @@ type Mission = {
   status: string;
   photos?: string[];
   estimated_price?: number; // ✅ ajouté pour TS
+  preview_final_price?: number | null;
+  preview_total_km?: number | null;
   destination?: string | null;
   dest_lat?: number | null;
   dest_lng?: number | null;
@@ -75,7 +89,7 @@ export default function MissionSuivi() {
   const [loading, setLoading] = useState(true);
   const [isViewerVisible, setIsViewerVisible] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [commissionPercent, setCommissionPercent] = useState<number>(10);
+  const [commissionPercent, setCommissionPercent] = useState<number>(12); // default aligné admin
   const [currency, setCurrency] = useState<string>("FCFA");
 
   const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
@@ -84,9 +98,13 @@ export default function MissionSuivi() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [isFallbackRoute, setIsFallbackRoute] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [totalKm, setTotalKm] = useState<number | null>(null);
+  const [operatorOrigin, setOperatorOrigin] = useState<{ lat: number; lng: number } | null>(null);
 
   const [isFullMap, setIsFullMap] = useState(false); // fullscreen state
   const [menuVisible, setMenuVisible] = useState(false);
+  const [followOperator, setFollowOperator] = useState(true);
+  const [supportVisible, setSupportVisible] = useState(false);
   const menuSlideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current;
   const menuFadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -95,8 +113,34 @@ export default function MissionSuivi() {
 
   const rotation = useRef(new Animated.Value(0)).current;
   const previousPos = useRef<OperatorLocation | null>(null);
+  const bearingRef = useRef<number>(0);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
   const initialLocationSynced = useRef(false);
+
+  const isTowingMission =
+    typeof mission?.type === "string" &&
+    mission.type.toLowerCase().includes("remorqu");
+
+  const hasDestinationCoords =
+    typeof mission?.dest_lat === "number" &&
+    !Number.isNaN(mission.dest_lat) &&
+    typeof mission?.dest_lng === "number" &&
+    !Number.isNaN(mission.dest_lng);
+
+  const headingToDestination =
+    isTowingMission &&
+    hasDestinationCoords &&
+    mission?.status === "remorquage";
+
+  const commissionRate = Number.isFinite(commissionPercent) ? commissionPercent : 0;
+  const grossAmount =
+    typeof mission?.estimated_price === "number"
+      ? Math.max(
+          0,
+          Number(mission.estimated_price) /
+            (commissionRate >= 100 ? 1 : 1 - commissionRate / 100)
+        )
+      : null;
 
   // ⚙️ Config publique (commission, currency)
   useEffect(() => {
@@ -114,6 +158,27 @@ export default function MissionSuivi() {
       }
     })();
   }, []);
+
+  // Profil opérateur (origine) pour calcul total km
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/operator/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.data?.lat != null && data?.data?.lng != null) {
+          setOperatorOrigin({
+            lat: Number(data.data.lat),
+            lng: Number(data.data.lng),
+          });
+        }
+      } catch {
+        // silencieux
+      }
+    })();
+  }, [token]);
 
   // 🎯 Background location dédié (service natif)
   useEffect(() => {
@@ -156,7 +221,10 @@ export default function MissionSuivi() {
         });
         return true;
       }
-      return false;
+      if (navigation.canGoBack()) {
+        return false; // laisser la navigation gérer
+      }
+      return false; // laisser Android fermer l'app s'il n'y a rien à revenir
     });
 
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -167,7 +235,9 @@ export default function MissionSuivi() {
           text1: "Mission en cours",
           text2: "Vous devez terminer la mission avant de quitter.",
         });
+        return;
       }
+      // sinon on laisse la navigation gérer
     });
 
     return () => {
@@ -220,6 +290,10 @@ export default function MissionSuivi() {
           status: m.status,
           photos: m.photos || [],
           estimated_price: m.estimated_price != null ? Number(m.estimated_price) : undefined,
+          preview_final_price:
+            m.preview_final_price != null ? Number(m.preview_final_price) : null,
+          preview_total_km:
+            m.preview_total_km != null ? Number(m.preview_total_km) : null,
           destination: m.destination || null,
           dest_lat: m.dest_lat != null ? Number(m.dest_lat) : null,
           dest_lng: m.dest_lng != null ? Number(m.dest_lng) : null,
@@ -254,6 +328,33 @@ export default function MissionSuivi() {
     fetchMission();
     fetchEvents();
   }, [id, token]);
+
+  // Calcul kilométrage total (opérateur -> client -> destination)
+  useEffect(() => {
+    if (!mission || !operatorOrigin) return;
+    if (mission.lat == null || mission.lng == null) return;
+
+    const clientLat = Number(mission.lat);
+    const clientLng = Number(mission.lng);
+    const opLat = operatorOrigin.lat;
+    const opLng = operatorOrigin.lng;
+
+    let total = haversineKm(opLat, opLng, clientLat, clientLng);
+
+    const isTow =
+      typeof mission.type === "string" &&
+      mission.type.toLowerCase().includes("remorqu");
+
+    if (isTow && mission.dest_lat != null && mission.dest_lng != null) {
+      total += haversineKm(
+        clientLat,
+        clientLng,
+        Number(mission.dest_lat),
+        Number(mission.dest_lng)
+      );
+    }
+    setTotalKm(total);
+  }, [mission, operatorOrigin]);
 
   // 🔌 Socket : register + join room mission
   useEffect(() => {
@@ -292,7 +393,14 @@ export default function MissionSuivi() {
 
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Toast.show({ type: "error", text1: "Permission GPS refusée" });
+        Toast.show({
+          type: "error",
+          position: "top",
+          text1: "Localisation refusée",
+          text2: "Active la localisation pour suivre la mission.",
+          visibilityTime: 3000,
+          topOffset: 55,
+        });
         return;
       }
 
@@ -333,6 +441,7 @@ export default function MissionSuivi() {
               duration: 800,
               useNativeDriver: false,
             }).start();
+            bearingRef.current = (angle + 360) % 360;
           }
           previousPos.current = coords;
 
@@ -363,13 +472,18 @@ export default function MissionSuivi() {
 
   // 📍 Calculer route (proxy /api/directions)
   useEffect(() => {
-    const destLat = headingToDestination
+    const destLat = headingToDestination && mission?.dest_lat != null
       ? Number(mission.dest_lat)
-      : Number(mission?.lat);
-    const destLng = headingToDestination
+      : mission?.lat != null
+      ? Number(mission.lat)
+      : NaN;
+    const destLng = headingToDestination && mission?.dest_lng != null
       ? Number(mission.dest_lng)
-      : Number(mission?.lng);
-    if (!operatorLocation || !Number.isFinite(destLat) || !Number.isFinite(destLng)) return;
+      : mission?.lng != null
+      ? Number(mission.lng)
+      : NaN;
+
+    if (!mission || !operatorLocation || !Number.isFinite(destLat) || !Number.isFinite(destLng)) return;
 
     const handler = setTimeout(async () => {
       try {
@@ -410,6 +524,20 @@ export default function MissionSuivi() {
 
     return () => clearTimeout(handler);
   }, [operatorLocation, mission, headingToDestination]);
+
+  // 🎯 Suivi caméra façon navigation (centre sur le véhicule)
+  useEffect(() => {
+    if (!operatorLocation || !mapRef.current) return;
+    if (!followOperator) return;
+
+    const camera = {
+      center: operatorLocation,
+      heading: bearingRef.current || 0,
+      pitch: 45,
+      zoom: 17,
+    } as const;
+    mapRef.current.animateCamera(camera, { duration: 800 });
+  }, [operatorLocation, followOperator]);
 
   // 🕒 Heure d’arrivée estimée
   useEffect(() => {
@@ -469,6 +597,45 @@ export default function MissionSuivi() {
     }
   };
 
+  const acceptAssigned = async () => {
+    try {
+      const res = await fetch(`${API_URL}/operator/requests/${mission?.id}/accepter`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Toast.show({ type: "error", text1: "Erreur", text2: data.error || "Impossible d'accepter" });
+        return;
+      }
+      setMission((prev) => (prev ? { ...prev, status: "acceptee" } : prev));
+      Toast.show({ type: "success", text1: "Mission acceptée" });
+      if (mission?.id) {
+        router.replace(`/operator/mission/${mission.id}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const refuseAssigned = async () => {
+    try {
+      const res = await fetch(`${API_URL}/operator/requests/${mission?.id}/refuser`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Toast.show({ type: "error", text1: "Erreur", text2: data.error || "Impossible de refuser" });
+        return;
+      }
+      Toast.show({ type: "info", text1: "Mission refusée" });
+      router.replace("/operator");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -510,10 +677,6 @@ export default function MissionSuivi() {
     );
   }
 
-  const isTowingMission =
-    typeof mission.type === "string" &&
-    mission.type.toLowerCase().includes("remorqu");
-
   const timelineSteps = isTowingMission
     ? STATUSES
     : STATUSES.filter((step) => step.key !== "remorquage");
@@ -522,17 +685,6 @@ export default function MissionSuivi() {
     0,
     timelineSteps.findIndex((s) => s.key === mission.status)
   );
-
-  const hasDestinationCoords =
-    typeof mission.dest_lat === "number" &&
-    !Number.isNaN(mission.dest_lat) &&
-    typeof mission.dest_lng === "number" &&
-    !Number.isNaN(mission.dest_lng);
-
-  const headingToDestination =
-    isTowingMission &&
-    hasDestinationCoords &&
-    mission.status === "remorquage";
 
   return (
     <>
@@ -553,7 +705,10 @@ export default function MissionSuivi() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 140 }}>
+        <ScrollView
+          style={[styles.container, isFullMap && styles.fullContainer]}
+          contentContainerStyle={{ paddingBottom: isFullMap ? 0 : 140 }}
+        >
           {typeof mission.lat === "number" && typeof mission.lng === "number" && (
             <View style={{ position: "relative" }}>
               <MapView
@@ -581,7 +736,7 @@ export default function MissionSuivi() {
 
                 {/* TowTruck opérateur */}
                 {operatorLocation && (
-                  <Marker coordinate={operatorLocation} title="🚚 Vous">
+                  <Marker coordinate={operatorLocation} title="Moi">
                     <Animated.View
                       style={{
                         position: "absolute",
@@ -632,28 +787,59 @@ export default function MissionSuivi() {
                 )}
               </MapView>
 
-              <View style={styles.card}>
-                {mission.status !== "publiee" && (
-                  <>
-                    <Text style={styles.info}>👤 Client : {mission.user_name}</Text>
-                    <Text style={styles.info}>📞 {mission.user_phone}</Text>
-                  </>
-                )}
-              </View>
+              <TouchableOpacity
+                style={styles.focusBtn}
+                onPress={() => {
+                  if (!operatorLocation || !mapRef.current) return;
+                  setFollowOperator(true);
+                  mapRef.current.animateCamera(
+                    {
+                      center: operatorLocation,
+                      heading: bearingRef.current || 0,
+                      pitch: 45,
+                      zoom: 17,
+                    },
+                    { duration: 600 }
+                  );
+                }}
+              >
+                <MaterialIcons name="my-location" size={22} color="#fff" />
+              </TouchableOpacity>
 
-              {/* 💰 Gain net (après commission) */}
-              {typeof mission.estimated_price === "number" && (
-                <View style={styles.netBox}>
-                  <Text style={styles.netTitle}>
-                    Gain net {mission.status === "terminee" ? "obtenu" : "estimé"}
-                  </Text>
-                  <Text style={styles.netValue}>
-                    {formatCurrency(
-                      Math.max(0, Number(mission.estimated_price) * (1 - commissionPercent / 100))
-                    )}{" "}
-                    {currency}
-                  </Text>
-                  <Text style={styles.netHint}>Commission admin: {commissionPercent}%</Text>
+              {mission.status !== "publiee" && (
+                <View style={styles.fusedCard}>
+                  <View style={styles.fusedRow}>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.fusedLine}>
+                        <MaterialIcons name="person" size={18} color="#1565C0" />
+                        <Text style={styles.fusedName}>{mission.user_name || "Client"}</Text>
+                      </View>
+                      <View style={[styles.fusedLine, { marginTop: 4 }]}>
+                        <MaterialIcons name="phone" size={18} color="#000" />
+                        <Text style={styles.fusedPhone}>{mission.user_phone || "—"}</Text>
+                      </View>
+                    </View>
+
+                    {typeof mission.estimated_price === "number" && (
+                      <View style={styles.fusedRight}>
+                        <Text style={styles.fusedAmount}>
+                          {formatCurrency(
+                            Math.max(
+                              0,
+                              Number(
+                                mission.preview_final_price ??
+                                  mission.estimated_price ??
+                                  0
+                              )
+                            )
+                          )}
+                        </Text>
+                        <Text style={styles.fusedCommission}>
+                          Commission TTM : {commissionPercent}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
 
@@ -667,73 +853,113 @@ export default function MissionSuivi() {
           {/* ⛔ Cache détails si fullscreen */}
           {!isFullMap && (
             <>
-              <Text style={styles.title}>🚨 Mission #{mission.id}</Text>
-              <Text style={styles.subtitle}>{mission.type}</Text>
+              <View style={styles.card}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="assignment" size={18} color="#E53935" />
+                  <Text style={styles.sectionTitle}>Mission #{mission.id}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="build" size={18} color="#E53935" style={styles.rowIcon} />
+                  <Text style={styles.rowText}>
+                    <Text style={styles.rowLabel}>Type :</Text> {mission.type}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <MaterialIcons name="place" size={18} color="#E53935" style={styles.rowIcon} />
+                  <Text style={styles.rowText}>
+                    <Text style={styles.rowLabel}>Adresse :</Text> {mission.adresse}
+                  </Text>
+                </View>
+                {isTowingMission && hasDestinationCoords && (
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="flag" size={18} color="#E53935" style={styles.rowIcon} />
+                    <Text style={styles.rowText}>
+                      <Text style={styles.rowLabel}>Destination :</Text>{" "}
+                      {mission.destination
+                        ? mission.destination
+                        : `${Number(mission.dest_lat).toFixed(4)}, ${Number(mission.dest_lng).toFixed(4)}`}
+                    </Text>
+                  </View>
+                )}
+                {eta && distance && (
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="schedule" size={18} color="#E53935" style={styles.rowIcon} />
+                    <Text style={styles.rowText}>
+                      {Math.round(eta)} min · {distance.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
+                {(typeof mission.preview_total_km === "number" ||
+                  typeof totalKm === "number") && (
+                  <View style={styles.infoRow}>
+                    <MaterialIcons name="alt-route" size={18} color="#E53935" style={styles.rowIcon} />
+                    <Text style={styles.rowText}>
+                      <Text style={styles.rowLabel}>Distance totale :</Text>{" "}
+                      {(mission.preview_total_km ?? totalKm)?.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-              {isTowingMission && hasDestinationCoords && (
-                <Text style={styles.info}>
-                  🎯 Destination :{" "}
-                  {mission.destination
-                    ? mission.destination
-                    : `${Number(mission.dest_lat).toFixed(4)}, ${Number(mission.dest_lng).toFixed(4)}`}
-                </Text>
-              )}
-
-              {eta && distance && (
-                <Text style={styles.info}>
-                  ⏱️ {Math.round(eta)} min · {distance.toFixed(1)} km
-                </Text>
-              )}
-
-              {/* Timeline statut */}
-              <View style={styles.timeline}>
-                {timelineSteps.map((step, index) => {
-                  const isActive = index === statusIndex;
-                  const isDone = index < statusIndex;
-
-                  return (
-                    <View key={step.key} style={styles.timelineItem}>
-                      <View
-                        style={[
-                          styles.line,
-                          (isDone || isActive) && { backgroundColor: "#E53935" },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.circle,
-                          isDone && { backgroundColor: "#E53935", borderColor: "#E53935" },
-                          isActive && {
-                            backgroundColor: "#fff",
-                            borderColor: "#E53935",
-                            borderWidth: 3,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={step.icon as any}
-                          size={14}
-                          color={isActive ? "#E53935" : isDone ? "#fff" : "#bbb"}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.stepText,
-                          isActive && { color: "#E53935", fontWeight: "bold" },
-                          isDone && { color: "#666" },
-                        ]}
-                      >
-                        {step.label}
-                      </Text>
+              {/* Timeline statut (horizontal) */}
+              <View style={[styles.card, { paddingHorizontal: 10 }]}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons name="route" size={18} color="#E53935" />
+                  <Text style={styles.sectionTitle}>Suivi de mission</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.timelineWrapper}>
+                    <View style={styles.timelineHorizontal}>
+                      {timelineSteps.map((step, index) => {
+                        const isActive = index === statusIndex;
+                        const isDone = index < statusIndex;
+                        const isLast = index === timelineSteps.length - 1;
+                        const circleBorder = isDone || isActive ? "#E53935" : "#bbb";
+                        const circleFill = isDone ? "#E53935" : isActive ? "#fff" : "#f6f6f6";
+                        const iconColor = isActive ? "#E53935" : isDone ? "#fff" : "#999";
+                        const labelColor = isActive ? "#E53935" : isDone ? "#666" : "#999";
+                        const lineColor = isDone || isActive ? "#E53935" : "#ddd";
+                        return (
+                          <View key={step.key} style={styles.timelineStep}>
+                            <View style={styles.timelineRow}>
+                              {index > 0 && (
+                                <View
+                                  style={[
+                                    styles.hLine,
+                                    { backgroundColor: index <= statusIndex ? "#E53935" : "#ddd" },
+                                  ]}
+                                />
+                              )}
+                              <View
+                                style={[
+                                  styles.hCircle,
+                                  { borderColor: circleBorder, backgroundColor: circleFill },
+                                ]}
+                              >
+                                <MaterialIcons name={step.icon as any} size={16} color={iconColor} />
+                              </View>
+                              {!isLast && (
+                                <View style={[styles.hLine, { backgroundColor: lineColor }]} />
+                              )}
+                            </View>
+                            <Text style={[styles.hLabel, { color: labelColor }]} numberOfLines={1}>
+                              {step.label}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
-                  );
-                })}
+                  </View>
+                </ScrollView>
               </View>
 
               {/* Photos mission */}
               {mission?.photos && mission.photos.length > 0 && (
                 <View style={styles.card}>
-                  <Text style={styles.info}>📸 Photos fournies :</Text>
+                  <View style={styles.sectionHeader}>
+                    <MaterialIcons name="photo-camera" size={18} color="#E53935" />
+                    <Text style={styles.sectionTitle}>Photos</Text>
+                  </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {mission.photos.slice(0, 3).map((url, index) => {
                       const fullUrl = url.startsWith("http") ? url : `${API_URL}${url}`;
@@ -815,6 +1041,23 @@ export default function MissionSuivi() {
         {/* Boutons actions */}
         {!isFullMap && (
           <View style={styles.stickyBtn}>
+            {mission.status === "publiee" && mission.operator_id === user?.id && (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: "#2EAD55" }]}
+                  onPress={acceptAssigned}
+                >
+                  <Text style={styles.btnText}>Accepter</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: "#9E9E9E" }]}
+                  onPress={refuseAssigned}
+                >
+                  <Text style={styles.btnText}>Refuser</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {mission.status === "acceptee" && (
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: "#E53935" }]}
@@ -822,7 +1065,6 @@ export default function MissionSuivi() {
                   await updateStatus("en_route");
                 }}
               >
-                <MaterialIcons name="directions-car" size={22} color="#fff" />
                 <Text style={styles.btnText}>Démarrer</Text>
               </TouchableOpacity>
             )}
@@ -908,6 +1150,17 @@ export default function MissionSuivi() {
                   style={styles.menuItem}
                   onPress={() => {
                     closeMenu();
+                    setSupportVisible(true);
+                  }}
+                >
+                  <MaterialIcons name="support-agent" size={22} color="#E53935" />
+                  <Text style={styles.menuText}>Service client</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    closeMenu();
                     router.push("/operator/history");
                   }}
                 >
@@ -941,6 +1194,7 @@ export default function MissionSuivi() {
           </TouchableOpacity>
         </Animated.View>
       )}
+      <SupportModal visible={supportVisible} onClose={() => setSupportVisible(false)} />
     </>
   );
 }
@@ -948,13 +1202,15 @@ export default function MissionSuivi() {
 const { height, width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 15 },
+  container: { flex: 1, padding: 15, paddingTop: 75 },
+  fullContainer: { padding: 0, paddingTop: 0 },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   map: {
-    height: 250,
+    height: 320,
     borderRadius: 12,
-    marginBottom: 15,
+    marginBottom: 16,
+    overflow: "hidden",
   },
   mapFull: {
     height: height,
@@ -971,10 +1227,15 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     zIndex: 10,
   },
-
-  title: { fontSize: 20, fontWeight: "bold", color: "#E53935" },
-  subtitle: { fontSize: 14, color: "#555", marginBottom: 5 },
-  info: { fontSize: 14, marginBottom: 15, color: "#333" },
+  focusBtn: {
+    position: "absolute",
+    top: 60,
+    right: 15,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    padding: 10,
+    borderRadius: 30,
+    zIndex: 10,
+  },
 
   card: {
     backgroundColor: "#fff",
@@ -987,37 +1248,69 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  timeline: {
-    marginVertical: 20,
-    marginLeft: 20,
-    borderLeftWidth: 2,
-    borderLeftColor: "#ddd",
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#222", marginLeft: 8 },
+  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  rowIcon: { marginRight: 8 },
+  rowText: { fontSize: 14, color: "#444", flexShrink: 1 },
+  rowLabel: { fontWeight: "700", color: "#222" },
+  timelineWrapper: { position: "relative", paddingVertical: 6 },
+  timelineHorizontal: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 0,
+    gap: 0,
   },
-  timelineItem: {
-    position: "relative",
-    paddingVertical: 15,
-    paddingLeft: 35,
+  timelineStep: {
+    flexDirection: "column",
+    alignItems: "center",
+    flexShrink: 0,
+    minWidth: 70,
   },
-  circle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#ddd",
-    position: "absolute",
-    left: -13,
-    top: 15,
+  timelineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+  hCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#bbb",
     alignItems: "center",
     justifyContent: "center",
   },
-  line: {
-    position: "absolute",
-    left: -2,
-    top: 38,
-    width: 2,
-    height: "100%",
+  hLine: {
+    flex: 1,
+    height: 2,
     backgroundColor: "#ddd",
+    borderRadius: 3,
   },
-  stepText: { fontSize: 14, color: "#555" },
+  hLabel: { fontSize: 12, color: "#777", maxWidth: 70, marginTop: 4, textAlign: "center" },
+
+  fusedCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#eee",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  fusedRow: { flexDirection: "row", alignItems: "flex-start" },
+  fusedLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  fusedName: { fontSize: 15, fontWeight: "700", color: "#222" },
+  fusedPhone: { fontSize: 14, color: "#333", fontWeight: "600", marginTop: 2 },
+  fusedRight: { alignItems: "flex-end" },
+  fusedAmount: { fontSize: 16, fontWeight: "800", color: "#2EAD55", alignSelf: "flex-start" },
+  fusedCommission: { marginTop: 4, fontSize: 12, color: "#777" },
 
   stickyBtn: {
     position: "absolute",
@@ -1037,9 +1330,9 @@ const styles = StyleSheet.create({
   btnText: { color: "#fff", fontWeight: "bold", fontSize: 16, marginLeft: 6 },
 
   netBox: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 12,
+    padding: 14,
     marginTop: 10,
     borderWidth: 1,
     borderColor: "#eee",
@@ -1111,9 +1404,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
+  info: { fontSize: 14, color: "#444", marginBottom: 4 },
   topBar: {
     position: "absolute",
-    top: 50,
+    top: 40,
     left: 20,
     right: 20,
     zIndex: 30,

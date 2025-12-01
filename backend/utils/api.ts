@@ -1,9 +1,32 @@
-import { Platform } from "react-native"
+import { Platform } from "react-native";
 
-export const API_URL =
-  Platform.OS === "android"
-    ? "http://10.0.2.2:5000/api"
-    : "http://192.168.11.174:5000/api";
+// ============================================================
+// 🌍 CONFIG LOCAL
+// ============================================================
+
+// 👉 ton IP locale (valide pour iPhone + Android réel)
+const LOCAL_IP = "192.168.11.174";
+const LOCAL_PORT = 5000;
+
+// Android Emulator → utilise obligatoirement 10.0.2.2
+const ANDROID_LOCAL_URL = `http://10.0.2.2:${LOCAL_PORT}/api`;
+
+// iOS + Android physiquement connectés → ton IP locale
+const LOCAL_URL = `http://${LOCAL_IP}:${LOCAL_PORT}/api`;
+
+// ============================================================
+// 🌐 CONFIG PROD (APK / EAS Build)
+// ============================================================
+const PROD_URL = "https://ttm-production-d022.up.railway.app/api";
+
+// ============================================================
+// 🧠 Sélection automatique de l’URL backend
+// ============================================================
+export const API_URL = __DEV__
+  ? Platform.OS === "android"
+    ? ANDROID_LOCAL_URL // Android emulator
+    : LOCAL_URL // iOS simulator + Android device
+  : PROD_URL; // APK en prod
 
 // Timeout par défaut (10 sec)
 const DEFAULT_TIMEOUT = 10000;
@@ -57,4 +80,9 @@ export async function apiRequest<T>(
     }
     throw err;
   }
+}
+
+// Debug console en DEV
+if (__DEV__) {
+  console.log("📡 API_URL utilisée :", API_URL);
 }

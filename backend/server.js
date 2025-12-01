@@ -29,11 +29,15 @@ import operatorRoutes from "./routes/operator/requests.js";
 import rbacRolesRoutes from "./routes/admin/rbac.roles.js";
 import rbacUsersRoutes from "./routes/admin/rbac.users.js";
 import { loadAdminPermissions } from "./middleware/checkPermission.js";
+import { getSchemaColumns } from "./utils/schema.js";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.get("/api/ping", (req, res) => {
+  res.json({ ok: true });
+});
 
 // ---------------- CORS (Express) sécurisé ----------------
 function normalizeOrigin(u) {
@@ -63,7 +67,7 @@ function getLocalIPv4() {
 const LAN_IP = process.env.LOCAL_IP || getLocalIPv4();
 
 const rawOrigins = (process.env.CORS_ORIGINS ||
-  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000`)
+  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000,http://192.168.11.241:5173,https://ttm-production-d022.up.railway.app`)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -136,8 +140,9 @@ const onlineUsers = {
   operators: new Map(),
   admins: new Map(),
 };
+const operatorMeta = new Map(); // id -> { is_internal: boolean }
 
-function joinRoleRooms(user, socket) {
+function joinRoleRooms(user, socket, meta = {}) {
   if (!user || !socket) return;
   const id = Number(user.id);
   const role = String(user.role || "").toLowerCase();
@@ -148,7 +153,9 @@ function joinRoleRooms(user, socket) {
     rooms.add(`admin:${id}`);
   }
   if (["operator", "operateur", "opérateur"].includes(role)) {
+    const isInternal = !!meta.is_internal;
     rooms.add("operators");
+    rooms.add(isInternal ? "operators_internal" : "operators_external");
     rooms.add(`operator:${id}`);
   }
   if (role === "client") {
@@ -182,16 +189,11 @@ export function emitMissionEvent(event, mission = {}, options = {}) {
 
   const targets = new Set(rooms);
   if (admins) targets.add("admins");
-  if (operators) targets.add("operators");
+  if (operators) targets.add("operators_external");
   if (clients) targets.add("clients");
   if (operatorId) targets.add(`operator:${Number(operatorId)}`);
   if (clientId) targets.add(`client:${Number(clientId)}`);
   if (mission?.id) targets.add(`mission_${mission.id}`);
-
-  console.log(
-    `📡 [WS] ${event}`,
-    { id: mission?.id ?? null, status: mission?.status ?? null, targets: Array.from(targets) }
-  );
 
   for (const room of targets) {
     try {
@@ -202,7 +204,7 @@ export function emitMissionEvent(event, mission = {}, options = {}) {
   }
 }
 
-// ✅ Middleware JWT (tolérant) pour Socket.IO
+// Middleware JWT (tolérant) pour Socket.IO
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   if (!token) {
@@ -211,12 +213,11 @@ io.use((socket, next) => {
   }
   try {
     const user = jwt.verify(token, process.env.JWT_SECRET);
-    // Normalise les rôles (opérateur/administrateur → operator/admin)
     const r = String(user.role || "").toLowerCase();
     if (r === "operateur" || r === "opérateur") user.role = "operator";
     if (r === "administrateur") user.role = "admin";
     socket.user = user;
-    console.log(`🔐 Authentifié: ${user.role} ${user.id}`);
+    console.log(` Authentifié: ${user.role} ${user.id}`);
     next();
   } catch (err) {
     console.log("❌ Token invalide:", err.message);
@@ -224,7 +225,7 @@ io.use((socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("⚡ Nouveau client connecté:", socket.id);
   const user = socket.user;
 
@@ -240,7 +241,7 @@ io.on("connection", (socket) => {
       }
     });
   } else {
-    registerSocket(user, socket);
+    await registerSocket(user, socket);
   }
 
   socket.on("join_request", ({ requestId }) => {
@@ -278,7 +279,6 @@ io.on("connection", (socket) => {
       timestamp: Date.now(),
     };
     io.to(`mission_${requestId}`).emit("operator_position_update", payload);
-    // 🛰️ Diffusion aussi aux admins pour suivi temps réel sur la carte
     io.to("admins").emit("operator_position_update", payload);
   });
 
@@ -299,7 +299,7 @@ io.on("connection", (socket) => {
 });
 
 // ---------------- FONCTIONS WS ----------------
-function registerSocket(user, socket) {
+async function registerSocket(user, socket) {
   const id = Number(user.id);
   const role = String(user.role || "").toLowerCase();
 
@@ -319,9 +319,37 @@ function registerSocket(user, socket) {
     }
   }
 
+  let meta = {};
+  if (role === "operator") {
+    try {
+      const { operatorDispo, operatorInternal } = await getSchemaColumns(db);
+      const fields = [];
+      if (operatorInternal) fields.push(`${operatorInternal} AS is_internal`);
+      if (operatorDispo) fields.push(`${operatorDispo} AS dispo`);
+      const sel = fields.length ? fields.join(", ") : "is_internal";
+      const [[op]] = await db
+        .query(`SELECT ${sel} FROM operators WHERE user_id = ? LIMIT 1`, [id])
+        .catch(() => [[]]);
+
+      const isBlocked = operatorDispo && op && Number(op.dispo) === 0;
+      if (isBlocked) {
+        socket.emit("operator_blocked", { reason: "dispo_zero" });
+        console.log(`🚫 Operator ${id} bloqué (dispo=0), rooms non rejointes`);
+        return;
+      }
+
+      if (op && ((operatorInternal && "is_internal" in op) || "is_internal" in op)) {
+        meta.is_internal = !!op.is_internal;
+      }
+      operatorMeta.set(id, meta);
+    } catch (err) {
+      console.warn("⚠️ Impossible de récupérer is_internal:", err?.message || err);
+    }
+  }
+
   map.set(id, socket.id);
-  joinRoleRooms(user, socket);
-  console.log("🧠 Utilisateurs connectés:", {
+  joinRoleRooms(user, socket, meta);
+  console.log("Utilisateurs connectés:", {
     clients: onlineUsers.clients.size,
     operators: onlineUsers.operators.size,
     admins: onlineUsers.admins.size,
@@ -337,6 +365,7 @@ function cleanupSocket(socketId) {
     for (const [uid, sid] of map.entries()) {
       if (sid === socketId) {
         map.delete(uid);
+        if (roleName === "operators") operatorMeta.delete(Number(uid));
         console.log(`🧹 Nettoyage ${roleName} ${uid}`);
         found = true;
       }
@@ -348,19 +377,24 @@ function cleanupSocket(socketId) {
 }
 
 // ✅ notifyOperators : Socket.IO **uniquement**
-export async function notifyOperators(event, payload) {
+export async function notifyOperators(event, payload, options = {}) {
+  const { targetInternal = null } = options; // null = tous, true = internes, false = externes
   let count = 0;
   for (const [opId, socketId] of onlineUsers.operators.entries()) {
     const socket = io.sockets.sockets.get(socketId);
     if (socket) {
+      const meta = operatorMeta.get(Number(opId)) || {};
+      if (targetInternal === true && !meta.is_internal) continue;
+      if (targetInternal === false && meta.is_internal) continue;
       socket.emit(event, payload);
       count++;
     } else {
       console.log(`⚠️ Socket ${socketId} n'existe plus pour opérateur ${opId}`);
       onlineUsers.operators.delete(opId);
+      operatorMeta.delete(Number(opId));
     }
   }
-  console.log(`📢 Notification Socket.IO "${event}" envoyée à ${count} opérateur(s)`);
+  console.log(`Notification Socket.IO "${event}" envoyée à ${count} opérateur(s)`);
 }
 
 export function notifyUser(userId, event, data) {
@@ -371,7 +405,7 @@ export function notifyUser(userId, event, data) {
     if (socketId) {
       const socket = io.sockets.sockets.get(socketId);
       if (socket) {
-        console.log(`📤 [notifyUser] → user:${uid} event:${event} payload:`, data);
+        console.log(` [notifyUser] → user:${uid} event:${event} payload:`, data);
         socket.emit(event, data);
         return true;
       } else {
@@ -392,7 +426,7 @@ export function notifyUser(userId, event, data) {
 export function notifyRoom(requestId, event, data) {
   const room = `mission_${requestId}`;
   io.to(room).emit(event, data);
-  console.log(`📢 Notification envoyée à la room ${room} : ${event}`);
+  console.log(`Notification envoyée à la room ${room} : ${event}`);
 }
 
 // ---------------- ROUTES API ----------------
@@ -750,17 +784,19 @@ cron.schedule("0 0 * * *", async () => {
 
 // ---------------- STATICS ----------------
 app.use("/uploads", express.static("uploads"));
+app.use("/service-icons", express.static("public/service-icons"));
+// Compat ancien chemin /icons/ → sert le même répertoire
+app.use("/icons", express.static("public/service-icons"));
 
 // ---------------- TEST SOCKET ----------------
 app.post("/api/test/socket", async (req, res) => {
   const { message } = req.body;
   const payload = {
-    message: message || "Test Socket.IO 🔥",
+    message: message || "Test Socket.IO",
     timestamp: new Date().toISOString(),
   };
 
-  console.log("📢 Envoi test socket :", payload);
-  // ⚠️ Ici on ne fait PLUS que du Socket.IO, aucun push Expo
+  console.log("Envoi test socket :", payload);
   notifyOperators("test_notification", payload);
 
   res.json({ success: true, sent: payload });
@@ -772,7 +808,7 @@ app.use((req, res, next) => {
   res.status(404).json({ error: "NOT_FOUND", path: req.originalUrl });
 });
 
-// ---------------- ERREUR GLOBALE (tout à la fin) ----------------
+// ---------------- ERREUR GLOBALE ----------------
 app.use((err, req, res, next) => {
   console.error("❌ Erreur middleware globale:", err);
   res.status(500).json({ error: "Erreur interne serveur" });
@@ -780,12 +816,11 @@ app.use((err, req, res, next) => {
 
 // ---------------- DÉMARRAGE ----------------
 const PORT = process.env.PORT || 5000;
-// ✅ Export du socket et du suivi des utilisateurs
 export { io, onlineUsers };
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   const ip = LAN_IP;
   console.log(
-    `🚀 API + WebSocket opérationnels :\n   - Local :   http://localhost:${PORT}\n   - Réseau :  http://${ip}:${PORT}`
+    `API + WebSocket opérationnels :\n   - Local :   http://localhost:${PORT}\n   - Réseau :  http://${ip}:${PORT}`
   );
 });

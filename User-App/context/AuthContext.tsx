@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../utils/api";
+import { initApiBase } from "../config/urls";
 
 type User = {
   id: number;
@@ -35,6 +36,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const loadSession = async () => {
       try {
+        // s'assure que l'API (local/prod) est initialisée avant toute requête /me
+        await initApiBase();
         const storedToken = await AsyncStorage.getItem("token");
         const storedUser = await AsyncStorage.getItem("user");
 
@@ -42,13 +45,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
 
+          // Sécurité : timeout pour ne pas bloquer le chargement si le backend ne répond pas
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
           const res = await fetch(`${API_URL}/me`, {
             headers: { Authorization: `Bearer ${storedToken}` },
-          });
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timeout));
 
-          if (!res.ok) {
+          if (res.status === 401) {
             await logout();
-          } else {
+          } else if (res.ok) {
             const data = await res.json();
             const u = (data && (data.user || data)) || null;
             if (active) {
@@ -59,11 +66,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 await AsyncStorage.removeItem("user");
               }
             }
+          } else {
+            // Erreur temporaire (503, réseau, etc.) : on garde la session locale
+            console.warn("⚠️ Impossible de rafraîchir la session (statut)", res.status);
           }
         }
       } catch (err) {
         console.error("❌ Erreur loadSession:", err);
-        await logout();
+        // ne pas forcer logout sur erreur réseau : on garde la session locale
       } finally {
         if (active) setLoading(false);
       }
@@ -85,9 +95,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { Authorization: `Bearer ${t}` },
       });
 
-      if (!res.ok) {
+      if (res.status === 401) {
         await logout();
         return null;
+      }
+      if (!res.ok) {
+        // Erreur non auth : on garde la session locale
+        console.warn("⚠️ refreshUser non 200 :", res.status);
+        return user;
       }
 
       const data = await res.json();
@@ -101,8 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return u;
     } catch (err) {
       console.error("❌ Erreur refreshUser:", err);
-      await logout();
-      return null;
+      // on ne force pas le logout sur erreur réseau
+      return user;
     }
   };
 
@@ -114,7 +129,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({ identifier, password }),
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      /* laisse data vide */
+    }
+
+    if (!res.ok) {
+      const msg =
+        data?.error ||
+        data?.message ||
+        (res.status === 401
+          ? "Identifiants incorrects ou utilisateur introuvable."
+          : `Erreur ${res.status}: connexion impossible`);
+      throw new Error(msg);
+    }
+
     if (!data.token || !data.user) {
       throw new Error("Réponse invalide du serveur (login)");
     }

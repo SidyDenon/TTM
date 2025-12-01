@@ -13,12 +13,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { formatCurrency } from "../../utils/format";
 
+const DEFAULT_COMMISSION = 12; // % aligné avec dashboard admin
+
 type Mission = {
   id: number;
   ville: string;
   type: string;
   adresse: string;
   estimated_price?: number;
+  commission_percent?: number | null;
   finished_at?: string;
   status: string;
   destination?: string | null;
@@ -47,6 +50,8 @@ export default function OperatorHistory() {
           type: m.service,
           adresse: m.address,
           estimated_price: m.estimated_price,
+          commission_percent:
+            m.commission_percent != null ? Number(m.commission_percent) : null,
           finished_at: m.finished_at,
           status: m.status,
           destination: m.destination,
@@ -89,18 +94,19 @@ export default function OperatorHistory() {
 
   const renderTicket = ({ item }: { item: Mission }) => {
     const destinationLabel = formatDestination(item);
+    const commission = Number.isFinite(item.commission_percent ?? NaN)
+      ? Number(item.commission_percent)
+      : DEFAULT_COMMISSION;
+    const netPrice =
+      item.estimated_price != null && Number.isFinite(item.estimated_price)
+        ? Math.max(0, Number(item.estimated_price) * (1 - commission / 100))
+        : null;
 
     return (
       <View style={styles.ticketWrapper}>
         <View style={styles.ticket}>
           <View style={styles.ticketHeader}>
             <View style={styles.ticketTitle}>
-              <MaterialIcons
-                name="airport-shuttle"
-                size={18}
-                color="#E53935"
-                style={{ marginRight: 6 }}
-              />
               <Text style={styles.missionTitle}>Mission #{item.id}</Text>
             </View>
             <Text
@@ -126,8 +132,8 @@ export default function OperatorHistory() {
                 {destinationLabel}
               </Text>
             )}
-            {item.estimated_price && (
-              <Text style={styles.infoPrice}>{formatCurrency(item.estimated_price)}</Text>
+            {netPrice != null && (
+              <Text style={styles.infoPrice}>{formatCurrency(netPrice)}</Text>
             )}
           </View>
 

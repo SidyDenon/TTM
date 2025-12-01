@@ -28,6 +28,11 @@ type MissionUpdatePayload = {
   status: string;
   operator_name?: string;
   message?: string;
+  final_price?: number | null;
+  estimated_price?: number | null;
+  currency?: string | null;
+  service?: string | null;
+  total_km?: number | null;
 };
 
 const DEFAULT_REGION: Region = {
@@ -47,12 +52,29 @@ export default function SearchingOperatorsScreen() {
     "pending"
   );
   const [operatorName, setOperatorName] = useState<string | null>(null);
+  const [quote, setQuote] = useState<{ amount: number; currency?: string | null } | null>(null);
+  const [service, setService] = useState<string | null>(null);
+  const [totalKm, setTotalKm] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const cancellationNotifiedRef = useRef(false);
 
   const [region, setRegion] = useState<Region | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const numericId = requestId ? Number(requestId) : null;
+
+  const formatAmount = (amount: number, currency?: string | null) => {
+    if (!Number.isFinite(amount)) return "—";
+    const formatted = new Intl.NumberFormat("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+    return `${formatted} ${currency || "FCFA"}`;
+  };
+
+  const goToTracking = () => {
+    router.replace("/user/SuiviMissionScreen");
+  };
 
   /* ------- MAP / LOCALISATION (juste pour le fond) ------- */
   useEffect(() => {
@@ -123,6 +145,14 @@ export default function SearchingOperatorsScreen() {
 
       if (data.status === "acceptee") {
         const name = data.operator_name ?? "Un dépanneur";
+        const amount =
+          typeof data.final_price === "number"
+            ? data.final_price
+            : typeof data.estimated_price === "number"
+          ? data.estimated_price
+          : null;
+        if (data.service) setService(data.service);
+        if (typeof data.total_km === "number") setTotalKm(data.total_km);
 
         Toast.show({
           type: "success",
@@ -132,24 +162,50 @@ export default function SearchingOperatorsScreen() {
 
         setStatus("accepted");
         setOperatorName(data.operator_name ?? null);
-
-        setTimeout(() => {
-          router.replace("/user/SuiviMissionScreen");
-        }, 1800);
-      } else if (data.status === "annulee_admin" || data.status === "annulee_client") {
-        Alert.alert(
-          "Mission annulée",
-          data.message || "Ta mission a été annulée par l’administrateur.",
-          [{ text: "OK", onPress: () => router.replace("/user") }]
-        );
+        if (amount !== null) {
+          setQuote({ amount, currency: data.currency || "FCFA" });
+        }
+      } else if (data.status === "terminee") {
+        router.replace({
+          pathname: "/user/PaymentScreen",
+          params: { missionId: String(data.id) },
+        });
+        return;
+      } else if (
+        data.status === "annulee_admin" ||
+        data.status === "annulee_client"
+      ) {
+        if (!cancellationNotifiedRef.current) {
+          cancellationNotifiedRef.current = true;
+          Toast.show({
+            type: "error",
+            text1: "Mission annulée",
+            text2: data.message || "Ta mission a été annulée par l’administrateur.",
+            visibilityTime: 3000,
+            position: "top",
+            topOffset: 55,
+            onHide: () => router.replace("/user"),
+          });
+          setStatus("timeout");
+        }
       }
     };
 
     const onMissionDeleted = (payload: { id?: number | string }) => {
       if (Number(payload?.id) !== idNum) return;
-      Alert.alert("Mission supprimée", "Ta mission a été retirée.", [
-        { text: "OK", onPress: () => router.replace("/user") },
-      ]);
+      if (!cancellationNotifiedRef.current) {
+        cancellationNotifiedRef.current = true;
+        Toast.show({
+          type: "error",
+          text1: "Mission supprimée",
+          text2: "Ta mission a été retirée.",
+          visibilityTime: 3000,
+          position: "top",
+          topOffset: 55,
+          onHide: () => router.replace("/user"),
+        });
+        setStatus("timeout");
+      }
     };
 
     socket.on("connect", onConnect);
@@ -322,12 +378,35 @@ export default function SearchingOperatorsScreen() {
 
           {isAccepted && (
             <>
-              <Text style={styles.title}>Un dépanneur arrive 🚚</Text>
+              <Text style={styles.title}>
+                {service && service.toLowerCase().includes("remorqu")
+                  ? "Un remorqueur arrive 🚚"
+                  : "Un dépanneur arrive 🚚"}
+              </Text>
               <Text style={styles.subtitle}>
                 {operatorName
                   ? `${operatorName} a accepté ta mission. Tu vas être redirigé vers le suivi en direct.`
                   : "Un dépanneur a accepté ta mission. Redirection vers le suivi…"}
               </Text>
+              <View style={styles.quoteCard}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={styles.quoteLabel}>Prix final</Text>
+                  {quote?.currency && (
+                    <Text style={styles.quoteCurrency}>{quote.currency}</Text>
+                  )}
+                </View>
+                <Text style={styles.quoteAmount}>
+                  {quote ? formatAmount(quote.amount, quote.currency) : "—"}
+                </Text>
+                <Text style={styles.quoteHint}>
+                  Montant recalculé selon la distance réelle du remorquage.
+                </Text>
+                {typeof totalKm === "number" && (
+                  <Text style={styles.quoteHint}>
+                    Distance totale estimée : {totalKm.toFixed(1)} km
+                  </Text>
+                )}
+              </View>
             </>
           )}
 
@@ -391,6 +470,16 @@ export default function SearchingOperatorsScreen() {
                   </Text>
                 </TouchableOpacity>
               </>
+            )}
+
+            {isAccepted && (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { backgroundColor: "#4CAF50" }]}
+                onPress={goToTracking}
+              >
+                <MaterialIcons name="navigation" size={20} color="#fff" />
+                <Text style={styles.primaryText}>Suivre la mission</Text>
+              </TouchableOpacity>
             )}
 
             {/* Service client */}
@@ -531,6 +620,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#B0B3C0",
     marginBottom: 16,
+  },
+  quoteCard: {
+    backgroundColor: "#181A20",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#24262f",
+    marginBottom: 12,
+  },
+  quoteLabel: {
+    color: "#9fa4b6",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  quoteCurrency: { color: "#9fa4b6", fontSize: 12, fontWeight: "600" },
+  quoteAmount: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    marginTop: 4,
+  },
+  quoteHint: {
+    color: "#8c93a9",
+    fontSize: 12,
+    marginTop: 4,
   },
 
   buttons: {

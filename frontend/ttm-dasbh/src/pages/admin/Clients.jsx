@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { API_BASE } from "../../config/urls";
-import { ClipboardIcon } from "@heroicons/react/24/outline";
+import { ClipboardIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";
 import { PencilSquareIcon, TrashIcon, KeyIcon } from "@heroicons/react/24/solid";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
@@ -16,6 +16,17 @@ export default function Clients() {
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  useEffect(() => {
+    const closeMenus = (e) => {
+      if (!e.target.closest(".client-actions-menu")) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", closeMenus);
+    return () => document.removeEventListener("mousedown", closeMenus);
+  }, []);
 
   // ✅ Permissions
   const canView   = isSuper(user) || can(user, "clients_view");
@@ -298,20 +309,20 @@ export default function Clients() {
           {filtered.map((c) => (
             <tr
               key={c.id}
-              className="hover:opacity-80"
+              className="hover:opacity-90"
               style={{ borderTop: "1px solid var(--border-color)" }}
             >
               <td className="px-3 py-2">#{c.id}</td>
               <td className="px-3 py-2">{c.name}</td>
               <td
                 className="px-3 py-2 font-semibold"
-                style={{ color: "#f97316" }}
+                style={{ color: "var(--text-color)" }}
               >
-                📞 {c.phone}
+                 {c.phone}
               </td>
               <td
                 className="px-3 py-2"
-                style={{ color: c.email ? "#60a5fa" : "var(--muted)" }}
+                style={{ color: c.email ? "var(--text-color)" : "var(--muted)" }}
               >
                 {c.email || "—"}
               </td>
@@ -321,52 +332,71 @@ export default function Clients() {
                   : "—"}
               </td>
 
-              <td className="px-3 py-2">
-                <div className="flex items-center gap-3 justify-center">
-                  {/* Modifier */}
-                  {canUpdate && (
+              <td className="px-3 py-2 text-center">
+                {(canUpdate || canDelete || canReset) && (
+                  <div className="relative client-actions-menu inline-block">
                     <button
-                      onClick={() => {
-                        setEditing(c);
-                        setForm({
-                          name: c.name || "",
-                          phone: c.phone || "",
-                          email: c.email || "",
-                        });
-                        setShowForm(true);
-                      }}
-                      className="p-2 rounded-full text-white shadow-md transition"
-                      style={{ background: "#facc15" }}
-                      title="Modifier"
-                    >
-                      <PencilSquareIcon className="w-5 h-5" />
-                    </button>
-                  )}
-
-                  {/* Supprimer */}
-                  {canDelete && (
-                    <button
-                      onClick={() => deleteClient(c.id)}
-                      className="p-2 rounded-full text-white shadow-md transition"
-                      style={{ background: "#e5372e" }}
-                      title="Supprimer"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
-                  )}
-
-                  {/* Reset */}
-                  {canReset && (
-                    <button
-                      onClick={() => resetPassword(c.id)}
+                      onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
                       className="p-2 rounded-full text-white shadow-md transition"
                       style={{ background: "var(--accent)" }}
-                      title="Réinitialiser"
+                      title="Actions"
                     >
-                      <KeyIcon className="w-5 h-5" />
+                      <EllipsisHorizontalIcon className="w-5 h-5" />
                     </button>
-                  )}
-                </div>
+                    {openMenuId === c.id && (
+                      <div
+                        className="absolute right-0 mt-2 w-44 rounded shadow-lg border client-actions-menu"
+                        style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", zIndex: 10 }}
+                      >
+                        {canUpdate && (
+                          <button
+                            onClick={() => {
+                              setEditing(c);
+                              setForm({
+                                name: c.name || "",
+                                phone: c.phone || "",
+                                email: c.email || "",
+                              });
+                              setShowForm(true);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                            style={{ color: "var(--text-color)" }}
+                          >
+                            <PencilSquareIcon className="w-4 h-4 text-amber-500" />
+                            Modifier
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => {
+                              deleteClient(c.id);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                            style={{ color: "var(--text-color)" }}
+                          >
+                            <TrashIcon className="w-4 h-4 text-red-500" />
+                            Supprimer
+                          </button>
+                        )}
+                        {canReset && (
+                          <button
+                            onClick={() => {
+                              resetPassword(c.id);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                            style={{ color: "var(--text-color)" }}
+                          >
+                            <KeyIcon className="w-4 h-4 text-blue-500" />
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </td>
             </tr>
           ))}

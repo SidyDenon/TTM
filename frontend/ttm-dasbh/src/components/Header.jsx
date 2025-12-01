@@ -1,10 +1,10 @@
-import { BellIcon, UserIcon } from "@heroicons/react/24/outline";
+import { BellIcon, UserIcon, Bars3Icon } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { can, isSuper } from "../utils/rbac";
 
-export default function Header() {
+export default function Header({ onToggleSidebar }) {
   const { user } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
 
@@ -60,14 +60,24 @@ export default function Header() {
   };
 
   return (
-    <header className="topbar flex items-center justify-between px-6 py-3 shadow-md theme-fade">
-      {/* 🧭 Titre */}
-      <h2 className="text-xl font-semibold text-[var(--accent)]">
-        Tableau de bord administrateur
-      </h2>
+    <header className="topbar flex items-center justify-between px-4 lg:px-6 py-3 shadow-md theme-fade sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        {/* ☰ Mobile menu */}
+        <button
+          onClick={() => onToggleSidebar?.()}
+          className="lg:hidden p-2 rounded-md border border-[var(--border-color)] text-[var(--text-color)] hover:bg-[var(--border-color)]/30"
+          aria-label="Ouvrir le menu"
+        >
+          <Bars3Icon className="w-6 h-6" />
+        </button>
+        {/* 🧭 Titre */}
+        <h2 className="text-lg lg:text-xl font-semibold text-[var(--accent)] whitespace-nowrap">
+          Tableau de bord administrateur
+        </h2>
+      </div>
 
       {/* 🔔 Notifications + Thème + Profil */}
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-4 lg:gap-8">
 
         {/* 🔔 Icône Notifications */}
         {canSeeFinance && (

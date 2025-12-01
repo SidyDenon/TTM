@@ -123,8 +123,6 @@ function RootNavigator() {
       if (pathname !== target) {
         router.replace(target);
       }
-    } else if (pathname === target) {
-      router.replace(role === "operator" ? "/operator" : "/user");
     }
   }, [user?.must_change_password, user?.role, token, pathname, router]);
 

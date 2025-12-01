@@ -43,6 +43,7 @@ type Mission = {
   destination?: string | null;
   dest_lat?: number | null;
   dest_lng?: number | null;
+  distance?: number | null;
 };
 
 export default function MissionDetails() {
@@ -70,6 +71,12 @@ export default function MissionDetails() {
 
         const lat = parseFloat(m.lat);
         const lng = parseFloat(m.lng);
+        const distance =
+          m.distance != null
+            ? Number(m.distance)
+            : m.totalKm != null
+            ? Number(m.totalKm)
+            : null;
 
         setMission({
           id: m.id,
@@ -87,6 +94,7 @@ export default function MissionDetails() {
           destination: m.destination || null,
           dest_lat: m.dest_lat != null ? Number(m.dest_lat) : null,
           dest_lng: m.dest_lng != null ? Number(m.dest_lng) : null,
+          distance: Number.isFinite(distance) ? distance : null,
         });
       } catch (err) {
         console.error("❌ Erreur détail mission:", err);
@@ -278,39 +286,47 @@ useEffect(() => {
 
         {/* 📋 Détails mission */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>📋 Détails de la mission</Text>
-          <InfoLine icon="location-city" text={`Ville : ${mission.ville}`} />
-          <InfoLine icon="place" text={`Adresse : ${mission.adresse}`} />
-          <InfoLine icon="build" text={`Type : ${mission.type}`} />
+          <Text style={styles.sectionTitle}>Détails de la mission</Text>
+          <InfoLine icon="location-city" label="Ville" value={mission.ville} />
+          <InfoLine icon="place" label="Adresse" value={mission.adresse} />
+          <InfoLine icon="build" label="Type" value={mission.type} />
           {isRemorquage && (
             <InfoLine
               icon="flag"
-              text={`Destination : ${
+              label="Destination"
+              value={
                 mission.destination
                   ? mission.destination
                   : hasDestinationCoords
                   ? `${Number(mission.dest_lat).toFixed(4)}, ${Number(mission.dest_lng).toFixed(4)}`
                   : "Non définie"
-              }`}
+              }
             />
           )}
           <InfoLine
             icon="attach-money"
-            text={`Prix estimé : ${
-              mission.estimated_price
-                ? formatCurrency(mission.estimated_price)
-                : "Non défini"
-            }`}
+            label="Prix estimé"
+            value={
+              mission.estimated_price ? formatCurrency(mission.estimated_price) : "Non défini"
+            }
           />
           <InfoLine
             icon="description"
-            text={`Description : ${mission.description || "Aucune description"}`}
+            label="Description"
+            value={mission.description || "Aucune description"}
           />
+          {mission.distance != null && (
+            <InfoLine
+              icon="straighten"
+              label="Distance estimée"
+              value={`${Number(mission.distance).toFixed(1)} km`}
+            />
+          )}
         </View>
 
-        {/* 📸 Photos */}
+        {/* Photos */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>📸 Photos</Text>
+          <Text style={styles.sectionTitle}>Photos</Text>
           {mission.photos && mission.photos.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {mission.photos.map((url, index) => (
@@ -330,18 +346,16 @@ useEffect(() => {
         {/* ✅ Boutons */}
         <View style={styles.btnRow}>
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: "#999", flexDirection: "row" }]}
+            style={[styles.actionBtn, styles.btnRefuser]}
             onPress={() => router.back()}
           >
-            <MaterialIcons name="close" size={20} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.btnText}>Refuser</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: "#E53935", flexDirection: "row" }]}
+            style={[styles.actionBtn, styles.btnAccepter]}
             onPress={accepterMission}
           >
-            <MaterialIcons name="check-circle" size={20} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.btnText}>Accepter</Text>
           </TouchableOpacity>
         </View>
@@ -365,16 +379,24 @@ useEffect(() => {
   );
 }
 
-function InfoLine({ icon, text }: { icon: any; text: string }) {
+function InfoLine({
+  icon,
+  label,
+  value,
+}: {
+  icon: any;
+  label: string;
+  value: string | number | null | undefined;
+}) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-      <MaterialIcons
-        name={icon}
-        size={18}
-        color="#E53935"
-        style={{ marginRight: 6 }}
-      />
-      <Text style={{ fontSize: 14, color: "#444" }}>{text}</Text>
+    <View style={styles.infoRow}>
+      <View style={styles.iconBadge}>
+        <MaterialIcons name={icon} size={16} color="#E53935" />
+      </View>
+      <Text style={styles.rowText}>
+        <Text style={styles.rowLabel}>{label} : </Text>
+        {value ?? "—"}
+      </Text>
     </View>
   );
 }
@@ -401,23 +423,50 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 8, color: "#333" },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#222",
+    letterSpacing: 0.2,
+  },
   info: { fontSize: 14, marginBottom: 6, color: "#444" },
   photo: { width: 120, height: 120, borderRadius: 12, marginRight: 10 },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  iconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: "#FDECEC",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  rowText: { fontSize: 14, color: "#444", flexShrink: 1 },
+  rowLabel: { fontWeight: "700", color: "#222" },
   btnRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 18,
     marginBottom: 30,
+    gap: 12,
   },
   actionBtn: {
-    flex: 1,
-    marginHorizontal: 5,
-    padding: 14,
-    borderRadius: 10,
+    minWidth: 150,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
-  btnText: { color: "#fff", fontWeight: "bold" },
+  btnRefuser: { backgroundColor: "#9E9E9E" },
+  btnAccepter: { backgroundColor: "#E53935" },
+  btnText: { color: "#fff", fontWeight: "700", letterSpacing: 0.2 },
   modalWrapper: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",

@@ -1,24 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useAuth } from "../../../context/AuthContext";
-import { can, isSuper } from "../../../utils/rbac";
-import {
-  FaEllipsisV,
-  FaTrashAlt,
-  FaBan,
-  FaUserCheck,
-  FaBullhorn,
-  FaCheckCircle,
-} from "react-icons/fa";
+import React from "react";
 
 export default function DashboardTable({
   requests = [],
   openMissionDetails,
-  onUpdateStatus,
-  onDelete,
-  onPublish,
 }) {
-  const { user } = useAuth();
-
   const norm = (s) => String(s || "").toLowerCase().trim();
 
   const getStatusStyle = (status) => {
@@ -51,6 +36,7 @@ export default function DashboardTable({
   };
 
   const empty = !Array.isArray(requests) || requests.length === 0;
+  const limited = empty ? [] : requests.slice(0, 4); // afficher seulement 4 missions
 
   return (
     <div
@@ -90,25 +76,15 @@ export default function DashboardTable({
               <tr>
                 <th className="px-3 py-2">ID</th>
                 <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2">Opérateur</th>
-                <th className="px-3 py-2">Zone</th>
-                <th className="px-3 py-2">Adresse</th>
                 <th className="px-3 py-2">État</th>
                 <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
 
             <tbody>
-              {requests.map((r, i) => {
+              {limited.map((r, i) => {
                 const id = r?.id ?? i + 1;
                 const client = r?.user_name || r?.client_name || "—";
-                const operator =
-                  r?.operator_name ||
-                  r?.operator?.name ||
-                  "Non assigné";
-                const zone = r?.zone || "—";
-                const address = r?.address || "—";
                 const status = r?.status || "—";
                 const when = r?.created_at;
 
@@ -123,9 +99,6 @@ export default function DashboardTable({
                   >
                     <td className="px-3 py-2 font-medium">#{id}</td>
                     <td className="px-3 py-2">{client}</td>
-                    <td className="px-3 py-2">{operator}</td>
-                    <td className="px-3 py-2">{zone}</td>
-                    <td className="px-3 py-2">{address}</td>
                     <td
                       className="px-3 py-2 font-semibold"
                       style={getStatusStyle(status)}
@@ -135,107 +108,11 @@ export default function DashboardTable({
                     <td className="px-3 py-2 text-[var(--muted)]">
                       {formatWhen(when)}
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      <ActionsMenu
-                        req={r}
-                        onUpdateStatus={onUpdateStatus}
-                        onDelete={onDelete}
-                        onPublish={onPublish}
-                        user={user}
-                      />
-                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ✅ Menu d’actions RBAC + fermeture auto
-function ActionsMenu({ req, onUpdateStatus, onDelete, onPublish, user }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef();
-
-  const canPublish = isSuper(user) || can(user, "requests_publish");
-  const canAssign = isSuper(user) || can(user, "requests_assign");
-  const canCancel = isSuper(user) || can(user, "requests_cancel");
-  const canComplete = isSuper(user) || can(user, "requests_complete");
-  const canDelete = isSuper(user) || can(user, "requests_delete");
-
-  // ✅ ferme le menu si clic à l’extérieur
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
-        className="px-2 py-1 border border-[var(--border-color)] text-xs rounded flex items-center gap-1 hover:opacity-80"
-        style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
-      >
-        <FaEllipsisV /> Actions
-      </button>
-
-      {open && (
-        <div
-          className="absolute right-0 mt-2 w-44 bg-[var(--bg-card)] border border-[var(--border-color)] rounded shadow-lg z-20 overflow-hidden animate-fadeIn"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {req.status === "en_attente" && canPublish && (
-            <button
-              onClick={() => onPublish(req.id)}
-              className="flex items-center gap-2 w-full px-3 py-2 text-blue-400 hover:bg-[var(--bg-main)]"
-            >
-              <FaBullhorn /> Publier
-            </button>
-          )}
-          {["publiee", "publiée"].includes(req.status?.toLowerCase()) &&
-            canAssign && (
-              <button
-                onClick={() => onUpdateStatus(req.id, "assignee")}
-                className="flex items-center gap-2 w-full px-3 py-2 text-yellow-400 hover:bg-[var(--bg-main)]"
-              >
-                <FaUserCheck /> Assigner
-              </button>
-            )}
-          {req.status === "assignee" && canComplete && (
-            <button
-              onClick={() => onUpdateStatus(req.id, "terminee")}
-              className="flex items-center gap-2 w-full px-3 py-2 text-green-400 hover:bg-[var(--bg-main)]"
-            >
-              <FaCheckCircle /> Terminer
-            </button>
-          )}
-          {canCancel && (
-            <button
-              onClick={() => onUpdateStatus(req.id, "annulee_admin")}
-              className="flex items-center gap-2 w-full px-3 py-2 text-red-400 hover:bg-[var(--bg-main)]"
-            >
-              <FaBan /> Annuler
-            </button>
-          )}
-          {canDelete && (
-            <button
-              onClick={() => onDelete(req.id)}
-              className="flex items-center gap-2 w-full px-3 py-2 text-gray-300 hover:bg-[var(--bg-main)]"
-            >
-              <FaTrashAlt /> Supprimer
-            </button>
-          )}
         </div>
       )}
     </div>

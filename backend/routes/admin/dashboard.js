@@ -293,10 +293,15 @@ export default (db, io, emitMissionEvent) => {
     try {
       const [[missions]] = await req.db.query("SELECT COUNT(*) AS total FROM requests");
       const [[missionsEnCours]] = await req.db.query(
-        "SELECT COUNT(*) AS total FROM requests WHERE status IN ('assignee','acceptee','en_route','sur_place')"
+        `SELECT COUNT(*) AS total
+         FROM requests
+         WHERE LOWER(REPLACE(status,' ','_')) IN ('assignee','acceptee','en_route','sur_place','remorquage')`
       );
       const [[missionsTerminees]] = await req.db.query(
-        "SELECT COUNT(*) AS total FROM requests WHERE status = 'terminee'"
+        `SELECT COUNT(*) AS total
+         FROM requests
+         WHERE LOWER(REPLACE(status,' ','_')) IN ('terminee', 'terminee', 'termine', 'termine')
+            OR finished_at IS NOT NULL`
       );
       const [[clients]] = await req.db.query(
         "SELECT COUNT(*) AS total FROM users WHERE role = 'client'"

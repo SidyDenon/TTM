@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import useRequireAuth from "../../../hooks/useRequireAuth";
 import { useNavigate } from "react-router-dom";
 import { ADMIN_API } from "../../../config/urls";
 import { socket } from "../../../utils/socket";
 import { can, canAny } from "../../../utils/rbac";
+import { toast } from "react-toastify";
 
 import DashboardStats from "./DashboardStats";
 import DashboardMap from "./DashboardMap";
@@ -50,6 +51,7 @@ export default function Dashboard() {
   const [errors, setErrors] = useState({ requests: null, stats: null }); // 👈 pour afficher les 403/erreurs
   const [operatorPositions, setOperatorPositions] = useState({}); // { [requestId]: { lat, lng, operatorId, timestamp } }
   const [monthFilter, setMonthFilter] = useState("all"); // "all" or "YYYY-MM"
+  const lastToastRef = useRef(null);
 
   const showSystemNotification = useMemo(
     () => (title, body) => {
@@ -62,14 +64,9 @@ export default function Dashboard() {
   );
 
   const ONGOING_STATUSES = useMemo(
-    () => new Set(["assignee", "acceptee", "en_route", "sur_place"]),
+    () => new Set(["assignee", "acceptee", "en_route", "sur_place", "remorquage"]),
     []
   );
-  const FINISHED_STATUSES = useMemo(
-    () => new Set(["terminee", "annulee", "annulee_client", "annulee_admin"]),
-    []
-  );
-
   const computeStatsFromRequests = useCallback(
     (list, prev = {}) => {
       const lower = (s) => String(s || "").toLowerCase();
@@ -77,16 +74,20 @@ export default function Dashboard() {
       const ongoingLoaded = list.filter((r) => ONGOING_STATUSES.has(lower(r.status))).length;
       const doneLoaded = list.filter((r) => lower(r.status) === "terminee").length;
       const totalBaseline = Number(prev.totalMissions ?? 0);
+      const ongoingBaseline = Number(prev.ongoing ?? 0);
+      const doneBaseline = Number(prev.done ?? 0);
       const total = Math.max(totalLoaded, totalBaseline);
+      const ongoing = Math.max(ongoingLoaded, ongoingBaseline);
+      const done = Math.max(doneLoaded, doneBaseline);
       const satisfaction =
-        total > 0 ? Math.round(((doneLoaded > 0 ? doneLoaded : prev.done || 0) / total) * 100) : 0;
+        total > 0 ? Math.round(((done > 0 ? done : 0) / total) * 100) : 0;
 
       return {
         avgTime: prev.avgTime ?? 0,
         satisfaction,
         totalMissions: total,
-        ongoing: ongoingLoaded,
-        done: doneLoaded,
+        ongoing,
+        done,
         totalClients: prev.totalClients ?? 0,
         totalOperators: prev.totalOperators ?? 0,
       };
@@ -148,7 +149,7 @@ const fetchData = async (signal) => {
   if (!token) return;
 
   try {
-    const reqUrl = ADMIN_API.requests();
+    const reqUrl = ADMIN_API.requests("?limit=100");
     const statsUrl = ADMIN_API.dashboard();
 
     let reqRes = await fetch(reqUrl, {
@@ -222,6 +223,23 @@ const fetchData = async (signal) => {
   } catch (err) {
     if (err?.name === "AbortError") return;
     console.error("Erreur dashboard:", err);
+    const msg =
+      err?.message?.toLowerCase?.().includes("session")
+        ? "Session expirée, veuillez vous reconnecter."
+        : "Erreur réseau inattendue. Vérifiez votre connexion puis réessayez.";
+    // évite de spammer si la même erreur se répète
+    if (lastToastRef.current !== msg) {
+      lastToastRef.current = msg;
+      toast.error(msg, { autoClose: 3500 });
+    }
+    if (err?.message?.toLowerCase?.().includes("session")) {
+      navigate("/login");
+    }
+    setErrors((prev) => ({
+      ...prev,
+      requests: prev.requests || msg,
+      stats: prev.stats || msg,
+    }));
   }
 };
 
@@ -247,23 +265,14 @@ const fetchData = async (signal) => {
       if (!mission?.id) return;
       const status = String(mission.status || "").toLowerCase();
       console.debug("[WS][admin] mission:updated", mission.id, status);
-      if (FINISHED_STATUSES.has(status)) {
-        removeMission(mission.id);
-        return;
-      }
       showSystemNotification("🔄 Mission mise à jour", `Statut : ${mission.status}`);
       upsertMission(mission);
     };
 
     const handleMissionStatusChanged = (payload) => {
-      const { id, status } = payload || {};
+      const { id } = payload || {};
       if (!id) return;
-      const normalizedStatus = status ? String(status).toLowerCase() : null;
-      console.debug("[WS][admin] mission:status_changed", id, status);
-      if (normalizedStatus && FINISHED_STATUSES.has(normalizedStatus)) {
-        removeMission(id);
-        return;
-      }
+      console.debug("[WS][admin] mission:status_changed", id, payload?.status);
       updateRequestsState((prev) => {
         const idx = prev.findIndex((r) => Number(r.id) === Number(id));
         if (idx === -1) return prev;
@@ -316,7 +325,6 @@ const fetchData = async (signal) => {
     upsertMission,
     removeMission,
     updateRequestsState,
-    FINISHED_STATUSES,
   ]);
 
   useEffect(() => {
@@ -379,20 +387,20 @@ const fetchData = async (signal) => {
             <select
               className="px-2 py-1 rounded border"
               style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)" }}
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-            >
-              <option value="all">Tous</option>
-              {Array.from({ length: 12 }).map((_, i) => {
-                const d = new Date();
-                d.setMonth(d.getMonth() - i);
-                const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                return (
-                  <option key={ym} value={ym}>{ym}</option>
-                );
-              })}
-            </select>
-          </div>
+          value={monthFilter}
+          onChange={(e) => setMonthFilter(e.target.value)}
+        >
+          <option value="all">Tous</option>
+          {Array.from({ length: 12 }).map((_, i) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return (
+              <option key={`${ym}-${i}`} value={ym}>{ym}</option>
+            );
+          })}
+        </select>
+      </div>
           <DashboardTable
             requests={requests.filter((r) => {
               if (monthFilter === 'all') return true;

@@ -35,6 +35,10 @@ export type Mission = {
   address?: string | null;
   lat: number;
   lng: number;
+  estimated_price?: number | null;
+  final_price?: number | null;
+  currency?: string | null;
+  total_km?: number | null;
   status?: MissionStatus | null;
   operatorName?: string | null;
   operator_phone?: string | null;
@@ -112,11 +116,22 @@ const bearingBetween = (lat1: number, lon1: number, lat2: number, lon2: number) 
 };
 
 const notificationsReady = notificationsAvailable;
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 export function useSuiviMissionLogic() {
   const { token } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
+  const navigatingToPayment = useRef(false);
 
   const [mission, setMission] = useState<Mission | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,6 +198,18 @@ export function useSuiviMissionLogic() {
             address: m.address ?? null,
             lat: Number(m.lat),
             lng: Number(m.lng),
+            estimated_price: m.estimated_price != null ? Number(m.estimated_price) : null,
+            final_price: m.final_price != null ? Number(m.final_price) : null,
+            currency: m.currency ?? null,
+            total_km:
+              m.total_km != null
+                ? Number(m.total_km)
+                : m.dest_lat != null &&
+                  m.dest_lng != null &&
+                  m.lat != null &&
+                  m.lng != null
+                ? haversineKm(Number(m.lat), Number(m.lng), Number(m.dest_lat), Number(m.dest_lng))
+                : null,
             status: (m.status as MissionStatus) ?? null,
             operatorName: m.operator_name ?? null,
             operator_phone: m.operator_phone ?? null,
@@ -353,6 +380,10 @@ export function useSuiviMissionLogic() {
       operator_name?: string | null;
       operator_phone?: string | null;
       message?: string | null;
+      final_price?: number | null;
+      estimated_price?: number | null;
+      currency?: string | null;
+      total_km?: number | null;
     }) => {
       if (!mission?.id || Number(data.id) !== Number(mission.id)) return;
 
@@ -363,6 +394,31 @@ export function useSuiviMissionLogic() {
               status: data.status || prev.status,
               operatorName: data.operator_name ?? prev.operatorName,
               operator_phone: data.operator_phone ?? prev.operator_phone,
+              final_price:
+                data.final_price != null
+                  ? Number(data.final_price)
+                  : prev.final_price ?? null,
+              estimated_price:
+                data.estimated_price != null
+                  ? Number(data.estimated_price)
+                  : prev.estimated_price ?? null,
+              currency: data.currency ?? prev.currency ?? null,
+              total_km:
+                data.total_km != null
+                  ? Number(data.total_km)
+                  : prev.total_km != null
+                  ? prev.total_km
+                  : prev?.lat != null &&
+                    prev?.lng != null &&
+                    prev?.dest_lat != null &&
+                    prev?.dest_lng != null
+                  ? haversineKm(
+                      Number(prev.lat),
+                      Number(prev.lng),
+                      Number(prev.dest_lat),
+                      Number(prev.dest_lng)
+                    )
+                  : null,
             }
           : prev
       );
@@ -411,13 +467,16 @@ export function useSuiviMissionLogic() {
 
       if (data.status === "terminee") {
         const missionId = mission?.id || data.id;
-        setTimeout(() => {
-          if (missionId) {
-            router.replace({ pathname: "/user/PaymentScreen", params: { missionId: String(missionId) } });
-          } else {
-            router.replace("/user");
-          }
-        }, 2000);
+        if (!navigatingToPayment.current) {
+          navigatingToPayment.current = true;
+          setTimeout(() => {
+            if (missionId) {
+              router.replace({ pathname: "/user/PaymentScreen", params: { missionId: String(missionId) } });
+            } else {
+              router.replace("/user");
+            }
+          }, 500);
+        }
       } else if (data.status === "annulee_admin" || data.status === "annulee_client") {
         setTimeout(() => {
           router.replace("/user");

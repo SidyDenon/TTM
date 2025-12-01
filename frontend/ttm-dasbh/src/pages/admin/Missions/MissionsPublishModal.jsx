@@ -1,5 +1,5 @@
 export default function MissionsPublishModal({
-  id,
+  mission,
   price,
   setPrice,
   distance,
@@ -7,11 +7,16 @@ export default function MissionsPublishModal({
   onClose,
   onConfirm,
 }) {
+  const isTowing =
+    typeof mission?.service === "string" &&
+    mission.service.toLowerCase().includes("remorqu");
+  const maxDistance = isTowing ? 100 : undefined;
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-xl shadow-xl w-96 font-roboto">
         <h2 className="text-lg font-bold mb-4 font-poppins text-[var(--accent)]">
-          Publier la mission #{id}
+          Publier la mission #{mission.id}
         </h2>
 
         <input
@@ -24,12 +29,18 @@ export default function MissionsPublishModal({
         />
         <input
           type="number"
-          placeholder="Distance (km)"
+          placeholder={`Distance (km)${isTowing ? " • max 100 km" : ""}`}
           className="w-full mb-3 p-2 rounded bg-[var(--bg-main)] text-[var(--text-color)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
           value={distance}
           onChange={(e) => setDistance(e.target.value)}
           min="1"
+          max={maxDistance}
         />
+        {isTowing && (
+          <p className="text-xs text-[var(--muted)] mb-3">
+            Mission de remorquage : distance limitée à 100 km.
+          </p>
+        )}
 
         <div className="flex justify-end gap-2">
           <button
@@ -41,7 +52,7 @@ export default function MissionsPublishModal({
           <button
             disabled={!price || !distance || price <= 0 || distance <= 0}
             onClick={async () => {
-              await onConfirm(id, price, distance);
+              await onConfirm(mission, price, distance);
               onClose();
               setPrice("");
               setDistance("");

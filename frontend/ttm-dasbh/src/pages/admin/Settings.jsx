@@ -1,7 +1,8 @@
 // src/pages/admin/Settings.jsx
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent } from "react-icons/fa";
+import * as FaIcons from "react-icons/fa";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
@@ -42,9 +43,27 @@ export default function Settings() {
   const [loadingServices, setLoadingServices] = useState(true);
   const [inlineSaving, setInlineSaving] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", price: "" });
-  const [addIcon, setAddIcon] = useState(null);
+  const [addForm, setAddForm] = useState({ name: "", price: "", icon: "" });
   const [servicesOpen, setServicesOpen] = useState(true);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState("");
+  const iconList = useMemo(() => {
+    const list = [];
+    Object.entries(FaIcons).forEach(([key, Comp]) => {
+      if (typeof Comp !== "function" || !key.startsWith("Fa")) return;
+      const kebab = key
+        .replace(/^Fa/, "")
+        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+        .toLowerCase();
+      list.push({
+        key,
+        name: kebab,
+        label: kebab.replace(/-/g, " "),
+        Comp,
+      });
+    });
+    return list;
+  }, []);
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -53,6 +72,7 @@ export default function Settings() {
   const [currency, setCurrency] = useState("FCFA");               // devise
   const [supportPhone, setSupportPhone] = useState("");
   const [supportWhatsApp, setSupportWhatsApp] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
   const [businessOpen, setBusinessOpen] = useState(true);
   const [supportOpen, setSupportOpen] = useState(true);
 
@@ -69,7 +89,14 @@ export default function Settings() {
     currency: currValue,
     support_phone: supportPhone.trim(),
     support_whatsapp: supportWhatsApp.trim(),
+    support_email: supportEmail.trim(),
   });
+
+  const renderIcon = (iconName, size = 24) => {
+    const found = iconList.find((i) => i.name === iconName);
+    const Comp = found?.Comp || FaWrench;
+    return <Comp style={{ fontSize: size }} />;
+  };
 
   // ─────────── Fetchers
   const loadServices = async () => {
@@ -106,6 +133,7 @@ export default function Settings() {
       setCurrency(data.currency || "FCFA");
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
+      setSupportEmail(data.support_email || "");
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -266,21 +294,24 @@ export default function Settings() {
     if (isNaN(price) || price < 0) return toast.error("Prix invalide");
     try {
       setAdding(true);
-      const fd = new FormData();
-      fd.append("name", addForm.name);
-      fd.append("price", String(price));
-      if (addIcon) fd.append("icon", addIcon);
-
+      const payload = {
+        name: addForm.name,
+        price: String(price),
+        icon_name: addForm.icon || "",
+      };
       const res = await fetch(`${API_BASE}/api/admin/services`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
       toast.success("Service ajouté ✅");
-      setAddForm({ name: "", price: "" });
-      setAddIcon(null);
+      setAddForm({ name: "", price: "", icon: "" });
+      setIconPickerOpen(false);
       setServices((prev) => [data.data, ...prev]);
     } catch (e) {
       toast.error(e.message);
@@ -368,6 +399,7 @@ export default function Settings() {
       toast.success("Coordonnées service client mises à jour ✅");
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
+      setSupportEmail(data.support_email || "");
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -634,9 +666,11 @@ export default function Settings() {
                   services.map((s) => (
                     <tr key={s.id} style={{ borderColor: "var(--border-color)" }}>
                       <td className="px-3 py-2">
-                        {s.icon_url ? (
+                        {s.icon ? (
+                          renderIcon(s.icon, 22)
+                        ) : s.icon_url ? (
                           <img
-                            src={s.icon_url}
+                            src={`${API_BASE.replace(/\/api$/, "")}${s.icon_url}`}
                             alt=""
                             className="w-7 h-7 object-contain"
                           />
@@ -712,7 +746,7 @@ export default function Settings() {
             {canManageServices && (
               <div className="mt-6 p-4 rounded" style={{ background: "var(--bg-card)" }}>
                 <h3 className="font-semibold mb-3">➕ Ajouter un service</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                   <div>
                     <label className="block text-sm opacity-70 mb-1">Nom</label>
                     <input
@@ -748,16 +782,96 @@ export default function Settings() {
                       placeholder="Ex: 150"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm opacity-70 mb-1">
-                      Icône (png/jpg/svg)
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*,.svg"
-                      onChange={(e) => setAddIcon(e.target.files?.[0] || null)}
-                      className="w-full text-sm"
-                    />
+                  <div className="col-span-2">
+                    <label className="block text-sm opacity-70 mb-1">Icône</label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={addForm.icon}
+                          onChange={(e) => {
+                            setAddForm({ ...addForm, icon: e.target.value });
+                            setIconSearch(e.target.value);
+                          }}
+                          onFocus={() => setIconPickerOpen(true)}
+                          className="flex-1 p-2 rounded border"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                          placeholder="Tape le nom de l´icône ici …"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIconPickerOpen((s) => !s)}
+                          className="px-3 py-2 rounded border text-sm"
+                          style={{ borderColor: "var(--border-color)" }}
+                        >
+                          Suggestions
+                        </button>
+                      </div>
+                      {iconPickerOpen && (
+                        <div
+                          className="p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
+                          style={{
+                            background: "var(--bg-card)",
+                            borderColor: "var(--border-color)",
+                          }}
+                        >
+                          {iconList
+                            .filter((ico) => {
+                              const q = (iconSearch || addForm.icon || "").toLowerCase();
+                              if (!q) return true;
+                              return (
+                                ico.label.toLowerCase().includes(q) ||
+                                ico.name.toLowerCase().includes(q) ||
+                                (q.includes("remor") && ico.name.includes("truck")) ||
+                                (q.includes("porte") && ico.name.includes("door")) ||
+                                (q.includes("carbur") && ico.name.includes("gas-pump")) ||
+                                (q.includes("batter") && ico.name.includes("battery")) ||
+                                (q.includes("diag") && ico.name.includes("stethoscope"))
+                              );
+                            })
+                            .slice(0, 80)
+                            .map((ico) => (
+                            <button
+                              key={ico.name}
+                              type="button"
+                              onClick={() => {
+                                setAddForm((f) => ({ ...f, icon: ico.name }));
+                                setIconSearch(ico.label);
+                                setIconPickerOpen(false);
+                              }}
+                              className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                              style={{
+                                background: "var(--bg-card)",
+                                color: "var(--text-color)",
+                                borderColor: "var(--border-color)",
+                              }}
+                            >
+                              <ico.Comp style={{ fontSize: 18 }} />
+                              <div>
+                                <div className="text-sm font-medium capitalize">{ico.label}</div>
+                                <div className="text-xs opacity-70">{ico.name}</div>
+                              </div>
+                            </button>
+                          ))}
+                          {iconList.filter((ico) => {
+                            if (!iconSearch) return true;
+                            const q = iconSearch.toLowerCase();
+                            return (
+                              ico.label.toLowerCase().includes(q) ||
+                              ico.name.toLowerCase().includes(q)
+                            );
+                          }).length === 0 && (
+                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                              Aucune correspondance. Tape un nom FontAwesome directement.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -774,7 +888,9 @@ export default function Settings() {
                       Ajouter
                     </button>
                     <button
-                      onClick={() => setAddForm({ name: "", price: "" })}
+                      onClick={() => {
+                        setAddForm({ name: "", price: "", icon: "" });
+                      }}
                       className="px-4 py-2 rounded border"
                       style={{ borderColor: "var(--border-color)" }}
                     >
@@ -966,11 +1082,11 @@ export default function Settings() {
               </p>
             ) : (
 <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Numéro d’appel
-                  </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm opacity-70 mb-1">
+                      Numéro d’appel
+                    </label>
                   <input
                     type="tel"
                     value={supportPhone}
@@ -985,11 +1101,11 @@ export default function Settings() {
                     placeholder="+22300000000"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    WhatsApp (international)
-                  </label>
-                  <input
+                  <div>
+                    <label className="block text-sm opacity-70 mb-1">
+                      WhatsApp (international)
+                    </label>
+                    <input
                     type="tel"
                     value={supportWhatsApp}
                     onChange={(e) => setSupportWhatsApp(e.target.value)}
@@ -1001,6 +1117,24 @@ export default function Settings() {
                       borderColor: "var(--border-color)",
                     }}
                     placeholder="00223…"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Email support
+                  </label>
+                  <input
+                    type="email"
+                    value={supportEmail}
+                    onChange={(e) => setSupportEmail(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="support@ttm.com"
                   />
                 </div>
               </div>

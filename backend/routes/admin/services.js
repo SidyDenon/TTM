@@ -14,6 +14,24 @@ const router = express.Router();
 // 📁 Dossier d’upload des icônes
 const uploadDir = "uploads/services";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const AVAILABLE_ICONS_DIR = "public/service-icons";
+if (!fs.existsSync(AVAILABLE_ICONS_DIR)) fs.mkdirSync(AVAILABLE_ICONS_DIR, { recursive: true });
+
+// Détection colonnes icon_url / icon (pas de cache pour éviter les incohérences après migration)
+const ensureIconColumns = async (db) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'services'
+         AND COLUMN_NAME IN ('icon_url','icon')`
+    );
+    const hasIconUrlColumn = rows.some((r) => r.COLUMN_NAME === "icon_url");
+    const hasIconNameColumn = rows.some((r) => r.COLUMN_NAME === "icon");
+    return { hasIconUrlColumn, hasIconNameColumn };
+  } catch {
+    return { hasIconUrlColumn: false, hasIconNameColumn: false };
+  }
+};
 
 // 🎯 Config Multer pour upload d’icônes
 const storage = multer.diskStorage({
@@ -62,9 +80,32 @@ const resolveServiceIcon = (name) => {
   const key = normalizeKey(name || "");
   for (const typeKey of Object.keys(SERVICE_ICON_MAP)) {
     if (key.includes(typeKey)) {
-      return SERVICE_ICON_MAP[typeKey];
+      return `/service-icons/${SERVICE_ICON_MAP[typeKey]}`;
     }
   }
+  return null;
+};
+
+const normalizeIconUrl = (iconUrl) => {
+  if (!iconUrl) return null;
+  if (iconUrl.startsWith("fa:")) return iconUrl; // virtual FA icon
+  if (iconUrl.startsWith("http")) return iconUrl;
+  if (iconUrl.startsWith("/icons/")) {
+    const fname = iconUrl.split("/").pop();
+    return fname ? `/service-icons/${fname}` : null;
+  }
+  if (iconUrl.startsWith("/service-icons/") || iconUrl.startsWith("/uploads/")) {
+    return iconUrl;
+  }
+  if (!iconUrl.startsWith("/")) {
+    return `/service-icons/${iconUrl}`;
+  }
+  return iconUrl;
+};
+
+const extractIconName = (iconUrl) => {
+  if (!iconUrl) return null;
+  if (iconUrl.startsWith("fa:")) return iconUrl.replace(/^fa:/, "") || null;
   return null;
 };
 
@@ -79,13 +120,40 @@ export default (db) => {
   router.use(authMiddleware, loadAdminPermissions);
 
   // ────────────────────────────────
-  // 📋 Liste des services (admin)
+  // 📋 Liste d'icônes disponibles (pour picker front)
   // ────────────────────────────────
+  router.get("/icons", checkPermission("services_view"), async (_req, res) => {
+    try {
+      const files = fs.readdirSync(AVAILABLE_ICONS_DIR);
+      const icons = files
+        .filter((f) => /\.(png|jpg|jpeg|svg)$/i.test(f))
+        .map((f) => ({
+          name: f,
+          url: `/service-icons/${f}`,
+        }));
+      res.json({ message: "Icônes disponibles ✅", data: icons });
+    } catch (err) {
+      console.error("❌ Erreur GET /services/icons:", err);
+      res.status(500).json({ error: "Erreur chargement icônes" });
+    }
+  });
+
+  
   router.get("/", checkPermission("services_view"), async (req, res) => {
     try {
+      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
+      const selectFields = [
+        "id",
+        "name",
+        "price",
+        iconUrlEnabled ? "icon_url" : null,
+        hasIconNameColumn ? "icon" : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
       let rows = [];
       try {
-        [rows] = await req.db.query("SELECT * FROM services ORDER BY id DESC");
+        [rows] = await req.db.query(`SELECT ${selectFields} FROM services ORDER BY id DESC`);
       } catch (e) {
         if (e?.code === "ER_NO_SUCH_TABLE") {
           rows = [];
@@ -94,10 +162,19 @@ export default (db) => {
         }
       }
 
-      const data = rows.map((s) => ({
-        ...s,
-        icon_url: s.icon ? `/uploads/services/${s.icon}` : null,
-      }));
+      const data = rows.map((s) => {
+        const normUrl = iconUrlEnabled ? normalizeIconUrl(s.icon_url) : null;
+        const iconName =
+          (hasIconNameColumn ? s.icon : null) ||
+          extractIconName(s.icon_url) ||
+          extractIconName(normUrl) ||
+          null;
+        return {
+          ...s,
+          icon_url: normUrl || (iconName ? `fa:${iconName}` : null),
+          icon: iconName,
+        };
+      });
 
       res.json({ message: "Liste des services ✅", data });
     } catch (err) {
@@ -106,16 +183,23 @@ export default (db) => {
     }
   });
 
-  // ────────────────────────────────
-  // 📋 Liste publique (app mobile)
-  // ────────────────────────────────
+
   router.get("/public", async (req, res) => {
     try {
+      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
+      const selectFields = [
+        "id",
+        "name",
+        "price",
+        iconUrlEnabled ? "icon_url" : null,
+        hasIconNameColumn ? "icon" : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
       let rows = [];
       try {
-        // On inclut aussi l'icône pour la mobile app
         [rows] = await req.db.query(
-          "SELECT id, name, price, icon FROM services ORDER BY id ASC"
+          `SELECT ${selectFields} FROM services ORDER BY id ASC`
         );
       } catch (e) {
         if (e?.code === "ER_NO_SUCH_TABLE") {
@@ -125,12 +209,21 @@ export default (db) => {
         }
       }
 
-      const data = rows.map((s) => ({
-        id: s.id,
-        name: s.name,
-        price: Number(s.price),
-        icon_url: s.icon ? `/uploads/services/${s.icon}` : null,
-      }));
+      const data = rows.map((s) => {
+        const normUrl = iconUrlEnabled ? normalizeIconUrl(s.icon_url) : null;
+        const iconName =
+          (hasIconNameColumn ? s.icon : null) ||
+          extractIconName(s.icon_url) ||
+          extractIconName(normUrl) ||
+          null;
+        return {
+          id: s.id,
+          name: s.name,
+          price: Number(s.price),
+          icon_url: normUrl || (iconName ? `fa:${iconName}` : null),
+          icon: iconName,
+        };
+      });
 
       res.json({ message: "Services disponibles ✅", data });
     } catch (err) {
@@ -139,35 +232,80 @@ export default (db) => {
     }
   });
 
-  // ────────────────────────────────
-  // ➕ Ajouter un service
-  // ────────────────────────────────
   router.post(
     "/",
     checkPermission("services_manage"),
     upload.single("icon"),
     async (req, res) => {
       try {
-        const { name, price } = req.body;
+        const { name, price, selected_icon, icon_name } = req.body;
         if (!name || price == null)
           return res.status(400).json({ error: "Nom et prix requis" });
 
-        // 1️⃣ Priorité à l'icône uploadée
+        const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
         const uploadedIcon = req.file ? req.file.filename : null;
 
-        // 2️⃣ Sinon, on prend une icône par défaut en fonction du type de service
-        const autoIcon = uploadedIcon || resolveServiceIcon(name);
+        const pickedIcon =
+          selected_icon && typeof selected_icon === "string" && selected_icon.trim()
+            ? selected_icon.trim()
+            : null;
+        const iconName =
+          icon_name && typeof icon_name === "string" && icon_name.trim()
+            ? icon_name.trim()
+            : null;
 
-        const [result] = await req.db.query(
-          "INSERT INTO services (name, price, icon) VALUES (?, ?, ?)",
-          [name, price, autoIcon]
-        );
+        const defaultIcon = resolveServiceIcon(name); // déjà /service-icons/xxx ou null
+        let autoIcon = defaultIcon;
+        if (uploadedIcon) {
+          autoIcon = `/uploads/services/${uploadedIcon}`;
+        } else if (pickedIcon) {
+          if (pickedIcon.startsWith("/service-icons/") || pickedIcon.startsWith("/uploads/")) {
+            autoIcon = pickedIcon;
+          } else {
+            const cleaned = pickedIcon.replace(/^\/+/, "");
+            autoIcon = `/service-icons/${cleaned}`;
+          }
+        } else if (iconName) {
+          autoIcon = `fa:${iconName}`;
+        }
+
+        let result;
+        if (iconUrlEnabled || hasIconNameColumn) {
+          const fields = ["name", "price"];
+          const placeholders = ["?", "?"];
+          const values = [name, price];
+          if (iconUrlEnabled) {
+            fields.push("icon_url");
+            placeholders.push("?");
+            values.push(autoIcon);
+          }
+          if (hasIconNameColumn) {
+            fields.push("icon");
+            placeholders.push("?");
+            values.push(iconName);
+          }
+          [result] = await req.db.query(
+            `INSERT INTO services (${fields.join(",")}) VALUES (${placeholders.join(",")})`,
+            values
+          );
+        } else {
+          if (uploadedIcon) {
+            try {
+              fs.unlinkSync(path.join(uploadDir, uploadedIcon));
+            } catch {}
+          }
+          [result] = await req.db.query(
+            "INSERT INTO services (name, price) VALUES (?, ?)",
+            [name, price]
+          );
+        }
 
         const newService = {
           id: result.insertId,
           name,
           price: Number(price),
-          icon_url: autoIcon ? `/uploads/services/${autoIcon}` : null,
+          icon_url: iconUrlEnabled ? autoIcon : null,
+          icon: hasIconNameColumn ? iconName : null,
         };
 
         res.json({ message: "Service ajouté ✅", data: newService });
@@ -178,40 +316,41 @@ export default (db) => {
     }
   );
 
-  // ────────────────────────────────
-  // ✏️ Modifier un service
-  // ────────────────────────────────
+
   router.put("/:id", checkPermission("services_manage"), async (req, res) => {
     try {
-      const { price, name } = req.body;
-      if (price == null && !name)
+      const { price, name, selected_icon, icon_name } = req.body;
+      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
+      if (price == null && !name && (!iconUrlEnabled || !selected_icon) && (!hasIconNameColumn || !icon_name))
         return res
           .status(400)
-          .json({ error: "Au moins un champ (nom ou prix) est requis" });
+          .json({ error: "Au moins un champ (nom, prix ou icône) est requis" });
 
-      const [[current]] = await req.db.query(
-        "SELECT * FROM services WHERE id = ?",
-        [req.params.id]
-      );
+      const [[current]] = await req.db.query("SELECT * FROM services WHERE id = ?", [
+        req.params.id,
+      ]);
       if (!current)
         return res.status(404).json({ error: "Service introuvable" });
 
       const fields = [];
       const values = [];
 
-      // Mise à jour du nom
       if (name) {
         fields.push("name = ?");
         values.push(name);
 
-        // Si aucune icône existante, on peut en déduire une automatiquement
-        if (!current.icon) {
-          const autoIcon = resolveServiceIcon(name);
-          if (autoIcon) {
-            fields.push("icon = ?");
-            values.push(autoIcon);
-          }
-        }
+      }
+
+      if (iconUrlEnabled && selected_icon && typeof selected_icon === "string" && selected_icon.trim()) {
+        fields.push("icon_url = ?");
+        values.push(selected_icon.trim());
+      }
+      if (hasIconNameColumn && typeof icon_name === "string") {
+        fields.push("icon = ?");
+        values.push(icon_name.trim() || null);
+      } else if (iconUrlEnabled && typeof icon_name === "string" && icon_name.trim()) {
+        fields.push("icon_url = ?");
+        values.push(`fa:${icon_name.trim()}`);
       }
 
       // Mise à jour du prix
@@ -247,7 +386,8 @@ export default (db) => {
         data: {
           ...updated,
           price: Number(updated.price),
-          icon_url: updated.icon ? `/uploads/services/${updated.icon}` : null,
+          icon_url: iconUrlEnabled ? updated.icon_url || null : null,
+          icon: hasIconNameColumn ? updated.icon || null : null,
         },
       });
     } catch (err) {
@@ -264,16 +404,20 @@ export default (db) => {
     checkPermission("services_manage"),
     async (req, res) => {
       try {
+        const { hasIconUrlColumn: iconEnabled } = await ensureIconColumns(req.db);
         const [[service]] = await req.db.query(
-          "SELECT * FROM services WHERE id = ?",
+          iconEnabled
+            ? "SELECT * FROM services WHERE id = ?"
+            : "SELECT id, name, price FROM services WHERE id = ?",
           [req.params.id]
         );
         if (!service)
           return res.status(404).json({ error: "Service introuvable" });
 
         // On supprime aussi le fichier d'icône si présent
-        if (service.icon) {
-          const filePath = path.join(uploadDir, service.icon);
+        if (iconEnabled && service.icon_url && service.icon_url.startsWith("/uploads/services/")) {
+          const rel = service.icon_url.replace("/uploads/services/", "");
+          const filePath = path.join(uploadDir, rel);
           if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
 

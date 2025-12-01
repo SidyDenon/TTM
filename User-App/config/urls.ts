@@ -1,66 +1,117 @@
-﻿import { Platform } from "react-native";
+import { Platform } from "react-native";
 
 // ============================================================
-// 🟢 CONFIG ORIGINALE (on la garde) MAIS on ne l'utilise plus
+// 🌍 CONFIG BACKEND (auto local → prod) — aligné sur le dashboard
 // ============================================================
-const LOCAL_IP = "192.168.11.174";
-const PORT = 5000;
+const PROD_BASE = "https://ttm-production-d022.up.railway.app";
+const DEFAULT_PORT = 5000;
+const LOCAL_ANDROID = `http://10.0.2.2:${DEFAULT_PORT}`;
+const LOCAL_LOCALHOST = `http://localhost:${DEFAULT_PORT}`;
+const LOCAL_LOOPBACK = `http://127.0.0.1:${DEFAULT_PORT}`;
+const LAN_IPS = ["192.168.11.174", "192.168.11.241"]; // ajoute ici tes IP LAN possibles
 
-function normalizeHost(input: string): string {
-  let s = String(input || "").trim();
-  s = s.replace(/^(https?:\/\/)\s+/, "$1");
-  s = s.replace(/\/+$/g, "");
-  s = s.replace(/^https?:\/\//, "");
-  return s;
+export let API_BASE = PROD_BASE; // host sans /api
+export let API_URL = `${API_BASE}/api`;
+
+// ---------------------- ping test ----------------------
+async function testBackend(url: string) {
+  const base = String(url || "").replace(/\/+$/, "");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2000);
+  try {
+    const res = await fetch(`${base}/api/ping`, { method: "GET", signal: controller.signal });
+    return res.ok;
+  } catch (err) {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-function withPort(host: string, port: number): string {
-  const hasPort = /:\\d+$/.test(host);
-  return hasPort ? host : `${host}:${port}`;
+// ---------------------- auto-init ----------------------
+// À appeler au lancement de l'app (App.tsx)
+export async function initApiBase() {
+  // 1) override via env (Expo/React Native)
+  const envBase =
+    (process.env.EXPO_PUBLIC_API_BASE as string) ||
+    (process.env.REACT_NATIVE_API_BASE as string) ||
+    (process.env.API_BASE as string) ||
+    "";
+  if (envBase) {
+    API_BASE = envBase.replace(/\/+$/, "");
+    API_URL = `${API_BASE}/api`;
+    if (__DEV__) console.log("📡 API via env :", API_BASE);
+    return;
+  }
+
+  // 2) Liste des candidats locaux (priorité émulateur Android puis localhost, loopback, LAN)
+  const lanCandidates = LAN_IPS.map((ip) => `http://${ip}:${DEFAULT_PORT}`);
+  const baseLocalOverride =
+    (process.env.EXPO_PUBLIC_LOCAL_BASE as string) ||
+    (process.env.REACT_NATIVE_LOCAL_BASE as string) ||
+    "";
+  const preferredLocal = baseLocalOverride
+    ? String(baseLocalOverride).replace(/\/+$/, "")
+    : Platform.OS === "android"
+    ? LOCAL_ANDROID
+    : LOCAL_LOCALHOST;
+
+  const candidates = [
+    preferredLocal,
+    LOCAL_LOOPBACK,
+    ...lanCandidates.filter((v, idx, arr) => v && arr.indexOf(v) === idx),
+  ].filter(Boolean);
+
+  let resolved = PROD_BASE;
+  for (const candidate of candidates) {
+    const ok = await testBackend(candidate);
+    if (ok) {
+      resolved = candidate.replace(/\/+$/, "");
+      break;
+    }
+  }
+
+  API_BASE = resolved;
+  API_URL = `${API_BASE}/api`;
+  if (__DEV__) console.log("📡 API sélectionnée :", API_BASE);
 }
 
-const DEV_HOST = withPort(normalizeHost(LOCAL_IP), PORT);
-const DEV_BASE_HTTP = `http://${DEV_HOST}`;
+export function getApiBase() {
+  return API_BASE.replace(/\/+$/, "");
+}
+
+export function getApiUrl() {
+  return `${getApiBase()}/api`;
+}
 
 // ============================================================
-// 🔥 VERSION RAILWAY (DEV + PROD)
+// 🌍 GOOGLE MAPS KEY
 // ============================================================
-const RAILWAY_BASE = "https://ttm-production-d022.up.railway.app";
-
-// 👉 Toujours utiliser Railway (/api)
-export const API_URL = `${RAILWAY_BASE}/api`;
-
-// 👉 Base URL sans /api
-export const API_BASE = RAILWAY_BASE;
+export const GOOGLE_MAPS_API_KEY =
+  "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
 
 // ============================================================
-// 🌍 GOOGLE MAPS KEY — VERSION SÉCURISÉE
+// Helpers de build
 // ============================================================
-// ⚠️ IMPORTANT : cette clé DOIT être restreinte dans Google Cloud
-export const GOOGLE_MAPS_API_KEY = "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
-
-// ============================================================
-// 📌 buildApiPath ET buildBasePath — identiques à ton code
-// ============================================================
-export const buildApiPath = (endpoint: string = "") => {
+export const buildApiPath = (endpoint = "") => {
+  const base = getApiUrl();
   const path = String(endpoint || "");
-  if (!path) return API_URL;
+  if (!path) return base;
   if (path.startsWith("http")) return path;
-  return `${API_URL}${path.startsWith("/") ? path : "/" + path}`;
+  return `${base}${path.startsWith("/") ? path : "/" + path}`;
 };
 
-export const buildBasePath = (endpoint: string = "") => {
+export const buildBasePath = (endpoint = "") => {
+  const base = getApiBase();
   const path = String(endpoint || "");
-  if (!path) return API_BASE;
+  if (!path) return base;
   if (path.startsWith("http")) return path;
-  return `${API_BASE}${path.startsWith("/") ? path : "/" + path}`;
+  return `${base}${path.startsWith("/") ? path : "/" + path}`;
 };
 
 // ============================================================
-// 🔍 DEBUG DEV
+// Debug (DEV only)
 // ============================================================
 if (__DEV__) {
-  console.log("📡 API_URL utilisé:", API_URL);
-  console.log("📡 API_BASE utilisé:", API_BASE);
-  console.log("🗺️ GOOGLE_MAPS_API_KEY:", GOOGLE_MAPS_API_KEY);
+  console.log("📡 Mode DEV (auto detect local → prod) ");
 }

@@ -8,7 +8,9 @@ import {
   Linking,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { SUPPORT_PHONE, SUPPORT_WHATSAPP_LINK } from "../config/support";
+import { useEffect, useState, useMemo } from "react";
+import { SUPPORT_PHONE, SUPPORT_WHATSAPP, SUPPORT_WHATSAPP_LINK } from "../config/support";
+import { API_URL } from "../utils/api";
 
 type Props = {
   visible: boolean;
@@ -16,13 +18,51 @@ type Props = {
 };
 
 export function SupportModal({ visible, onClose }: Props) {
+  const [phone, setPhone] = useState(SUPPORT_PHONE);
+  const [whatsapp, setWhatsapp] = useState(SUPPORT_WHATSAPP);
+  const [email, setEmail] = useState("support@ttm.com");
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadConfig = async () => {
+      try {
+        const res = await fetch(`${API_URL.replace(/\/+$/, "")}/config/public`);
+        const data = await res.json();
+        if (!res.ok) return;
+        if (cancelled) return;
+        if (data.support_phone) setPhone(String(data.support_phone));
+        if (data.support_whatsapp) setWhatsapp(String(data.support_whatsapp));
+        if (data.support_email) setEmail(String(data.support_email));
+      } catch {
+        /* silent fallback */
+      }
+    };
+    if (visible) loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
+  const whatsappLink = useMemo(() => {
+    const normalized = String(whatsapp || "")
+      .replace(/\s+/g, "")
+      .replace(/^\+/, "")
+      .replace(/^00/, "");
+    return `https://wa.me/${normalized}`;
+  }, [whatsapp]);
+
   const handleCall = () => {
-    Linking.openURL(`tel:${SUPPORT_PHONE}`);
+    Linking.openURL(`tel:${phone}`);
     onClose();
   };
 
   const handleWhatsApp = () => {
-    Linking.openURL(SUPPORT_WHATSAPP_LINK);
+    Linking.openURL(whatsappLink);
+    onClose();
+  };
+
+  const handleEmail = () => {
+    Linking.openURL(`mailto:${email}`);
     onClose();
   };
 
@@ -35,12 +75,17 @@ export function SupportModal({ visible, onClose }: Props) {
 
           <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
             <MaterialIcons name="call" size={20} color="#fff" />
-            <Text style={styles.actionText}>Appeler {SUPPORT_PHONE}</Text>
+            <Text style={styles.actionText}>Appeler {phone}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.actionBtn, styles.whatsapp]} onPress={handleWhatsApp}>
             <MaterialIcons name="chat" size={20} color="#fff" />
             <Text style={styles.actionText}>WhatsApp</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.actionBtn, styles.email]} onPress={handleEmail}>
+            <MaterialIcons name="email" size={20} color="#fff" />
+            <Text style={styles.actionText}>Email</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
@@ -81,6 +126,9 @@ const styles = StyleSheet.create({
   whatsapp: {
     backgroundColor: "#25D366",
   },
+  email: {
+    backgroundColor: "#6b7280",
+  },
   actionText: { color: "#fff", fontWeight: "600" },
   closeBtn: {
     marginTop: 4,
@@ -89,4 +137,3 @@ const styles = StyleSheet.create({
   },
   closeText: { color: "#555", fontWeight: "600" },
 });
-

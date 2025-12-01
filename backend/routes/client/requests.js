@@ -501,8 +501,8 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
       data: newRequest,
     });
 
-    // Notify opérateurs (legacy)
-    notifyOperators("nouvelle_demande", newRequest);
+    // Notify opérateurs externes uniquement
+    notifyOperators("nouvelle_demande", newRequest, { targetInternal: false });
 
     const missionEmitter = req.emitMissionEvent || emitMissionEvent;
     if (missionEmitter) {
@@ -523,6 +523,18 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
 
   router.post("/:id/confirm-payment", authMiddleware, async (req, res) => {
     try {
+      // Ensure commission_percent column exists
+      try {
+        await req.db.query(
+          "SELECT commission_percent FROM transactions LIMIT 1"
+        );
+      } catch (e) {
+        if (e?.code === "ER_BAD_FIELD_ERROR") {
+          await req.db.query(
+            "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
+          );
+        }
+      }
       const { id } = req.params;
       const [[mission]] = await req.db.query(
         "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
@@ -545,10 +557,11 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
           ? Number(mission.estimated_price)
           : 0;
         const currency = mission.currency || "FCFA";
+        const commissionPercent = await getCommissionPercent(req.db);
         const [result] = await req.db.query(
-          `INSERT INTO transactions (operator_id, request_id, amount, currency, status, created_at)
-           VALUES (?, ?, ?, ?, 'en_attente', NOW())`,
-          [mission.operator_id, id, gross, currency]
+          `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, created_at)
+           VALUES (?, ?, ?, ?, 'en_attente', ?, NOW())`,
+          [mission.operator_id, id, gross, currency, commissionPercent]
         );
         tx = {
           id: result.insertId,
@@ -590,6 +603,30 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
           status: "en_attente",
           message: `Paiement client mission #${id} prêt à être validé.`,
         });
+      }
+
+      // 🔔 Notifier l'opérateur que le client a validé le paiement
+      if (mission.operator_id) {
+        try {
+          const [[opUser]] = await req.db.query(
+            "SELECT notification_token, name FROM users WHERE id = ? LIMIT 1",
+            [mission.operator_id]
+          );
+          if (opUser?.notification_token) {
+            const title = "Paiement client validé";
+            const body = `Le client a validé la mission #${id}.`;
+            req.app?.get?.("io")?.to(`user_${mission.operator_id}`).emit("payment_confirmed", {
+              request_id: Number(id),
+              transaction_id: tx.id,
+              status: "en_attente",
+            });
+            // push
+            const { sendPushNotification } = await import("../../utils/sendPush.js");
+            await sendPushNotification(opUser.notification_token, title, body);
+          }
+        } catch (notifyErr) {
+          console.warn("⚠️ Notification opérateur paiement échouée:", notifyErr?.message || notifyErr);
+        }
       }
 
       res.json({

@@ -1,20 +1,40 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from "react";
 import { Text } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
-import { API_URL } from "../utils/api";
+import { getApiUrl } from "../config/urls"; // ⚠️ version auto-selection
 
+// -------------------------
+// Types
+// -------------------------
 type SocketContextType = {
   socket: Socket | null;
   isConnected: boolean;
 };
 
+type ProviderProps = {
+  children: ReactNode;
+};
+
+// -------------------------
+// Context default
+// -------------------------
 const SocketContext = createContext<SocketContextType>({
   socket: null,
   isConnected: false,
 });
 
-export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// -------------------------
+// Provider
+// -------------------------
+export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
   const { token, user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -22,22 +42,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (!token || !user) {
       if (socketRef.current) {
-        console.log("[SOCKET] Déconnexion car utilisateur null.");
+        console.log("[SOCKET] Déconnexion car user null");
         socketRef.current.disconnect();
-        socketRef.current = null;
-        setIsConnected(false);
       }
+      socketRef.current = null;
+      setIsConnected(false);
       return;
     }
 
-    // 🛑 Empêche double création
+    // déjà créé ?
     if (socketRef.current?.connected) {
-      console.log("[SOCKET] Déjà connecté, aucune recréation.");
+      console.log("[SOCKET] Déjà connecté, pas de recréation.");
       return;
     }
 
-    const baseURL = API_URL.replace("/api", "");
-    console.log("[SOCKET] Initialisation Socket.IO sur :", baseURL);
+    // Base URL sans /api
+    const baseURL = getApiUrl().replace("/api", "");
+    console.log("[SOCKET] Connexion Socket.IO sur :", baseURL);
 
     const socket = io(baseURL, {
       transports: ["websocket"],
@@ -64,24 +85,27 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.warn("❌ [SOCKET] Erreur connexion :", err.message);
     });
 
+    // Cleanup
     return () => {
       if (socketRef.current) {
-        console.log("🧹 [SOCKET] Cleanup (démontage contexte)");
+        console.log("🧹 [SOCKET] Cleanup");
         socketRef.current.disconnect();
         socketRef.current = null;
-        setIsConnected(false);
       }
+      setIsConnected(false);
     };
-  }, [token]); // ✅ Ne dépend que du token
-
-  const safeChildren =
-    typeof children === "string" ? <Text>{children}</Text> : children || null;
+  }, [token]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
-      {safeChildren}
+    <SocketContext.Provider
+      value={{ socket: socketRef.current, isConnected }}
+    >
+      {typeof children === "string" ? <Text>{children}</Text> : children}
     </SocketContext.Provider>
   );
 };
 
+// -------------------------
+// Hook
+// -------------------------
 export const useSocket = () => useContext(SocketContext);

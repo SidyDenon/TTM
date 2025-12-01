@@ -9,6 +9,7 @@ export default function MissionsDetailsModal({
   onUpdateStatus,
   onDelete,
   onPublish,
+  onAssign,
 }) {
   const [photoView, setPhotoView] = useState(null); // 🆕 Lightbox
 
@@ -105,7 +106,7 @@ export default function MissionsDetailsModal({
           {mission.status === "publiee" && (
             <>
               <button
-                onClick={() => onUpdateStatus(mission.id, "assignee")}
+                onClick={() => onAssign?.(mission)}
                 className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
               >
                 Assigner

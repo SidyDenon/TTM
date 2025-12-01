@@ -3,10 +3,11 @@ import {
   ArrowRightOnRectangleIcon,
   ChartBarIcon,
   ClockIcon,
-  TruckIcon,
   UsersIcon,
   BanknotesIcon,
   Cog6ToothIcon,
+  XMarkIcon,
+  WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
@@ -40,11 +41,12 @@ function NavLinkItem({ to, icon, label, badge = 0 }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   const { user, logout, token } = useAuth();
 
   // 💸 seulement les retraits en attente
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
+  const [pendingTransactions, setPendingTransactions] = useState(0);
 
   const isSuperAdmin = isSuper(user);
 
@@ -67,7 +69,7 @@ export default function Sidebar() {
     isSuperAdmin || can(user, "transactions_view") || can(user, "transactions_manage");
 
   // Pour le fetch on ne s'intéresse qu'aux retraits
-  const canSeeFinance = canViewWithdrawals;
+  const canSeeFinance = canViewWithdrawals || canViewTransactions;
   const canViewMissions = isSuperAdmin || canAny(user, missionViewPerms);
 
   // ✅ règles d’accès
@@ -88,7 +90,7 @@ export default function Sidebar() {
       {
         to: DASHBOARD_ROUTES.operators,
         label: "Opérateurs",
-        icon: <TruckIcon className="w-5 h-5" />,
+        icon: <WrenchScrewdriverIcon className="w-5 h-5" />,
         show: () => isSuperAdmin || can(user, "operators_view"),
       },
       {
@@ -97,11 +99,12 @@ export default function Sidebar() {
         icon: <UsersIcon className="w-5 h-5" />,
         show: () => isSuperAdmin || can(user, "clients_view"),
       },
-      // 🔹 Transactions (sans badge)
+      // 🔹 Transactions (avec badge)
       {
         to: DASHBOARD_ROUTES.transactions,
         label: "Transactions",
         icon: <BanknotesIcon className="w-5 h-5" />,
+        badge: canViewTransactions ? pendingTransactions : 0,
         show: () => canViewTransactions,
       },
       // 🔹 Retraits avec badge
@@ -111,12 +114,6 @@ export default function Sidebar() {
         icon: <BanknotesIcon className="w-5 h-5" />,
         badge: canViewWithdrawals ? pendingWithdrawals : 0,
         show: () => canViewWithdrawals,
-      },
-      {
-        to: DASHBOARD_ROUTES.settings,
-        label: "Paramètres",
-        icon: <Cog6ToothIcon className="w-5 h-5" />,
-        show: () => isSuperAdmin || can(user, "settings_view"),
       },
       {
         to: DASHBOARD_ROUTES.admins,
@@ -130,15 +127,51 @@ export default function Sidebar() {
           can(user, "rbac_grant_permission") ||
           can(user, "rbac_revoke_permission"),
       },
+      {
+        to: DASHBOARD_ROUTES.settings,
+        label: "Paramètres",
+        icon: <Cog6ToothIcon className="w-5 h-5" />,
+        show: () => isSuperAdmin || can(user, "settings_view"),
+      },
     ],
-    [user, isSuperAdmin, pendingWithdrawals, canViewWithdrawals, canViewTransactions, canViewMissions]
+    [
+      user,
+      isSuperAdmin,
+      pendingWithdrawals,
+      pendingTransactions,
+      canViewWithdrawals,
+      canViewTransactions,
+      canViewMissions,
+    ]
   );
 
-  // 🔁 Chargement + live des retraits uniquement
   useEffect(() => {
     if (!token || !canSeeFinance) return;
 
     let mounted = true;
+
+    const fetchPendingTransactions = async () => {
+      if (!canViewTransactions) {
+        setPendingTransactions(0);
+        return;
+      }
+      try {
+        const res = await fetch(ADMIN_API.transactions("en_attente") + "&limit=all", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!mounted) return;
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const listCount = rows.filter((t) => {
+          const s = String(t.status || "").trim().toLowerCase().replace(/\s+/g, "_");
+          return s === "en_attente" || s === "pending" || s === "en_attente_admin";
+        }).length;
+        setPendingTransactions(listCount);
+      } catch (e) {
+        console.error("Erreur fetch transactions:", e);
+        if (mounted) setPendingTransactions(0);
+      }
+    };
 
     const fetchWithdrawalsCount = async () => {
       if (!canViewWithdrawals) {
@@ -151,7 +184,11 @@ export default function Sidebar() {
         });
         const data = await res.json();
         if (!mounted) return;
-        const count = Array.isArray(data?.data) ? data.data.length : 0;
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const count = rows.filter((w) => {
+          const s = String(w.status || "").trim().toLowerCase().replace(/\s+/g, "_");
+          return s === "en_attente" || s === "en_attente_admin" || s === "en";
+        }).length;
         setPendingWithdrawals(count);
       } catch (e) {
         if (!mounted) return;
@@ -162,19 +199,27 @@ export default function Sidebar() {
 
     // initial
     fetchWithdrawalsCount();
+    fetchPendingTransactions();
 
     // refetch périodique
     const interval = setInterval(() => {
       fetchWithdrawalsCount();
+      fetchPendingTransactions();
     }, 30000);
 
     // socket events
     const onWithdrawalCreated = () => fetchWithdrawalsCount();
     const onWithdrawalUpdated = () => fetchWithdrawalsCount(); // ex: confirmation
+    const onTxEvent = () => fetchPendingTransactions();
 
     if (canViewWithdrawals) {
       socket.on("withdrawal_created", onWithdrawalCreated);
       socket.on("withdrawal_updated_admin", onWithdrawalUpdated);
+    }
+    if (canViewTransactions) {
+      socket.on("transaction_created", onTxEvent);
+      socket.on("transaction_updated", onTxEvent);
+      socket.on("transaction_confirmed", onTxEvent);
     }
 
     return () => {
@@ -184,22 +229,42 @@ export default function Sidebar() {
         socket.off("withdrawal_created", onWithdrawalCreated);
         socket.off("withdrawal_updated_admin", onWithdrawalUpdated);
       }
+      if (canViewTransactions) {
+        socket.off("transaction_created", onTxEvent);
+        socket.off("transaction_updated", onTxEvent);
+        socket.off("transaction_confirmed", onTxEvent);
+      }
     };
-  }, [token, canSeeFinance, canViewWithdrawals]);
+  }, [token, canSeeFinance, canViewWithdrawals, canViewTransactions]);
 
   return (
-    <aside className="sidebar w-64 p-6 flex flex-col border-r border-[var(--border-color)]">
-      {/* Logo */}
-      <div className="flex items-center gap-2 mb-10">
-        <img src="/vite.svg" alt="Logo" className="w-8 h-8" />
-        <h1 className="font-bold text-lg text-[var(--accent)]">TOW TRUCK MALI</h1>
+    <aside
+      className={`sidebar w-64 p-6 flex flex-col border-r border-[var(--border-color)] transition-transform lg:translate-x-0 ${
+        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      }`}
+    >
+      {/* Logo + close mobile */}
+      <div className="flex items-center justify-between gap-2 mb-10">
+        <div className="flex items-center gap-2">
+          <img src="/logoApp.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <h1 className="font-bold text-lg text-[var(--accent)] whitespace-nowrap">
+            TOW TRUCK MALI
+          </h1>
+        </div>
+        <button
+          className="lg:hidden p-2 rounded-md border border-[var(--border-color)] text-[var(--text-color)]"
+          onClick={() => onClose?.()}
+          aria-label="Fermer le menu"
+        >
+          <XMarkIcon className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-2">
-        {menu
-          .filter((it) => it.show())
-          .map((it) => (
+    {/* Navigation */}
+    <nav className="flex-1 space-y-2">
+      {menu
+        .filter((it) => it.show())
+        .map((it) => (
             <NavLinkItem
               key={it.to}
               to={it.to}
@@ -210,13 +275,13 @@ export default function Sidebar() {
           ))}
       </nav>
 
-      {/* Déconnexion */}
-      <button
-        onClick={logout}
-        className="mt-auto flex items-center gap-3 p-2 rounded transition hover:bg-red-800 text-red-400"
-      >
-        <ArrowRightOnRectangleIcon className="w-5 h-5" /> Déconnexion
-      </button>
-    </aside>
+    {/* Déconnexion */}
+    <button
+      onClick={logout}
+      className="mt-auto flex items-center gap-3 p-2 rounded transition hover:bg-red-800 text-red-400"
+    >
+      <ArrowRightOnRectangleIcon className="w-5 h-5" /> Déconnexion
+    </button>
+  </aside>
   );
 }

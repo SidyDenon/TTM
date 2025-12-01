@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import MissionsTable from "./MissionsTable";
 import MissionsDetailsModal from "./MissionsDetailsModal";
 import MissionsPublishModal from "./MissionsPublishModal";
+import MissionsAssignModal from "./MissionsAssignModal";
 
 import { can, canAny, isSuper } from "../../../utils/rbac";
 
@@ -18,13 +19,16 @@ export default function Missions() {
   const [error, setError] = useState("");
 
   const [selectedMission, setSelectedMission] = useState(null);
-  const [publishModal, setPublishModal] = useState(null);
+  const [publishModal, setPublishModal] = useState(null); // mission objet
+  const [assignModal, setAssignModal] = useState(null); // mission objet
+  const [operators, setOperators] = useState([]);
   const [monthFilter, setMonthFilter] = useState("all"); // YYYY-MM or "all"
 
   const [price, setPrice] = useState("");
   const [distance, setDistance] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [idSearch, setIdSearch] = useState("");
+  const normalizedId = idSearch.replace(/[^0-9]/g, "");
 
   // ---------- RBAC helpers ----------
   const missionViewPerms = [
@@ -51,7 +55,8 @@ export default function Missions() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/requests`, {
+      // récupère toutes les missions (limite gérée côté backend)
+      const res = await fetch(`${API_BASE}/api/admin/requests?limit=all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await res.json();
@@ -73,14 +78,21 @@ export default function Missions() {
   };
 
   // ---------- Actions protégées RBAC ----------
-  const publishRequest = async (id, price, distance) => {
+  const publishRequest = async (mission, price, distance) => {
     if (!canPublish) {
       toast.error("Permission insuffisante : publier une mission");
       return;
     }
     try {
-      const payload = { price: Number(price), distance: Number(distance) };
-      const res = await fetch(`${API_BASE}/api/admin/requests/${id}/publier`, {
+      const isTowing =
+        typeof mission?.service === "string" &&
+        mission.service.toLowerCase().includes("remorqu");
+      const safeDistance = isTowing
+        ? Math.min(Number(distance) || 0, 100)
+        : Number(distance);
+
+      const payload = { price: Number(price), distance: safeDistance };
+      const res = await fetch(`${API_BASE}/api/admin/requests/${mission.id}/publier`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,7 +102,45 @@ export default function Missions() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec publication");
-      toast.success(`Mission #${id} publiée ✅`);
+      toast.success(`Mission #${mission.id} publiée ✅`);
+      await loadRequests();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const loadOperators = async () => {
+    if (!canAssign) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/operators`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Impossible de charger les opérateurs");
+      setOperators(json.data || []);
+    } catch (err) {
+      console.error("❌ loadOperators:", err);
+      toast.error(err.message);
+    }
+  };
+
+  const assignRequest = async (mission, operatorId) => {
+    if (!canAssign) {
+      toast.error("Permission insuffisante : assigner une mission");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/requests/${mission.id}/assigner`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ operator_id: operatorId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec assignation");
+      toast.success(`Mission #${mission.id} assignée ✅`);
       await loadRequests();
     } catch (err) {
       toast.error(err.message);
@@ -152,6 +202,10 @@ export default function Missions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, canView]);
 
+  useEffect(() => {
+    if (token && canAssign) loadOperators();
+  }, [token, canAssign]);
+
   // ---------- UI ----------
   if (!canView) {
     return (
@@ -191,7 +245,7 @@ export default function Missions() {
       style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
     >
       <h2 className="text-xl font-bold mb-4 text-[var(--accent)] font-poppins">
-        📋 Liste des missions
+         Liste des missions
       </h2>
 
       {/* Filtre Mois */}
@@ -208,8 +262,9 @@ export default function Missions() {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const key = `${ym}-${i}`;
             return (
-              <option key={ym} value={ym}>{ym}</option>
+              <option key={key} value={ym}>{ym}</option>
             );
           })}
         </select>
@@ -237,7 +292,7 @@ export default function Missions() {
 
         <label className="text-sm text-[var(--muted)]">Recherche ID:</label>
         <input
-          type="number"
+          type="text"
           placeholder="#id"
           value={idSearch}
           onChange={(e) => setIdSearch(e.target.value)}
@@ -260,8 +315,8 @@ export default function Missions() {
             if (String(r?.status || '').toLowerCase() !== statusFilter) return false;
           }
           // Recherche ID
-          if (idSearch) {
-            if (Number(r?.id) !== Number(idSearch)) return false;
+          if (normalizedId) {
+            if (Number(r?.id) !== Number(normalizedId)) return false;
           }
           return true;
         })}
@@ -269,12 +324,12 @@ export default function Missions() {
         onUpdateStatus={updateStatus}
         onDelete={deleteMission}
         // On ouvre le modal de publication seulement si autorisé
-        onPublish={(id) => {
+        onPublish={(mission) => {
           if (!canPublish) {
             toast.error("Permission insuffisante : publier une mission");
             return;
           }
-          setPublishModal(id);
+          setPublishModal(mission);
         }}
       />
 
@@ -284,25 +339,41 @@ export default function Missions() {
           onClose={() => setSelectedMission(null)}
           onUpdateStatus={updateStatus}  // les permissions sont re-vérifiées dedans
           onDelete={deleteMission}       // idem
-          onPublish={(id) => {
+          onPublish={(mission) => {
             if (!canPublish) {
               toast.error("Permission insuffisante : publier une mission");
               return;
             }
-            setPublishModal(id);
+            setPublishModal(mission);
+          }}
+          onAssign={(mission) => {
+            if (!canAssign) {
+              toast.error("Permission insuffisante : assigner une mission");
+              return;
+            }
+            setAssignModal(mission);
           }}
         />
       )}
 
       {publishModal && (
         <MissionsPublishModal
-          id={publishModal}
+          mission={publishModal}
           price={price}
           setPrice={setPrice}
           distance={distance}
           setDistance={setDistance}
           onClose={() => setPublishModal(null)}
           onConfirm={publishRequest} // recheck des perms dans publishRequest
+        />
+      )}
+
+      {assignModal && (
+        <MissionsAssignModal
+          mission={assignModal}
+          operators={operators}
+          onClose={() => setAssignModal(null)}
+          onAssign={assignRequest}
         />
       )}
     </div>

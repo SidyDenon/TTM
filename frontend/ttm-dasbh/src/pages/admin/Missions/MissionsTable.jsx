@@ -1,6 +1,6 @@
 import MissionsActionsMenu from "./MissionsActionsMenu";
 
-export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDelete, onPublish }) {
+export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDelete, onPublish, onAssign }) {
   const normalizeStatus = (s) => {
     if (!s) return { label: "—", key: "unknown" };
     const map = {
@@ -75,6 +75,7 @@ export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDe
                   onUpdateStatus={onUpdateStatus}
                   onDelete={onDelete}
                   onPublish={onPublish}
+                  onAssign={onAssign}
                 />
               </td>
             </tr>

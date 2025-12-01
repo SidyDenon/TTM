@@ -26,6 +26,8 @@ type Service = {
   id: number;
   name: string;
   price: number;
+  icon_url?: string | null;
+  icon?: string | null;
 };
 
 const COLORS = {
@@ -49,22 +51,17 @@ const formatPrice = (price: number | string): string => {
   })} FCFA`;
 };
 
-// Choix d’icône FontAwesome selon le service
+// Fallback icône: uniquement pour remorquage
 const getServiceIcon = (serviceName: string): string => {
   const name = serviceName.toLowerCase();
-
-  if (name.includes("remorqu")) return "truck"; // fallback
-  if (name.includes("batter")) return "car-battery";
-  if (name.includes("carburant")) return "gas-pump";
-  if (name.includes("ouverture") || name.includes("porte")) return "door-open";
-  if (name.includes("diagnostic")) return "stethoscope";
-
-  return "wrench";
+  if (name.includes("remorqu")) return "truck";
+  return "";
 };
 
 export default function RequestScreen() {
   const [address, setAddress] = useState("Chargement...");
   const [selectedService, setSelectedService] = useState<number | null>(null);
+  const [failedIcons, setFailedIcons] = useState<number[]>([]);
 
   const [destination, setDestination] = useState(""); // texte destination
   const [destinationCoords, setDestinationCoords] = useState<{
@@ -318,6 +315,36 @@ export default function RequestScreen() {
               {services.map((srv) => {
                 const isSelected = selectedService === srv.id;
                 const isRemorquage = srv.name.toLowerCase().includes("remorqu");
+                // API_BASE contient souvent /api : on enlève ce suffixe pour servir les fichiers statiques
+                const baseHost = API_BASE.replace(/\/api$/, "");
+                const faMatch = srv.icon_url?.match(/fa:([^/]+)/);
+                const isFaIcon = Boolean(faMatch);
+                const rawFaName =
+                  (srv.icon as string | null | undefined) ||
+                  (isFaIcon ? faMatch?.[1] ?? "" : "");
+                const faName = rawFaName === "500-px" ? "500px" : rawFaName; // correction 500px
+                const brandNames = new Set([
+                  "500px",
+                  "accessible-icon",
+                  "facebook",
+                  "google",
+                  "twitter",
+                  "whatsapp",
+                  "instagram",
+                  "linkedin",
+                  "youtube",
+                  "apple",
+                  "android",
+                  "microsoft",
+                ]);
+                const isBrand = faName ? brandNames.has(faName) || /^[0-9]/.test(faName) : false;
+                let iconUri: string | null = null;
+                if (srv.icon_url && !isFaIcon) {
+                  iconUri = srv.icon_url.startsWith("http")
+                    ? srv.icon_url
+                    : `${baseHost}${srv.icon_url}`;
+                }
+                const showImage = iconUri && !failedIcons.includes(srv.id);
 
                 return (
                   <TouchableOpacity
@@ -329,7 +356,30 @@ export default function RequestScreen() {
                     onPress={() => setSelectedService(srv.id)}
                     activeOpacity={0.8}
                   >
-                    {isRemorquage ? (
+                    {faName ? (
+                      <FontAwesome5
+                        name={faName as any}
+                        brand={isBrand}
+                        solid={!isBrand}
+                        size={26}
+                        color={isSelected ? "#fff" : COLORS.primaryDark}
+                        style={{ marginBottom: 6 }}
+                      />
+                    ) : showImage && iconUri ? (
+                      <Image
+                        source={{ uri: iconUri }}
+                        style={[
+                          styles.serviceIconImage,
+                          { tintColor: isSelected ? "#fff" : COLORS.primaryDark },
+                        ]}
+                        resizeMode="contain"
+                        onError={() =>
+                          setFailedIcons((prev) =>
+                            prev.includes(srv.id) ? prev : [...prev, srv.id]
+                          )
+                        }
+                      />
+                    ) : isRemorquage ? (
                       <Image
                         source={DepanneuseIcon}
                         style={[
@@ -338,14 +388,7 @@ export default function RequestScreen() {
                         ]}
                         resizeMode="contain"
                       />
-                    ) : (
-                      <FontAwesome5
-                        name={getServiceIcon(srv.name)}
-                        size={26}
-                        color={isSelected ? "#fff" : COLORS.primaryDark}
-                        style={{ marginBottom: 6 }}
-                      />
-                    )}
+                    ) : null}
 
                     <Text
                       style={[

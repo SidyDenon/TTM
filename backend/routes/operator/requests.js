@@ -1,9 +1,10 @@
-// ✅ routes/operator/requests.js
+//routes/operator/requests.js
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
 import { io, emitMissionEvent } from "../../server.js";
 import { sendPushNotification } from "../../utils/sendPush.js";
 import { buildPublicUrl } from "../../config/links.js";
+import { getSchemaColumns } from "../../utils/schema.js";
 
 const router = express.Router();
 
@@ -11,14 +12,12 @@ const OPERATOR_ROLES = ["operator", "operateur", "opérateur"];
 const isOperatorRole = (role = "") =>
   OPERATOR_ROLES.includes(String(role || "").toLowerCase());
 
-/** 💰 Tarif remorquage */
-const TOWING_PRICE_PER_KM = 500; // FCFA / km - à ajuster si besoin
+const TOWING_PRICE_PER_KM = 500;
+const TOWING_RADIUS_KM = Number(process.env.TOWING_RADIUS_KM || 100);
 
-/* =============================================================
-   🔧 Charger la configuration tarifaire (depuis table settings)
-   ============================================================= */
 async function loadTowingConfig(db) {
   try {
+    // 1) Priorité aux settings (historique)
     const [[rowBase]] = await db.query(
       "SELECT value FROM settings WHERE key_name = 'remorquage_base_price' LIMIT 1"
     );
@@ -26,9 +25,36 @@ async function loadTowingConfig(db) {
       "SELECT value FROM settings WHERE key_name = 'remorquage_price_per_km' LIMIT 1"
     );
 
+    const baseFromSettings = rowBase ? Number(rowBase.value) : null;
+    const kmFromSettings = rowKm ? Number(rowKm.value) : null;
+
+    // 2) Fallback vers la table configurations (nouvelle UI admin)
+    if (baseFromSettings == null || kmFromSettings == null) {
+      const [[cfg]] = await db.query(
+        "SELECT towing_base_price, towing_price_per_km FROM configurations LIMIT 1"
+      );
+      const baseCfg =
+        baseFromSettings != null
+          ? baseFromSettings
+          : cfg?.towing_base_price != null
+          ? Number(cfg.towing_base_price)
+          : null;
+      const kmCfg =
+        kmFromSettings != null
+          ? kmFromSettings
+          : cfg?.towing_price_per_km != null
+          ? Number(cfg.towing_price_per_km)
+          : null;
+
+      return {
+        base_price: baseCfg,
+        price_per_km: kmCfg,
+      };
+    }
+
     return {
-      base_price: rowBase ? Number(rowBase.value) : null,
-      price_per_km: rowKm ? Number(rowKm.value) : null,
+      base_price: baseFromSettings,
+      price_per_km: kmFromSettings,
     };
   } catch (e) {
     return { base_price: null, price_per_km: null };
@@ -81,6 +107,18 @@ const missionToSocketPayload = (mission = {}, photos = []) => {
     estimated_price:
       mission.estimated_price !== undefined && mission.estimated_price !== null
         ? Number(mission.estimated_price)
+        : null,
+    final_price:
+      mission.final_price !== undefined && mission.final_price !== null
+        ? Number(mission.final_price)
+        : mission.estimated_price !== undefined && mission.estimated_price !== null
+        ? Number(mission.estimated_price)
+        : null,
+    total_km:
+      mission.total_km !== undefined && mission.total_km !== null
+        ? Number(mission.total_km)
+        : mission.totalKm !== undefined && mission.totalKm !== null
+        ? Number(mission.totalKm)
         : null,
     currency: mission.currency ?? null,
     created_at: mission.created_at ?? null,
@@ -157,7 +195,6 @@ const computeTowingPricing = (basePrice, operator, client, destination) => {
 
 const computeDynamicPrice = (config, operator, client, destination) => {
   if (
-    config.base_price == null ||
     config.price_per_km == null ||
     operator.lat == null ||
     operator.lng == null ||
@@ -185,9 +222,12 @@ const computeDynamicPrice = (config, operator, client, destination) => {
 
   const totalKm = opToClientKm + clientToDestKm;
 
-  return {
-    finalPrice: Math.round(config.base_price + totalKm * config.price_per_km),
-  };
+  const distancePrice = totalKm * config.price_per_km;
+  const base = config.base_price != null ? Number(config.base_price) : null;
+  const finalPrice = Math.round(
+    base != null && Number.isFinite(base) ? Math.max(base, distancePrice) : distancePrice
+  );
+  return { finalPrice, totalKm };
 };
 
 const OLD_PRICE_PER_KM = 500;
@@ -218,21 +258,102 @@ const computeFallbackPrice = (basePrice, operator, client, destination) => {
   );
 
   const totalKm = opToClientKm + clientToDestKm;
+  const distancePrice = totalKm * OLD_PRICE_PER_KM;
+  const base = Number.isFinite(Number(basePrice)) ? Number(basePrice) : null;
 
   return {
-    finalPrice: Math.round(Number(basePrice || 0) + totalKm * OLD_PRICE_PER_KM),
+    finalPrice: Math.round(
+      base != null ? Math.max(base, distancePrice) : distancePrice
+    ),
+    totalKm,
   };
+};
+
+// Calcule un tarif prévisionnel pour affichage (avant acceptation)
+const computePreviewPricing = async (db, mission, operatorCoords, preloadedConfig = null) => {
+  if (!operatorCoords || operatorCoords.lat == null || operatorCoords.lng == null) return null;
+  const isTow =
+    typeof mission?.service === "string" &&
+    mission.service.toLowerCase().includes("remorqu");
+  if (!isTow) return null;
+
+  const client = { lat: Number(mission.lat), lng: Number(mission.lng) };
+  const destination =
+    mission.dest_lat != null && mission.dest_lng != null
+      ? { lat: Number(mission.dest_lat), lng: Number(mission.dest_lng) }
+      : null;
+
+  if (
+    client.lat == null ||
+    client.lng == null ||
+    destination == null ||
+    destination.lat == null ||
+    destination.lng == null
+  ) {
+    return null;
+  }
+
+  const cfg = preloadedConfig || (await loadTowingConfig(db));
+  let pricing = computeDynamicPrice(
+    cfg,
+    { lat: Number(operatorCoords.lat), lng: Number(operatorCoords.lng) },
+    client,
+    destination
+  );
+  if (!pricing) {
+    pricing = computeFallbackPrice(
+      mission.estimated_price,
+      { lat: Number(operatorCoords.lat), lng: Number(operatorCoords.lng) },
+      client,
+      destination
+    );
+  }
+  return pricing;
 };
 
 
 export default (db) => {
+  // 🔎 Cache local pour savoir si la colonne final_price existe
+  let hasFinalPriceColumn = null;
+  const ensureFinalPriceColumn = async (conn) => {
+    if (hasFinalPriceColumn !== null) return hasFinalPriceColumn;
+    try {
+      const [[{ cnt }]] = await conn.query(
+        "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'requests' AND COLUMN_NAME = 'final_price'"
+      );
+      hasFinalPriceColumn = Number(cnt) > 0;
+    } catch {
+      hasFinalPriceColumn = false;
+    }
+    return hasFinalPriceColumn;
+  };
+
   router.use((req, _res, next) => {
     req.db = db;
     next();
   });
 
-  // ✅ Lecture profil opérateur
-  router.get("/profile", authMiddleware, async (req, res) => {
+  router.use(authMiddleware);
+  router.use(async (req, res, next) => {
+    if (!isOperatorRole(req.user?.role)) return res.status(403).json({ error: "Accès refusé" });
+    try {
+      const { operatorDispo } = await getSchemaColumns(req.db);
+      if (operatorDispo) {
+        const [[row]] = await req.db.query(
+          `SELECT ${operatorDispo} AS dispo FROM operators WHERE user_id = ? LIMIT 1`,
+          [req.user.id]
+        );
+        if (row && Number(row.dispo) === 0) {
+          return res.status(403).json({ error: "Compte opérateur bloqué" });
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ Vérification disponibilité opérateur échouée:", err?.message || err);
+    }
+    next();
+  });
+
+  router.get("/profile", async (req, res) => {
     if (!isOperatorRole(req.user.role)) {
       return res.status(403).json({ error: "Accès refusé" });
     }
@@ -258,7 +379,6 @@ export default (db) => {
     }
   });
 
-  // ✅ Mise à jour des coordonnées opérateur
   router.put("/profile/location", authMiddleware, async (req, res) => {
     if (!isOperatorRole(req.user.role)) {
       return res.status(403).json({ error: "Accès refusé" });
@@ -310,15 +430,17 @@ export default (db) => {
     }
   });
 
-  // ✅ Liste des missions disponibles (compat sans JSON_ARRAYAGG)
   router.get("/requests", authMiddleware, async (req, res) => {
     if (!isOperatorRole(req.user.role)) {
       return res.status(403).json({ error: "Accès refusé" });
     }
 
     try {
+      const { operatorInternal } = await getSchemaColumns(req.db);
+      const internalSel = operatorInternal ? operatorInternal : null;
+
       const [[profile]] = await req.db.query(
-        "SELECT lat, lng FROM operators WHERE user_id = ?",
+        `SELECT lat, lng${internalSel ? `, ${internalSel} AS is_internal` : ""} FROM operators WHERE user_id = ?`,
         [req.user.id]
       );
 
@@ -329,31 +451,54 @@ export default (db) => {
       }
 
       const radiusKm = Math.max(1, Math.min(30, Number(req.query.radius) || 5));
+      const towingRadiusKm = TOWING_RADIUS_KM;
+      let rows;
+      const towingConfig = await loadTowingConfig(req.db);
 
-      const [rows] = await req.db.query(
-        `SELECT * FROM (
-            SELECT r.*, 
-                   u.name as client_name,
-                   u.phone as client_phone,
-                   (6371 * ACOS(
-                     COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
-                     COS(RADIANS(r.lng) - RADIANS(?)) +
-                     SIN(RADIANS(?)) * SIN(RADIANS(r.lat))
-                   )) AS distance
-            FROM requests r
-            JOIN users u ON u.id = r.user_id
-            WHERE r.lat IS NOT NULL
-              AND r.lng IS NOT NULL
-              AND (r.status = 'publiee' 
-                   OR (r.operator_id = ? AND r.status IN ('assignee','acceptee','en_route','sur_place','remorquage')))
-        ) AS q
-        WHERE q.distance <= ?
-           OR (q.operator_id = ? AND q.status IN ('assignee','acceptee','en_route','sur_place','remorquage'))
-        ORDER BY q.created_at ASC`,
-        [profile.lat, profile.lng, profile.lat, req.user.id, radiusKm, req.user.id]
-      );
+      if (profile.is_internal) {
+        [rows] = await req.db.query(
+          `SELECT r.*, u.name AS client_name, u.phone AS client_phone
+           FROM requests r
+           JOIN users u ON u.id = r.user_id
+           WHERE r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage')
+           ORDER BY r.created_at DESC`,
+          [req.user.id]
+        );
+      } else {
+        [rows] = await req.db.query(
+          `SELECT * FROM (
+              SELECT r.*,
+                     u.name AS client_name,
+                     u.phone AS client_phone,
+                     (6371 * ACOS(
+                       COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
+                       COS(RADIANS(r.lng) - RADIANS(?)) +
+                       SIN(RADIANS(?)) * SIN(RADIANS(r.lat))
+                     )) AS distance
+              FROM requests r
+              JOIN users u ON u.id = r.user_id
+              WHERE r.lat IS NOT NULL
+                AND r.lng IS NOT NULL
+                AND (
+                  (r.status = 'publiee' AND r.operator_id IS NULL)
+                  OR (r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage'))
+                )
+          ) AS q
+          WHERE
+            (
+              q.status = 'publiee'
+              AND q.operator_id IS NULL
+              AND (
+                q.distance <= ?
+                OR (LOWER(q.service) LIKE '%remorqu%' AND q.distance <= ?)
+              )
+            )
+            OR (q.operator_id = ? AND q.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage'))
+          ORDER BY q.created_at ASC`,
+          [profile.lat, profile.lng, profile.lat, req.user.id, radiusKm, towingRadiusKm, req.user.id]
+        );
+      }
 
-      // Photos en 2e requête
       const ids = rows.map((r) => r.id);
       let photosByReq = new Map();
       if (ids.length) {
@@ -369,12 +514,26 @@ export default (db) => {
         }
       }
 
+      const operatorCoords = { lat: Number(profile.lat), lng: Number(profile.lng) };
+
       res.json({
         message: "Missions disponibles ✅",
-        data: rows.map((r) => ({
-          ...r,
-          photos: (photosByReq.get(r.id) || []).map((u) => buildPhotoURL(u)),
-        })),
+        data: await Promise.all(
+          rows.map(async (r) => {
+            let preview = null;
+            try {
+              preview = await computePreviewPricing(req.db, r, operatorCoords, towingConfig);
+            } catch {
+              preview = null;
+            }
+            return {
+              ...r,
+              photos: (photosByReq.get(r.id) || []).map((u) => buildPhotoURL(u)),
+              preview_final_price: preview?.finalPrice ?? null,
+              preview_total_km: preview?.totalKm ?? null,
+            };
+          })
+        ),
       });
     } catch (err) {
       console.error("❌ Erreur GET /operator/requests:", err);
@@ -382,7 +541,6 @@ export default (db) => {
     }
   });
 
-  // ✅ Détail mission (compat sans JSON_ARRAYAGG)
   router.get("/requests/:id", authMiddleware, async (req, res) => {
     if (!isOperatorRole(req.user.role)) {
       return res.status(403).json({ error: "Accès refusé" });
@@ -391,7 +549,6 @@ export default (db) => {
     try {
       const { id } = req.params;
 
-      // Position opérateur pour la contrainte "proche de 5 km si mission publiée"
       const [[profile]] = await req.db.query(
         "SELECT lat, lng FROM operators WHERE user_id = ?",
         [req.user.id]
@@ -404,33 +561,39 @@ export default (db) => {
 
       const radiusKm = Math.max(1, Math.min(30, Number(req.query.radius) || 5));
 
+      const towingRadiusKm = TOWING_RADIUS_KM;
+
       const [rows] = await req.db.query(
-        `SELECT r.*, 
-                u.name  AS client_name, 
-                u.phone AS client_phone,
-                op.id   AS operator_profile_id,
-                ou.name AS operator_name,
-                ou.phone AS operator_phone
-         FROM requests r
-         JOIN users u ON u.id = r.user_id
-         LEFT JOIN users ou ON ou.id = r.operator_id
-         LEFT JOIN operators op ON op.user_id = ou.id
-         WHERE r.id = ?
-           AND (
-             r.operator_id = ? OR
-             (
-               r.status = 'publiee' AND
-               r.lat IS NOT NULL AND
-               r.lng IS NOT NULL AND
-               (6371 * ACOS(
-                 COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
-                 COS(RADIANS(r.lng) - RADIANS(?)) +
-                 SIN(RADIANS(?)) * SIN(RADIANS(r.lat))
-               )) <= ?
+        `SELECT * FROM (
+           SELECT r.*, 
+                  u.name  AS client_name, 
+                  u.phone AS client_phone,
+                  op.id   AS operator_profile_id,
+                  ou.name AS operator_name,
+                  ou.phone AS operator_phone,
+                  (6371 * ACOS(
+                    COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
+                    COS(RADIANS(r.lng) - RADIANS(?)) +
+                    SIN(RADIANS(?)) * SIN(RADIANS(r.lat))
+                  )) AS distance
+           FROM requests r
+           JOIN users u ON u.id = r.user_id
+           LEFT JOIN users ou ON ou.id = r.operator_id
+           LEFT JOIN operators op ON op.user_id = ou.id
+           WHERE r.id = ?
+         ) AS q
+         WHERE
+           q.operator_id = ?
+           OR (
+             q.status = 'publiee'
+             AND q.operator_id IS NULL
+             AND (
+               q.distance <= ?
+               OR (LOWER(q.service) LIKE '%remorqu%' AND q.distance <= ?)
              )
            )
          LIMIT 1`,
-        [id, req.user.id, profile.lat, profile.lng, profile.lat, radiusKm]
+        [profile.lat, profile.lng, profile.lat, id, req.user.id, radiusKm, towingRadiusKm]
       );
 
       if (rows.length === 0) {
@@ -444,11 +607,21 @@ export default (db) => {
         [id]
       );
 
+      const operatorCoords = { lat: Number(profile.lat), lng: Number(profile.lng) };
+      let preview = null;
+      try {
+        preview = await computePreviewPricing(req.db, rows[0], operatorCoords);
+      } catch {
+        preview = null;
+      }
+
       res.json({
         message: "Détail mission récupéré ✅",
         data: {
           ...rows[0],
           photos: photosRows.map((p) => buildPhotoURL(p.url)),
+          preview_final_price: preview?.finalPrice ?? null,
+          preview_total_km: preview?.totalKm ?? null,
         },
       });
     } catch (err) {
@@ -457,38 +630,59 @@ export default (db) => {
     }
   });
 
-  // ✅ Accepter mission + calcul remorquage dynamique
+  //Accepter mission + calcul remorquage dynamique
 router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
   if (!isOperatorRole(req.user.role)) {
     return res.status(403).json({ error: "Accès refusé" });
   }
 
+  let connection;
   try {
     const { id } = req.params;
 
-    // 🔒 Vérifie si opérateur a déjà une mission en cours
-    const [active] = await req.db.query(
-      "SELECT id FROM requests WHERE operator_id = ? AND status IN ('assignee','acceptee','en_route','sur_place','remorquage')",
+    connection = await req.db.getConnection();
+    await connection.beginTransaction();
+
+    const { operatorDispo } = await getSchemaColumns(connection);
+
+    if (operatorDispo) {
+      const [[opDispo]] = await connection.query(
+        `SELECT ${operatorDispo} AS dispo FROM operators WHERE user_id = ? LIMIT 1`,
+        [req.user.id]
+      );
+      if (opDispo && Number(opDispo.dispo) === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({ error: "Compte opérateur indisponible" });
+      }
+    }
+
+    const [active] = await connection.query(
+      "SELECT id FROM requests WHERE operator_id = ? AND status IN ('assignee','acceptee','en_route','sur_place','remorquage') LIMIT 1",
       [req.user.id]
     );
     if (active.length > 0) {
+      await connection.rollback();
+      connection.release();
       return res.status(400).json({
         error: "Vous avez déjà une mission en cours",
         code: "ACTIVE_MISSION",
       });
     }
 
-    // 1️⃣ Charger la mission avant acceptation
-    const [[missionBefore]] = await req.db.query(
+    // Charger la mission avant acceptation
+    const [rowsBefore] = await connection.query(
       `SELECT r.*, u.name AS client_name, u.phone AS client_phone
        FROM requests r
        JOIN users u ON u.id = r.user_id
-       WHERE r.id = ? AND r.status = 'publiee'
-       LIMIT 1`,
-      [id]
+       WHERE r.id = ? AND r.status = 'publiee' AND (r.operator_id IS NULL OR r.operator_id = ?)
+       FOR UPDATE`,
+      [id, req.user.id]
     );
-
+    const missionBefore = rowsBefore[0];
     if (!missionBefore) {
+      await connection.rollback();
+      connection.release();
       return res
         .status(409)
         .json({ error: "Mission introuvable ou déjà prise" });
@@ -499,71 +693,95 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       String(missionBefore.service || "").toLowerCase().includes("remorqu");
 
     let finalPrice = Number(missionBefore.estimated_price || 0);
+    let totalKm = null;
 
-    // 2️⃣ Si remorquage → calcul dynamique avec fallback
+    // Calcul remorquage 
     if (isTow) {
-      const [[operatorProfile]] = await req.db.query(
+      const [[operatorProfile]] = await connection.query(
         "SELECT lat, lng FROM operators WHERE user_id = ? LIMIT 1",
         [req.user.id]
       );
 
-      if (operatorProfile && operatorProfile.lat != null && operatorProfile.lng != null) {
-        const client = {
-          lat: Number(missionBefore.lat),
-          lng: Number(missionBefore.lng),
-        };
-        const destination = {
-          lat: missionBefore.dest_lat != null ? Number(missionBefore.dest_lat) : null,
-          lng: missionBefore.dest_lng != null ? Number(missionBefore.dest_lng) : null,
-        };
+      const operatorLat = operatorProfile?.lat != null ? Number(operatorProfile.lat) : null;
+      const operatorLng = operatorProfile?.lng != null ? Number(operatorProfile.lng) : null;
+      const clientLat = missionBefore.lat != null ? Number(missionBefore.lat) : null;
+      const clientLng = missionBefore.lng != null ? Number(missionBefore.lng) : null;
+      const destLat = missionBefore.dest_lat != null ? Number(missionBefore.dest_lat) : null;
+      const destLng = missionBefore.dest_lng != null ? Number(missionBefore.dest_lng) : null;
 
-        // a) Config dynamique depuis settings
-        const config = await loadTowingConfig(req.db);
-        let pricing = computeDynamicPrice(config, {
-          lat: Number(operatorProfile.lat),
-          lng: Number(operatorProfile.lng),
-        }, client, destination);
+      const coordsValid =
+        Number.isFinite(operatorLat) &&
+        Number.isFinite(operatorLng) &&
+        Number.isFinite(clientLat) &&
+        Number.isFinite(clientLng) &&
+        Number.isFinite(destLat) &&
+        Number.isFinite(destLng);
 
-        // b) Fallback ancien système si config incomplète
-        if (!pricing) {
-          pricing = computeFallbackPrice(
-            missionBefore.estimated_price,
-            { lat: Number(operatorProfile.lat), lng: Number(operatorProfile.lng) },
-            client,
-            destination
-          );
-        }
+      if (!coordsValid) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({ error: "Coordonnées incomplètes pour le remorquage" });
+      }
 
-        if (pricing) {
-          finalPrice = pricing.finalPrice;
-          await req.db.query(
-            "UPDATE requests SET estimated_price = ? WHERE id = ?",
-            [finalPrice, id]
-          );
-        }
+      const client = { lat: clientLat, lng: clientLng };
+      const destination = { lat: destLat, lng: destLng };
+
+      const config = await loadTowingConfig(connection);
+      let pricing = computeDynamicPrice(config, { lat: operatorLat, lng: operatorLng }, client, destination);
+
+      if (!pricing) {
+        pricing = computeFallbackPrice(
+          missionBefore.estimated_price,
+          { lat: operatorLat, lng: operatorLng },
+          client,
+          destination
+        );
+      }
+
+      if (!pricing) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({ error: "Impossible de calculer le tarif remorquage" });
+      }
+
+      finalPrice = pricing.finalPrice;
+      totalKm = pricing.totalKm ?? null;
+      const canStoreFinal = await ensureFinalPriceColumn(connection);
+      if (canStoreFinal) {
+        await connection.query(
+          "UPDATE requests SET estimated_price = ?, final_price = ? WHERE id = ?",
+          [finalPrice, finalPrice, id]
+        );
+        missionBefore.final_price = finalPrice;
+        if (totalKm != null) missionBefore.total_km = totalKm;
+      } else {
+        await connection.query(
+          "UPDATE requests SET estimated_price = ? WHERE id = ?",
+          [finalPrice, id]
+        );
       }
     }
 
-    // 3️⃣ Assigner la mission à l’opérateur
-    const [result] = await req.db.query(
-      "UPDATE requests SET operator_id = ?, status = 'acceptee', accepted_at = NOW() WHERE id = ? AND status = 'publiee'",
-      [req.user.id, id]
+    // Assigner la mission à l’opérateur
+    const [result] = await connection.query(
+      "UPDATE requests SET operator_id = ?, status = 'acceptee', accepted_at = NOW() WHERE id = ? AND status IN ('publiee','assignee') AND (operator_id IS NULL OR operator_id = ?)",
+      [req.user.id, id, req.user.id]
     );
 
     if (result.affectedRows === 0) {
+      await connection.rollback();
+      connection.release();
       return res
         .status(409)
         .json({ error: "Mission déjà prise par un autre opérateur" });
     }
 
-    // 4️⃣ Log event
-    await req.db.query(
+    await connection.query(
       "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'acceptee', ?, NOW())",
       [id, JSON.stringify({ operator_id: req.user.id })]
     );
 
-    // 5️⃣ Recharger mission complète (pour réponse + socket)
-    const [[mission]] = await req.db.query(
+    const [[mission]] = await connection.query(
       `SELECT r.*, 
               u.name AS client_name,
               u.phone AS client_phone,
@@ -577,15 +795,22 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       [id]
     );
 
-    const [photosRows] = await req.db.query(
+    const [photosRows] = await connection.query(
       `SELECT url FROM request_photos WHERE request_id = ? ORDER BY id ASC`,
       [id]
     );
     const photos = photosRows.map((p) => buildPhotoURL(p.url));
 
-    // 6️⃣ Diffusion temps réel unifiée
+    await connection.commit();
+    connection.release();
+
     const missionPayload = missionToSocketPayload(
-      { ...mission, estimated_price: finalPrice },
+      {
+        ...mission,
+        estimated_price: finalPrice,
+        final_price: finalPrice,
+        total_km: totalKm,
+      },
       photos
     );
     emitMissionEvent(
@@ -598,7 +823,6 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       clientId: missionPayload.user_id,
     });
 
-    // 9️⃣ Notification push Expo au client
     const [[userNotif]] = await req.db.query(
       "SELECT notification_token FROM users WHERE id = ? AND notification_token IS NOT NULL",
       [mission.user_id]
@@ -606,12 +830,11 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     if (userNotif) {
       await sendPushNotification(
         userNotif.notification_token,
-        "🚗 Mission acceptée",
-        `Votre mission #${id} a été acceptée par ${req.user.name}`
+        "Mission acceptée",
+        `Votre mission #${id} a été acceptée par ${req.user.name} pour ${finalPrice} FCFA`
       );
     }
 
-    // 🔟 Réponse HTTP
     res.json({
       message: "Mission acceptée ✅",
       mission: {
@@ -622,6 +845,12 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Erreur POST /operator/requests/:id/accepter:", err);
+    if (connection) {
+      try {
+        await connection.rollback();
+        connection.release();
+      } catch {}
+    }
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -671,8 +900,19 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         });
       }
 
-      // 🔹 Cas spécial : mission terminee
       if (action === "terminee") {
+        // Ensure commission_percent column exists
+        try {
+          await req.db.query(
+            "SELECT commission_percent FROM transactions LIMIT 1"
+          );
+        } catch (e) {
+          if (e?.code === "ER_BAD_FIELD_ERROR") {
+            await req.db.query(
+              "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
+            );
+          }
+        }
         await req.db.query(
           "UPDATE requests SET status = ?, finished_at = NOW() WHERE id = ?",
           [action, id]
@@ -681,15 +921,16 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
           ? Number(mission.estimated_price)
           : 0;
         const currency = mission.currency || "FCFA";
+        const commissionPercent = await getCommissionPercent(req.db);
         const [existingTx] = await req.db.query(
           "SELECT id FROM transactions WHERE request_id = ? LIMIT 1",
           [id]
         );
         if (!existingTx.length) {
           await req.db.query(
-            `INSERT INTO transactions (operator_id, request_id, amount, currency, status, created_at)
-             VALUES (?, ?, ?, ?, 'en_attente', NOW())`,
-            [req.user.id, id, gross, currency]
+            `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, created_at)
+             VALUES (?, ?, ?, ?, 'en_attente', ?, NOW())`,
+            [req.user.id, id, gross, currency, commissionPercent]
           );
           io.to("admins").emit("transaction_created", {
             operator_id: req.user.id,
@@ -707,14 +948,12 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
           id: Number(id),
         });
       } else {
-        // 🔸 Statuts classiques
         await req.db.query("UPDATE requests SET status = ? WHERE id = ?", [
           action,
           id,
         ]);
       }
 
-      // 🔍 Mission mise à jour
       const [[updated]] = await req.db.query(
         `SELECT r.*,
                 u.name  AS user_name,
@@ -745,7 +984,6 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         clientId: missionPayload.user_id,
       });
 
-      // 🔔 Notifie aussi l’opérateur (push Expo)
       const [[operatorNotif]] = await req.db.query(
         "SELECT notification_token FROM users WHERE id = ? AND notification_token IS NOT NULL",
         [req.user.id]
@@ -783,7 +1021,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
     }
   });
 
-  // ✅ Historique des événements d’une mission
+  //  Historique des événements d’une mission
   router.get("/requests/:id/events", authMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
@@ -798,7 +1036,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
     }
   });
 
-  // ✅ Mission active (compat sans JSON_ARRAYAGG)
+  // Mission active 
   router.get("/active", authMiddleware, async (req, res) => {
     try {
       const [rows] = await req.db.query(
@@ -832,7 +1070,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
     }
   });
 
-  // ✅ Historique des missions terminees (compat sans JSON_ARRAYAGG)
+  // Historique des missions terminees (compat sans JSON_ARRAYAGG)
   router.get("/history", authMiddleware, async (req, res) => {
     try {
       const [rows] = await req.db.query(
@@ -881,4 +1119,35 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
   });
 
   return router;
-};
+}
+router.post("/requests/:id/refuser", authMiddleware, async (req, res) => {
+  if (!isOperatorRole(req.user.role))
+    return res.status(403).json({ error: "Accès refusé" });
+
+  try {
+    const { id } = req.params;
+    const [[mission]] = await req.db.query(
+      "SELECT * FROM requests WHERE id = ? AND operator_id = ? AND status = 'publiee'",
+      [id, req.user.id]
+    );
+
+    if (!mission) {
+      return res.status(403).json({ error: "Mission introuvable ou déjà acceptée" });
+    }
+
+    await req.db.query(
+      "UPDATE requests SET operator_id = NULL, status = 'publiee', accepted_at = NULL WHERE id = ?",
+      [id]
+    );
+
+    await req.db.query(
+      "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'refusee', ?, NOW())",
+      [id, JSON.stringify({ operator_id: req.user.id })]
+    );
+
+    res.json({ message: "Mission refusée, remise en publication" });
+  } catch (err) {
+    console.error("❌ Erreur POST /operator/requests/:id/refuser:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});

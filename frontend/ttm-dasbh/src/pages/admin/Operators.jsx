@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { API_BASE } from "../../config/urls";
-import { ClipboardIcon } from "@heroicons/react/24/outline";
+import { ClipboardIcon, EllipsisHorizontalIcon, CheckBadgeIcon, NoSymbolIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";
-import { PencilSquareIcon, TrashIcon, KeyIcon } from "@heroicons/react/24/solid";
+import { PencilSquareIcon, TrashIcon, KeyIcon, StarIcon } from "@heroicons/react/24/solid";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 
 export default function Operators() {
@@ -13,9 +13,33 @@ export default function Operators() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: "", phone: "", email: "" });
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    ville: "",
+    quartier: "",
+    vehicle_type: "",
+    is_available: true,
+    lat: "",
+    lng: "",
+    is_internal: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [detailOp, setDetailOp] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const vehicleOptions = ["Voiture", "Moto", "Camion", "Pick-up", "Van", "Autre"];
+
+  useEffect(() => {
+    const closeMenus = (e) => {
+      if (!e.target.closest(".op-actions-menu")) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", closeMenus);
+    return () => document.removeEventListener("mousedown", closeMenus);
+  }, []);
 
   // ✅ Permissions
   const canView   = isSuper(user) || can(user, "operators_view");
@@ -23,6 +47,7 @@ export default function Operators() {
   const canUpdate = isSuper(user) || can(user, "operators_update");
   const canDelete = isSuper(user) || can(user, "operators_delete");
   const canReset  = isSuper(user) || can(user, "operators_reset_password");
+  const canToggleInternal = canUpdate;
 
   const loadOperators = async () => {
     if (!canView) return; // ✅ pas d’appel si pas le droit
@@ -53,6 +78,23 @@ export default function Operators() {
   );
 
   const saveOperator = async () => {
+    const latNum = form.lat !== "" ? Number(form.lat) : null;
+    const lngNum = form.lng !== "" ? Number(form.lng) : null;
+    const payload = {
+      name: form.name,
+      phone: form.phone,
+      email: form.email || null,
+      ville: form.ville || null,
+      quartier: form.quartier || null,
+      vehicle_type: form.vehicle_type || null,
+      is_available: !!form.is_available,
+      is_internal: !!form.is_internal,
+      balance: 0,
+      pending_balance: 0,
+    };
+    if (Number.isFinite(latNum)) payload.lat = latNum;
+    if (Number.isFinite(lngNum)) payload.lng = lngNum;
+
     try {
       if (editing) {
         if (!canUpdate) {
@@ -65,7 +107,7 @@ export default function Operators() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur modification");
@@ -81,10 +123,7 @@ export default function Operators() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            ...form,
-            email: form.email || null,
-          }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur ajout opérateur");
@@ -118,7 +157,18 @@ export default function Operators() {
       }
 
       await loadOperators();
-      setForm({ name: "", phone: "", email: "" });
+      setForm({
+        name: "",
+        phone: "",
+        email: "",
+        ville: "",
+        quartier: "",
+        vehicle_type: "",
+        is_available: true,
+        lat: "",
+        lng: "",
+        is_internal: false,
+      });
       setEditing(null);
       setShowForm(false);
     } catch (err) {
@@ -194,6 +244,56 @@ export default function Operators() {
     }
   };
 
+  const toggleInternal = async (op) => {
+    if (!canToggleInternal) {
+      toast.error("Permission refusée : mise à jour opérateur");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/operators/${op.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_internal: !op.is_internal }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour");
+      toast.success(
+        !op.is_internal
+          ? "Opérateur promu interne ✅"
+          : "Opérateur repassé en externe ✅"
+      );
+      await loadOperators();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const toggleBlock = async (op, shouldBlock) => {
+    if (!canUpdate) {
+      toast.error("Permission refusée : mise à jour opérateur");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/operators/${op.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ dispo: shouldBlock ? 0 : 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour");
+      toast.success(shouldBlock ? "Opérateur bloqué ✅" : "Opérateur débloqué ✅");
+      await loadOperators();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   // ✅ Blocage vue si pas la permission
   if (!canView) {
     return (
@@ -242,13 +342,27 @@ export default function Operators() {
       )}
 
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">🚚 Opérateurs</h2>
+        <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text-color)" }}>
+          <CheckBadgeIcon className="w-6 h-6" style={{ color: "var(--accent)" }} />
+          Opérateurs
+        </h2>
         {/* ✅ visible seulement si création autorisée */}
         {canCreate && (
           <button
             onClick={() => {
               setEditing(null);
-              setForm({ name: "", phone: "", email: "" });
+              setForm({
+                name: "",
+                phone: "",
+                email: "",
+                ville: "",
+                quartier: "",
+                vehicle_type: "",
+                is_available: true,
+                lat: "",
+                lng: "",
+                is_internal: false,
+              });
               setShowForm(true);
             }}
             className="px-4 py-2 rounded transition-all"
@@ -294,67 +408,128 @@ export default function Operators() {
           {filtered.map((o) => (
             <tr
               key={o.id}
-              className="hover:opacity-80"
+              className="hover:opacity-95 cursor-pointer"
               style={{ borderTop: "1px solid var(--border-color)" }}
+              onClick={() => setDetailOp(o)}
             >
               <td className="px-3 py-2">#{o.id}</td>
-              <td className="px-3 py-2">{o.name}</td>
-              <td className="px-3 py-2 font-semibold" style={{ color: "#f97316" }}>
-                📞 {o.phone}
+              <td className="px-3 py-2 flex items-center gap-2">
+                {o.name}
+                {Number(o.dispo) === 0 ? (
+                  <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 border border-red-200">
+                    <LockClosedIcon className="w-4 h-4" />
+                  </span>
+                ) : null}
+              </td>
+              <td className="px-3 py-2 font-semibold" style={{ color: "var(--text-color)" }}>
+                 {o.phone}
               </td>
               <td
                 className="px-3 py-2"
-                style={{ color: o.email ? "#60a5fa" : "var(--muted)" }}
+                style={{ color: o.email ? "var(--text-color)" : "var(--muted)" }}
               >
                 {o.email || "—"}
               </td>
               <td className="px-3 py-2">
                 {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
               </td>
-              <td className="px-3 py-2 text-center">
+              <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2 justify-center">
-                  {/* Modifier */}
-                  {canUpdate && (
+                  {/* Interne toggle */}
+                  {canToggleInternal && (
                     <button
-                      onClick={() => {
-                        setEditing(o);
-                        setForm({
-                          name: o.name || "",
-                          phone: o.phone || "",
-                          email: o.email || "",
-                        });
-                        setShowForm(true);
-                      }}
+                      onClick={() => toggleInternal(o)}
                       className="p-2 rounded-full text-white shadow-md transition"
-                      style={{ background: "#facc15" }}
-                      title="Modifier"
+                      style={{ background: o.is_internal ? "#10b981" : "#9ca3af" }}
+                      title={o.is_internal ? "Retirer interne" : "Promouvoir interne"}
                     >
-                      <PencilSquareIcon className="w-5 h-5" />
+                      <StarIcon className="w-5 h-5" />
                     </button>
                   )}
-
-                  {/* Supprimer */}
-                  {canDelete && (
-                    <button
-                      onClick={() => deleteOperator(o.id)}
-                      className="p-2 rounded-full text-white shadow-md transition"
-                      style={{ background: "#e5372e" }}
-                      title="Supprimer"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
-                  )}
-
-                  {/* Reset */}
-                  {canReset && (
-                    <button
-                      onClick={() => resetPassword(o.id)}
-                      className="p-2 rounded-full text-white shadow-md transition"
-                      style={{ background: "var(--accent)" }}
-                      title="Réinitialiser"
-                    >
-                      <KeyIcon className="w-5 h-5" />
-                    </button>
+                  {(canUpdate || canDelete || canReset) && (
+                    <div className="relative op-actions-menu">
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === o.id ? null : o.id)}
+                        className="p-2 rounded-full text-white shadow-md transition"
+                        style={{ background: "var(--accent)" }}
+                        title="Plus d'actions"
+                      >
+                        <EllipsisHorizontalIcon className="w-5 h-5" />
+                      </button>
+                      {openMenuId === o.id && (
+                        <div
+                          className="absolute right-0 mt-2 w-44 rounded shadow-lg border op-actions-menu"
+                          style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", zIndex: 10 }}
+                        >
+                          {canUpdate && (
+                            <button
+                              onClick={() => {
+                                setEditing(o);
+                                setForm({
+                                  name: o.name || "",
+                                  phone: o.phone || "",
+                                  email: o.email || "",
+                                  ville: o.ville || "",
+                                  quartier: o.quartier || "",
+                                  vehicle_type: o.vehicle_type || "",
+                                  is_available:
+                                    o.is_available !== undefined ? !!o.is_available : true,
+                                  lat: o.lat ?? "",
+                                  lng: o.lng ?? "",
+                                  is_internal: !!o.is_internal,
+                                });
+                                setShowForm(true);
+                                setOpenMenuId(null);
+                              }}
+                          className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                          style={{ color: "var(--text-color)" }}
+                        >
+                          <PencilSquareIcon className="w-4 h-4 text-amber-500" />
+                          Modifier
+                        </button>
+                      )}
+                          {canUpdate && (
+                            <button
+                              onClick={() => {
+                                toggleBlock(o, (o.dispo ?? 1) ? true : false);
+                                setOpenMenuId(null);
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                              style={{ color: "var(--text-color)" }}
+                            >
+                              <NoSymbolIcon className="w-4 h-4 text-red-500" />
+                              {o.dispo ? "Bloquer" : "Débloquer"}
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => {
+                                deleteOperator(o.id);
+                                setOpenMenuId(null);
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                              style={{ color: "var(--text-color)" }}
+                            >
+                              <TrashIcon className="w-4 h-4 text-red-500" />
+                              Supprimer
+                            </button>
+                          )}
+                          {canReset && (
+                            <button
+                              onClick={() => {
+                                resetPassword(o.id);
+                                setOpenMenuId(null);
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                              style={{ color: "var(--text-color)" }}
+                            >
+                              <KeyIcon className="w-4 h-4 text-blue-500" />
+                              Réinitialiser
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </td>
@@ -425,13 +600,111 @@ export default function Operators() {
                 color: "var(--text-color)",
                 borderColor: "var(--border-color)",
               }}
-            />
+        />
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 rounded"
-                style={{
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <input
+            type="text"
+            placeholder="Ville (optionnel)"
+            value={form.ville}
+            onChange={(e) => setForm({ ...form, ville: e.target.value })}
+            className="w-full p-2 rounded border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Quartier (optionnel)"
+            value={form.quartier}
+            onChange={(e) => setForm({ ...form, quartier: e.target.value })}
+            className="w-full p-2 rounded border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-xs text-[var(--muted)]">Type de véhicule</label>
+            <select
+              className="w-full p-2 rounded border"
+              value={form.vehicle_type}
+              onChange={(e) => setForm({ ...form, vehicle_type: e.target.value })}
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              <option value="">— Optionnel —</option>
+              {vehicleOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm mt-5 sm:mt-auto">
+            <input
+              type="checkbox"
+              checked={form.is_available}
+              onChange={(e) => setForm({ ...form, is_available: e.target.checked })}
+            />
+            <span>Disponible</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <input
+            type="number"
+            step="0.000001"
+            placeholder="Latitude (optionnel)"
+            value={form.lat}
+            onChange={(e) => setForm({ ...form, lat: e.target.value })}
+            className="w-full p-2 rounded border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          />
+          <input
+            type="number"
+            step="0.000001"
+            placeholder="Longitude (optionnel)"
+            value={form.lng}
+            onChange={(e) => setForm({ ...form, lng: e.target.value })}
+            className="w-full p-2 rounded border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm mb-4">
+          <input
+            type="checkbox"
+            checked={form.is_internal}
+            onChange={(e) => setForm({ ...form, is_internal: e.target.checked })}
+          />
+          <span>
+            Opérateur interne TTM
+          </span>
+        </label>
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setShowForm(false)}
+            className="px-4 py-2 rounded"
+            style={{
                   background: "transparent",
                   border: "1px solid var(--border-color)",
                   color: "var(--text-color)",
@@ -453,6 +726,113 @@ export default function Operators() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailOp && (
+        <div
+          className="fixed inset-0 flex justify-center items-center"
+          style={{ background: "rgba(0,0,0,0.55)", zIndex: 50 }}
+          onClick={() => setDetailOp(null)}
+        >
+          <div
+            className="rounded-xl shadow-xl w-full max-w-lg p-6 relative"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <CheckBadgeIcon className="w-6 h-6" style={{ color: "var(--accent)" }} />
+              Profil opérateur
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <InfoCard label="Nom" value={detailOp.name} />
+              <InfoCard label="Téléphone" value={detailOp.phone || "—"} accent />
+              <InfoCard label="Email" value={detailOp.email || "—"} />
+              <InfoCard label="Disponibilité" value={detailOp.dispo ? "Disponible" : "Indisponible"} badgeColor={detailOp.dispo ? "#10b981" : "#9ca3af"} />
+              <InfoCard
+                label="Créé le"
+                value={
+                  detailOp.created_at
+                    ? new Date(detailOp.created_at).toLocaleDateString()
+                    : "—"
+                }
+              />
+              <InfoCard label="ID" value={`#${detailOp.id}`} />
+              <InfoCard
+                label="Type"
+                value={detailOp.is_internal ? "TTM interne" : "Externe"}
+                badgeColor={detailOp.is_internal ? "#0ea5e9" : "#9ca3af"}
+              />
+              <InfoCard label="Ville" value={detailOp.ville || "—"} />
+              <InfoCard label="Quartier" value={detailOp.quartier || "—"} />
+              <InfoCard label="Type de véhicule" value={detailOp.vehicle_type || "—"} />
+              <InfoCard
+                label="Coordonnées"
+                value={
+                  detailOp.lat != null && detailOp.lng != null
+                    ? `${detailOp.lat}, ${detailOp.lng}`
+                    : "—"
+                }
+              />
+              <InfoCard
+                label="Missions effectuées"
+                value={
+                  Number(detailOp.dispo) === 0
+                    ? "Bloqué"
+                    : (detailOp.missions_terminees ??
+                      detailOp.completed_count ??
+                      detailOp.total_done ??
+                      detailOp.total_missions ??
+                      "—")
+                }
+                accent
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setDetailOp(null)}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "var(--accent)",
+                  color: "#fff",
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoCard({ label, value, accent = false, badgeColor }) {
+  const badge =
+    badgeColor != null ? (
+      <span
+        className="px-2 py-1 rounded text-xs text-white"
+        style={{ background: badgeColor }}
+      >
+        {value}
+      </span>
+    ) : null;
+  return (
+    <div
+      className="p-3 rounded-lg border"
+      style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}
+    >
+      <p className="text-xs uppercase tracking-wide text-[var(--muted)]">{label}</p>
+      {badge || (
+        <p
+          className="mt-1 font-semibold"
+          style={{ color: accent ? "var(--accent)" : "var(--text-color)" }}
+        >
+          {value}
+        </p>
       )}
     </div>
   );

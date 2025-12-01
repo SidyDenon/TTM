@@ -38,11 +38,19 @@ export default (db) => {
     checkPermission("operators_view"),
     async (req, res) => {
       try {
-        const { operatorDispo } = await getSchemaColumns(req.db);
+        const { operatorDispo, operatorInternal } = await getSchemaColumns(req.db);
         const dispoSel = operatorDispo ? `o.${operatorDispo}` : "NULL";
+        const internalSel = operatorInternal ? `o.${operatorInternal}` : "NULL";
         const sql = `
           SELECT u.id, u.name, u.phone, u.email, u.created_at,
-                 o.ville, o.quartier, ${dispoSel} AS dispo
+                 o.ville, o.quartier, o.vehicle_type, o.lat, o.lng, o.balance, o.pending_balance,
+                 ${dispoSel} AS dispo, ${internalSel} AS is_internal,
+                 (
+                   SELECT COUNT(*)
+                   FROM requests r
+                   WHERE r.operator_id = u.id
+                     AND LOWER(r.status) = 'terminee'
+                 ) AS missions_terminees
           FROM users u
           LEFT JOIN operators o ON o.user_id = u.id
           WHERE u.role = 'operator'
@@ -63,7 +71,7 @@ export default (db) => {
     checkPermission("operators_manage"),
     async (req, res) => {
       try {
-        const { name, phone, email, ville, quartier } = req.body;
+        const { name, phone, email, ville, quartier, is_internal } = req.body;
         if (!name || !phone) {
           return res
             .status(400)
@@ -92,10 +100,15 @@ export default (db) => {
         const userId = result.insertId;
 
         // 2️⃣ operators
-        const { operatorDispo, operatorCreatedAt } = await getSchemaColumns(req.db);
+        const { operatorDispo, operatorCreatedAt, operatorInternal } = await getSchemaColumns(req.db);
         const columns = ["user_id", "ville", "quartier"];
         const placeholders = ["?", "?", "?"];
         const values = [userId, ville || "", quartier || ""];
+        if (operatorInternal) {
+          columns.push(operatorInternal);
+          placeholders.push("?");
+          values.push(is_internal ? 1 : 0);
+        }
         if (operatorDispo) {
           columns.push(operatorDispo);
           placeholders.push("?");
@@ -153,7 +166,7 @@ export default (db) => {
     async (req, res) => {
       try {
         const { id } = req.params;
-        const { name, phone, email, password, ville, quartier, dispo } =
+        const { name, phone, email, password, ville, quartier, dispo, is_internal } =
           req.body;
 
         // unicité phone/email
@@ -211,10 +224,14 @@ export default (db) => {
           fieldsOp.push("quartier = ?");
           valuesOp.push(quartier || "");
         }
-        const { operatorDispo } = await getSchemaColumns(req.db);
+        const { operatorDispo, operatorInternal } = await getSchemaColumns(req.db);
         if (dispo !== undefined && operatorDispo) {
           fieldsOp.push(`${operatorDispo} = ?`);
           valuesOp.push(dispo ? 1 : 0);
+        }
+        if (is_internal !== undefined && operatorInternal) {
+          fieldsOp.push(`${operatorInternal} = ?`);
+          valuesOp.push(is_internal ? 1 : 0);
         }
         if (fieldsOp.length > 0) {
           valuesOp.push(id);

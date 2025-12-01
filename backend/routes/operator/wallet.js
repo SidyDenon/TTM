@@ -2,6 +2,7 @@ import express from "express";
 import authMiddleware from "../../middleware/auth.js";
 import { io } from "../../server.js";
 import { getCommissionPercent } from "../../utils/commission.js";
+import { getSchemaColumns } from "../../utils/schema.js";
 
 const router = express.Router();
 
@@ -9,8 +10,7 @@ const router = express.Router();
 const OPERATOR_ROLES = ["operator", "operateur", "opérateur"];
 
 // 🔧 Calcule le total net des gains confirmés pour un opérateur
-async function getTotalGainsNet(db, operatorUserId) {
-  const commissionPercent = await getCommissionPercent(db);
+async function getTotalGainsNet(db, operatorUserId, commissionPercent) {
   const COMM = commissionPercent / 100;
   let totalGainsNet = 0;
 
@@ -72,7 +72,7 @@ export default (db) => {
     try {
       // 🔹 Récupérer l’ID opérateur + soldes éventuels
       const [[operator]] = await req.db.query(
-        "SELECT id, balance, pending_balance FROM operators WHERE user_id = ?",
+        "SELECT id, balance, pending_balance, is_internal FROM operators WHERE user_id = ?",
         [req.user.id]
       );
 
@@ -84,7 +84,11 @@ export default (db) => {
       const operatorUserId = req.user.id; // id dans table users
 
       // 💰 Total des gains nets confirmés (en fonction de la commission)
-      const totalGainsNet = await getTotalGainsNet(req.db, operatorUserId);
+      const commissionPercentRaw = await getCommissionPercent(req.db);
+      const commissionPercent =
+        operator?.is_internal ? 0 : commissionPercentRaw;
+
+      const totalGainsNet = await getTotalGainsNet(req.db, operatorUserId, commissionPercent);
 
       // 💸 Total des retraits approuvés
       const totalRetraits = await getTotalRetraits(req.db, operatorId);
@@ -94,7 +98,6 @@ export default (db) => {
 
       // 📜 Historique des transactions (toutes, même en_attente)
       let transactions = [];
-      const commissionPercent = await getCommissionPercent(req.db);
       const COMM = commissionPercent / 100;
 
       try {
@@ -191,6 +194,8 @@ export default (db) => {
         // infos complémentaires (optionnel pour ton front)
         balance: Number(operator.balance || 0),
         pending_balance: Number(operator.pending_balance || 0),
+        commission_percent: commissionPercent,
+        is_internal: !!operator.is_internal,
         transactions: historique,
       });
     } catch (err) {

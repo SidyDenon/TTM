@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../context/AuthContext";
+import Toast from "react-native-toast-message";
 
 export default function LoginScreen() {
   const [identifier, setIdentifier] = useState<string>(""); // 📌 champ unique
@@ -23,11 +24,16 @@ export default function LoginScreen() {
         router.replace("/user");
       }
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Erreur de connexion");
-      }
+      const msg = err instanceof Error ? err.message : "Erreur de connexion";
+      setError(msg); // garde l’affichage inline si utile
+      Toast.show({
+        type: "error",
+        position: "top",
+        text1: "Connexion échouée",
+        text2: msg,
+        visibilityTime: 3000,
+        topOffset: 55,
+      });
     }
   };
 

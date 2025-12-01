@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
+import Toast from "react-native-toast-message";
 
 /* ----------- Types ----------- */
 type Photo = {
@@ -36,25 +37,40 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(false);
   const { apiFetch, user } = useAuth();
+  const lastErrorRef = useRef<string | null>(null);
 
   /* ✅ Chargement automatique des requêtes de l’utilisateur connecté */
   useEffect(() => {
-    if (user) {
+    if (user?.role === "user") {
       fetchRequests();
     } else {
-      setRequests([]); // réinitialise à la déconnexion
+      // opérateur/admin : pas de requêtes client
+      setRequests([]);
     }
   }, [user]);
 
   /* 🔄 Récupération des demandes */
   const fetchRequests = useCallback(async () => {
-    if (!user) return;
+    if (!user || user.role !== "user") return;
 
     try {
       setLoading(true);
       const data = await apiFetch<{ data?: Request[] }>("/requests");
       setRequests(data.data || []);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      // éviter de spammer le même toast
+      if (lastErrorRef.current !== msg) {
+        lastErrorRef.current = msg;
+        Toast.show({
+          type: "error",
+          position: "top",
+          text1: "Impossible de charger les missions",
+          text2: msg,
+          visibilityTime: 3000,
+          topOffset: 55,
+        });
+      }
       console.error("❌ Erreur fetchRequests:", err);
     } finally {
       setLoading(false);
@@ -64,6 +80,7 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
   /* 🆕 Création d’une demande */
   const createRequest = useCallback(
     async (data: Omit<Request, "id" | "created_at" | "status">) => {
+      if (!user || user.role !== "user") return;
       try {
         setLoading(true);
         const newReq = await apiFetch<Request>("/requests", {
@@ -72,6 +89,15 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         setRequests((prev) => [newReq, ...prev]);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        Toast.show({
+          type: "error",
+          position: "top",
+          text1: "Création échouée",
+          text2: msg,
+          visibilityTime: 3000,
+          topOffset: 55,
+        });
         console.error("❌ Erreur createRequest:", err);
       } finally {
         setLoading(false);

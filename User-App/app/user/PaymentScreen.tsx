@@ -295,7 +295,7 @@ export default function PaymentScreen() {
 
       {!paid && (
         <Text style={styles.helper}>
-          Tu ne peux pas quitter cette étape tant que le paiement n’est pas
+          Vous ne pouvez pas quitter cette étape tant que le paiement n’est pas
           confirmé.
         </Text>
       )}

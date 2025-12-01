@@ -1,5 +1,6 @@
-﻿export const RAW_WHATSAPP_NUMBER = "0022373585046";
+export const RAW_WHATSAPP_NUMBER = "0022373585046";
 export const RAW_SUPPORT_PHONE = "+22373585046";
+export const RAW_SUPPORT_EMAIL = "support@ttm.com";
 
 export const DEFAULT_MESSAGES = {
   generalInquiry: "Bonjour 👋, j’aimerais avoir des informations sur vos services TTM.",
@@ -35,3 +36,21 @@ export const buildServiceRequestMessage = (service) => {
 };
 
 export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServiceRequestMessage(service));
+
+// Optionnel : récupérer la config support depuis l'API backend (si dispo)
+export async function fetchSupportConfig(apiBase = "") {
+  try {
+    const base = apiBase || (typeof import.meta !== "undefined" ? import.meta.env.VITE_API_BASE || "" : "");
+    if (!base) return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
+    const normalized = base.replace(/\/+$/, "");
+    const res = await fetch(`${normalized}/api/config/public`);
+    const data = await res.json();
+    return {
+      phone: data.support_phone || RAW_SUPPORT_PHONE,
+      whatsapp: data.support_whatsapp || RAW_WHATSAPP_NUMBER,
+      email: data.support_email || RAW_SUPPORT_EMAIL,
+    };
+  } catch {
+    return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
+  }
+}

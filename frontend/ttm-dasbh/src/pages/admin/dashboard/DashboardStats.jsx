@@ -52,6 +52,7 @@ export default function DashboardStats({ stats, navigate }) {
       label: "Missions terminées",
       key: "done",
       color: "#22c55e",
+      path: "/dashboard/missions",
       perm: "requests_view",
     },
     {

@@ -4,6 +4,7 @@ import { ADMIN_API } from "../../config/urls";
 import { toast } from "react-toastify";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
 
 export default function Withdrawals() {
   const { token, user } = useAuth();
@@ -17,6 +18,13 @@ export default function Withdrawals() {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("tous");
+  const [monthFilter, setMonthFilter] = useState("all");
+
+  const formatAmount = (v = 0) =>
+    Number(v || 0).toLocaleString("fr-FR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
 
   const showSystemNotification = (title, body) => {
     if (
@@ -187,6 +195,62 @@ export default function Withdrawals() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, token, canView]);
 
+  const filteredWithdrawals =
+    monthFilter === "all"
+      ? withdrawals
+      : withdrawals.filter((w) => {
+          if (!w?.created_at) return false;
+          const d = new Date(w.created_at);
+          if (Number.isNaN(d.getTime())) return false;
+          const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          return ym === monthFilter;
+        });
+
+  const printTable = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const rowsHtml = filteredWithdrawals
+      .map(
+        (w) => `
+        <tr>
+          <td>#${w.id}</td>
+          <td>${w.operator_name || "—"}</td>
+          <td>${formatAmount(w.amount)} ${w.currency || ""}</td>
+          <td>${w.method || ""}</td>
+          <td>${w.status || ""}</td>
+          <td>${w.updated_at || w.created_at || ""}</td>
+        </tr>`
+      )
+      .join("");
+    win.document.write(`
+      <html>
+        <head>
+          <title>Rapport retraits</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 16px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+            th { background: #f5f5f5; }
+          </style>
+        </head>
+        <body>
+          <h2>Rapport retraits</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#ID</th><th>Opérateur</th><th>Montant</th><th>Méthode</th><th>Statut</th><th>Maj</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
   // 🔒 Blocage si pas la permission
   if (!canView) {
     return <Unauthorized permKey="withdrawals_view" />;
@@ -215,6 +279,28 @@ export default function Withdrawals() {
         </div>
         <div className="flex gap-3 items-center">
           <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="px-3 py-2 rounded border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <option value="all">Tous les mois</option>
+            {Array.from({ length: 12 }).map((_, i) => {
+              const d = new Date();
+              d.setMonth(d.getMonth() - i);
+              const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              return (
+                <option key={`${ym}-${i}`} value={ym}>
+                  {ym}
+                </option>
+              );
+            })}
+          </select>
+          <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="px-3 py-2 rounded border"
@@ -231,13 +317,22 @@ export default function Withdrawals() {
           </select>
           <button
             onClick={loadWithdrawals}
-            className="px-4 py-2 rounded transition-all"
+            className="px-4 py-2 rounded transition-all flex items-center gap-2"
             style={{
               background: "var(--accent)",
               color: "#fff",
             }}
           >
-            🔄 Actualiser
+            <ArrowPathIcon className="w-5 h-5" />
+            Actualiser
+          </button>
+          <button
+            onClick={printTable}
+            className="px-3 py-2 rounded transition-all flex items-center gap-2"
+            style={{ background: "var(--bg-card)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
+            title="Imprimer le rapport"
+          >
+            <PrinterIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -255,12 +350,23 @@ export default function Withdrawals() {
       ) : withdrawals.length === 0 ? (
         <p style={{ color: "var(--muted)" }}>Aucune demande trouvée.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          style={{
+            marginTop: "12px",
+            maxHeight: "calc(100vh - 350px)",
+            overflowY: "auto",
+          }}
+        >
           <table className="w-full text-sm border-collapse">
             <thead
               style={{
                 color: "var(--muted)",
                 borderBottom: "1px solid var(--border-color)",
+                position: "sticky",
+                top: 0,
+                zIndex: 5,
+                background: "var(--bg-card)",
               }}
             >
               <tr>
@@ -268,35 +374,38 @@ export default function Withdrawals() {
                 <th className="px-3 py-2 text-left">Opérateur</th>
                 <th className="px-3 py-2 text-left">Montant</th>
                 <th className="px-3 py-2 text-left">Méthode</th>
+                <th className="px-3 py-2 text-left">Téléphone</th>
                 <th className="px-3 py-2 text-left">Statut</th>
                 <th className="px-3 py-2 text-left">Dernière mise à jour</th>
                 <th className="px-3 py-2 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {withdrawals.map((w) => (
+              {filteredWithdrawals.map((w) => (
                 <tr
                   key={w.id}
-                  className="hover:opacity-80"
+                  className="hover:bg-[var(--bg-main)]/30"
                   style={{ borderTop: "1px solid var(--border-color)" }}
                 >
                   <td className="px-3 py-2">#{w.id}</td>
-                  <td className="px-3 py-2" style={{ color: "#60a5fa" }}>
+                  <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>
                     {w.operator_name || "—"}
                   </td>
-                  <td className="px-3 py-2 font-semibold" style={{ color: "#22c55e" }}>
-                    {Number(w.amount).toLocaleString("fr-FR")} {w.currency}
+                  <td className="px-3 py-2 font-semibold" style={{ color: "var(--text-color)" }}>
+                    {formatAmount(w.amount)} {w.currency}
                   </td>
-                  <td className="px-3 py-2">{w.method}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>{w.method}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>{w.phone || "—"}</td>
                   <td
                     className="px-3 py-2"
                     style={{
                       color:
                         w.status === "approuvée"
-                          ? "#22c55e"
+                          ? "#16a34a"
                           : w.status === "rejetée"
                           ? "#ef4444"
-                          : "#facc15",
+                          : "#f59e0b",
+                      fontWeight: w.status === "approuvée" ? 600 : 500,
                     }}
                   >
                     {w.status}
@@ -310,8 +419,8 @@ export default function Withdrawals() {
                         {canApprove && (
                           <button
                             onClick={() => approve(w.id)}
-                            className="px-3 py-1 rounded text-sm transition-all"
-                            style={{ background: "#22c55e", color: "#fff" }}
+                            className="px-3 py-1 rounded-full text-sm transition-all flex items-center gap-1 border"
+                            style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", borderColor: "#22c55e" }}
                             title="Approuver le retrait"
                           >
                             ✅ Approuver
@@ -320,8 +429,8 @@ export default function Withdrawals() {
                         {canReject && (
                           <button
                             onClick={() => reject(w.id)}
-                            className="px-3 py-1 rounded text-sm transition-all"
-                            style={{ background: "#e5372e", color: "#fff" }}
+                            className="px-3 py-1 rounded-full text-sm transition-all flex items-center gap-1 border"
+                            style={{ background: "rgba(229,55,46,0.1)", color: "#e5372e", borderColor: "#e5372e" }}
                             title="Rejeter le retrait"
                           >
                             ❌ Rejeter
@@ -334,7 +443,10 @@ export default function Withdrawals() {
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs" style={{ color: "var(--muted)" }}>
+                      <span
+                        className="text-xs px-3 py-1 inline-block rounded-full border"
+                        style={{ color: "var(--muted)", borderColor: "var(--border-color)" }}
+                      >
                         —
                       </span>
                     )}

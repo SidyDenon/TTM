@@ -38,6 +38,7 @@ export default function SuiviMissionScreen() {
     eta,
     distance,
     operatorPhone,
+    mission: missionData,
     statusText,
     canCancel,
     heureArrivee,
@@ -142,6 +143,12 @@ export default function SuiviMissionScreen() {
     isTowingMission &&
     hasDestinationCoords &&
     mission?.status === "remorquage";
+
+  const displayedDistance =
+    (isTowingMission && typeof mission?.total_km === "number"
+      ? mission.total_km
+      : null) ??
+    (typeof distance === "number" ? distance : null);
 
   const steps = useMemo(() => {
     if (!isTowingMission) return BASE_STEPS;
@@ -382,13 +389,21 @@ export default function SuiviMissionScreen() {
           </View>
         )}
 
+        {typeof mission.total_km === "number" && (
+            <View style={styles.totalKmBox} >
+              <Text style={styles.totalKmLabel}>Kilométrage total</Text>
+              <Text style={styles.totalKmValue}>{mission.total_km.toFixed(1)} km</Text>
+            </View>
+        )}
+
         <View style={styles.subInfoRow}>
           {heureArrivee && (
             <Text style={styles.timeSub}>Heure estimée : {heureArrivee}</Text>
           )}
-          {typeof distance === "number" && (
+          {typeof displayedDistance === "number" && (
             <Text style={styles.timeSub}>
-              Distance : {distance.toFixed(1)} km
+              {isTowingMission ? "Distance totale" : "Distance"} :{" "}
+              {displayedDistance.toFixed(1)} km
             </Text>
           )}
         </View>
@@ -732,6 +747,18 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: "space-between",
   },
+  totalKmBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 8,
+    backgroundColor: "#1b1b1b",
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  totalKmLabel: { color: "#ccc", fontSize: 12, fontWeight: "600" },
+  totalKmValue: { color: "#fff", fontSize: 14, fontWeight: "800" },
 
   toast: {
     position: "absolute",

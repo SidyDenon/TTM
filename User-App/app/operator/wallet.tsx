@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { API_URL } from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
@@ -35,41 +36,27 @@ type Transaction = {
   type: "gain" | "retrait";
 };
 
+const DEFAULT_COMMISSION = 12; // % aligné avec dashboard admin
+
 export default function WalletScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { socket } = useSocket();
 
   const [solde, setSolde] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [commissionPercent, setCommissionPercent] = useState<number>(DEFAULT_COMMISSION);
 
   const [showModal, setShowModal] = useState(false);
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
   const [method, setMethod] = useState("Orange Money");
-
-  // 🔄 Animation du bouton refresh
-  const [refreshing, setRefreshing] = useState(false);
-  const spinAnim = useRef(new Animated.Value(0)).current;
-
-  const startRefreshAnimation = () => {
-    spinAnim.setValue(0);
-    Animated.loop(
-      Animated.timing(spinAnim, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  };
+  const [tab, setTab] = useState<"gains" | "retraits">("gains");
 
   // ---------------------- FETCH WALLET ----------------------
   const fetchWallet = async () => {
     try {
-      setRefreshing(true);
-      startRefreshAnimation();
       const res = await fetch(`${API_URL}/operator/wallet`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -80,16 +67,31 @@ export default function WalletScreen() {
         return;
       }
 
+      if (data.commission_percent != null) {
+        setCommissionPercent(Number(data.commission_percent));
+      } else {
+        setCommissionPercent((prev) =>
+          Number.isFinite(prev) ? prev : DEFAULT_COMMISSION
+        );
+      }
+      if (data.is_internal) {
+        setCommissionPercent(0);
+      }
       setSolde(data.solde || 0);
       setTransactions(data.transactions || []);
     } catch (err) {
       console.error("❌ Erreur fetchWallet:", err);
       Alert.alert("Erreur", "Impossible de charger vos gains");
     } finally {
-      setRefreshing(false);
       setLoading(false);
     }
   };
+
+  const netAmount = useCallback(
+    (amount: number) =>
+      Math.max(0, Number(amount) * (1 - commissionPercent / 100)),
+    [commissionPercent]
+  );
 
   // ---------------------- CONFIRMER RETRAIT ----------------------
   const confirmerRetrait = async () => {
@@ -199,13 +201,16 @@ export default function WalletScreen() {
     };
 
     const handleNewTransaction = (data: any) => {
+      if (data?.commission_percent != null) {
+        setCommissionPercent(Number(data.commission_percent));
+      }
       Toast.show({
         type: "info",
         text1: "🚗 Mission terminée",
-        text2: `Nouveau gain : ${formatCurrency(data.amount)}`,
+        text2: `Nouveau gain : ${formatCurrency(netAmount(data.amount))}`,
         visibilityTime: 2500,
       });
-      setSolde((s) => s + data.amount * 0.9);
+      setSolde((s) => s + netAmount(data.amount));
       setTransactions((prev) => [
         {
           id: data.id || Date.now(),
@@ -241,116 +246,143 @@ export default function WalletScreen() {
     );
   }
 
+  const gains = transactions.filter((t) => t.type === "gain");
+  const retraits = transactions.filter((t) => t.type === "retrait");
+
+  const renderLine = (item: Transaction) => {
+    const isGain = item.type === "gain";
+    const color = isGain ? "#2E7D32" : "#D84315";
+    const icon = isGain ? "trending-up" : "trending-down";
+    const amountValue =
+      item.type === "gain" ? netAmount(item.amount) : item.amount;
+    return (
+      <View style={styles.transactionCard}>
+        <View style={styles.transactionLeft}>
+          <View style={[styles.transIcon, { backgroundColor: `${color}20` }]}>
+            <MaterialIcons name={icon as any} size={18} color={color} />
+          </View>
+          <View>
+            <Text style={styles.transactionTitle}>
+              {isGain ? "Gain mission" : "Retrait"}
+            </Text>
+            <Text style={styles.transactionDate}>
+              {new Date(item.created_at).toLocaleDateString()}{" "}
+              {item.request_id ? `• Mission #${item.request_id}` : ""}
+            </Text>
+            <Text style={[styles.transactionStatus, { color }]}>
+              Statut : {item.status}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.transactionAmount, { color }]}>
+          {formatCurrency(amountValue)}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header façon carte */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack?.()) {
-              router.back();
-            } else {
-              router.replace("/operator");
-            }
-          }}
-          style={styles.backBtn}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#E53935" />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>💰 Mes gains</Text>
-
-        {/* 🔄 Bouton refresh animé */}
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.selectionAsync();
-            fetchWallet();
-          }}
-          style={styles.refreshBtn}
-          disabled={refreshing}
-        >
-          <Animated.View
-            style={{
-              transform: [
-                {
-                  rotate: spinAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["0deg", "360deg"],
-                  }),
-                },
-              ],
-            }}
-          >
-            <MaterialIcons
-              name="refresh"
-              size={26}
-              color={refreshing ? "#999" : "#E53935"}
-            />
-          </Animated.View>
-        </TouchableOpacity>
+        <View style={styles.profileRow}>
+          <View style={styles.profileAvatar}>
+            <MaterialIcons name="person" size={30} color="#E53935" />
+          </View>
+          <View>
+            <Text style={styles.profileHello}>Bienvenue</Text>
+            <Text style={styles.profileName}>{user?.name || "Opérateur"}</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Solde */}
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Solde actuel</Text>
-        <Text style={styles.balanceAmount}>{formatCurrency(solde)}</Text>
-      </View>
-
-      {/* Bouton retrait */}
-      <TouchableOpacity
-        style={styles.withdrawBtn}
-        onPress={() => setShowModal(true)}
-      >
-        <Text style={styles.withdrawText}>📤 Demander un retrait</Text>
-      </TouchableOpacity>
-
-      {/* Liste des transactions */}
-      <Text style={styles.sectionTitle}>Historique des transactions</Text>
-      {transactions.length === 0 ? (
-        <Text style={{ textAlign: "center", marginTop: 20, color: "#666" }}>
-          Aucun historique disponible
-        </Text>
+      {commissionPercent === 0 ? (
+        <View style={styles.hiddenBox}>
+          <MaterialIcons name="info-outline" size={26} color="#E53935" />
+          <Text style={styles.hiddenTitle}>Wallet désactivé</Text>
+          <Text style={styles.hiddenSubtitle}>
+            Les opérateurs internes ne sont pas soumis à commission et n’utilisent pas le wallet.
+          </Text>
+        </View>
       ) : (
-        <FlatList
-          data={transactions}
-          keyExtractor={(item) => `${item.type}-${item.id}`}
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.transactionCard,
-                {
-                  borderLeftColor:
-                    item.type === "gain" ? "#4CAF50" : "#FF9800",
-                },
-              ]}
-            >
-              <View>
-                <Text style={styles.transactionDate}>
-                  {new Date(item.created_at).toLocaleDateString()}{" "}
-                  {item.request_id ? `• Mission #${item.request_id}` : ""}
-                </Text>
-                <Text
-                  style={[
-                    styles.transactionStatus,
-                    { color: item.type === "gain" ? "#4CAF50" : "#FF9800" },
-                  ]}
-                >
-                  {item.type === "gain" ? "Gain" : "Retrait"} — Statut:{" "}
-                  {item.status}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.transactionAmount,
-                  { color: item.type === "gain" ? "#4CAF50" : "#FF9800" },
-                ]}
-              >
-                {formatCurrency(item.amount)}
-              </Text>
+        <>
+          {/* Solde */}
+          <LinearGradient
+            colors={["#E53935", "#F86A65"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.heroCard, { marginBottom: 18 }]}
+          >
+            <View style={styles.heroCardTop}>
+              <Text style={styles.heroLabel}>Solde actuel</Text>
+              <TouchableOpacity style={styles.currencyTag} onPress={() => fetchWallet()}>
+                <MaterialIcons name="refresh" size={18} color="#fff" />
+              </TouchableOpacity>
             </View>
-          )}
-          contentContainerStyle={{ paddingBottom: 40 }}
-        />
+            <Text style={styles.heroAmount}>{formatCurrency(solde)}</Text>
+            <Text style={styles.heroSub}>
+              {commissionPercent === 0
+                ? "Commission TTM : 0%"
+                : `Après commission ${commissionPercent}%`}
+            </Text>
+          </LinearGradient>
+
+          {/* Bouton retrait */}
+          <TouchableOpacity
+            style={styles.withdrawBtn}
+            onPress={() => setShowModal(true)}
+          >
+            <MaterialCommunityIcons name="wallet-plus" size={20} color="#fff" />
+            <Text style={styles.withdrawText}>Demander un retrait</Text>
+          </TouchableOpacity>
+
+          {/* Historique avec switch */}
+          <Text style={styles.sectionTitle}>Historique des transactions</Text>
+          <View style={styles.switchRow}>
+            <TouchableOpacity
+              style={[styles.switchBtn, tab === "gains" && styles.switchActive]}
+              onPress={() => setTab("gains")}
+            >
+              <Text style={[styles.switchText, tab === "gains" && styles.switchTextActive]}>
+                Entrées
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.switchBtn, tab === "retraits" && styles.switchActive]}
+              onPress={() => setTab("retraits")}
+            >
+              <Text style={[styles.switchText, tab === "retraits" && styles.switchTextActive]}>
+                Sorties
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <ScrollView>
+              {tab === "gains" &&
+                (gains.length === 0 ? (
+                  <Text style={styles.emptyText}>Aucun gain enregistré</Text>
+                ) : (
+                  gains.map((item) => (
+                    <View key={`gain-${item.id}`} style={styles.lineWrapper}>
+                      {renderLine(item)}
+                    </View>
+                  ))
+                ))}
+
+              {tab === "retraits" &&
+                (retraits.length === 0 ? (
+                  <Text style={styles.emptyText}>Aucun retrait enregistré</Text>
+                ) : (
+                  retraits.map((item) => (
+                    <View key={`retrait-${item.id}`} style={styles.lineWrapper}>
+                      {renderLine(item)}
+                    </View>
+                  ))
+                ))}
+            </ScrollView>
+          </View>
+        </>
       )}
 
       {/* Modal retrait */}
@@ -366,7 +398,7 @@ export default function WalletScreen() {
         >
           <View style={styles.modalBox}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-              <Text style={styles.modalTitle}>📤 Demande de retrait</Text>
+              <Text style={styles.modalTitle}> Demande de retrait</Text>
 
               <TextInput
                 style={styles.input}
@@ -413,7 +445,7 @@ export default function WalletScreen() {
                 style={styles.confirmBtn}
                 onPress={confirmerRetrait}
               >
-                <Text style={styles.confirmText}>✅ Confirmer</Text>
+                <Text style={styles.confirmText}> Confirmer</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -445,18 +477,35 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 30,
+    paddingHorizontal: 2,
   },
-  backBtn: { marginRight: 10 },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#E53935" },
-  refreshBtn: {
-    padding: 8,
-    borderRadius: 30,
-    backgroundColor: "#f7f7f7",
+  profileRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  profileAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: "50%",
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor:"#E53935",
+    borderWidth:2,
+    marginTop:4,
+  },
+  profileHello: { fontSize: 12, color: "#666" },
+  profileName: { fontSize: 16, fontWeight: "700", color: "#111" },
+  refreshCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   balanceCard: {
     backgroundColor: "#f8f8f8",
@@ -465,34 +514,145 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     alignItems: "center",
   },
-  balanceLabel: { fontSize: 14, color: "#666" },
-  balanceAmount: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#000",
-    marginTop: 5,
+  heroTop: { marginBottom: 18 },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 10,
   },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#E53935",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  welcome: { fontSize: 12, color: "#666" },
+  userName: { fontSize: 16, fontWeight: "700", color: "#111" },
+  heroActions: { flexDirection: "row", marginLeft: "auto", gap: 8 },
+  heroIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#f1f1f1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroCard: {
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    minHeight: 180,
+    justifyContent: "space-between",
+  },
+  heroCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  heroLabel: { color: "#ffe8e8", fontSize: 13, fontWeight: "600" },
+  currencyTag: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  currencyText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  heroAmount: { color: "#fff", fontSize: 28, fontWeight: "800", marginTop: -40 },
+  heroSub: { color: "#ffe8e8", fontSize: 13 },
+  hiddenBox: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#eee",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  hiddenTitle: { fontSize: 16, fontWeight: "700", color: "#111", marginTop: 8 },
+  hiddenSubtitle: { fontSize: 13, color: "#666", textAlign: "center", marginTop: 4 },
   withdrawBtn: {
     backgroundColor: "#E53935",
     padding: 15,
     borderRadius: 10,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     marginBottom: 20,
   },
-  withdrawText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 10 },
+  withdrawText: { color: "#fff", fontWeight: "bold", fontSize: 16 ,},
+  sectionTitle: { fontSize: 16, fontWeight: "bold", marginBottom: 18 },
+  switchRow: {
+    flexDirection: "row",
+    backgroundColor: "#f2f2f2",
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 10,
+  },
+  switchBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  switchActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  switchText: { fontSize: 14, color: "#666", fontWeight: "600" },
+  switchTextActive: { color: "#E53935" },
+  sectionCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#eee",
+    padding: 12,
+    marginBottom: 14,
+    maxHeight: 450,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  sectionLabel: { fontSize: 14, fontWeight: "700", color: "#222", marginBottom: 10 },
+  emptyText: { fontSize: 13, color: "#888", paddingVertical: 4 },
+  lineWrapper: { marginBottom: 8 },
   transactionCard: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 15,
+    padding: 12,
     borderRadius: 10,
     backgroundColor: "#fafafa",
-    marginBottom: 10,
-    borderLeftWidth: 4,
   },
-  transactionDate: { fontSize: 14, fontWeight: "500" },
+  transactionLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  transIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  transactionTitle: { fontSize: 14, fontWeight: "700", color: "#111" },
+  transactionDate: { fontSize: 12, color: "#666", marginTop: 2 },
   transactionStatus: { fontSize: 12, color: "#666", marginTop: 2 },
-  transactionAmount: { fontSize: 16, fontWeight: "bold" },
+  transactionAmount: { fontSize: 15, fontWeight: "800" },
   modalOverlayCenter: {
     flex: 1,
     justifyContent: "center",

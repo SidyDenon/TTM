@@ -60,7 +60,9 @@ export default (db, io, emitMissionEvent) => {
   // ===============================
   router.get("/", checkPermission("requests_view"), async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const limitRaw = req.query.limit;
+    const isAll = String(limitRaw || "").toLowerCase() === "all";
+    const limit = isAll ? Number.MAX_SAFE_INTEGER : Math.min(1000, Math.max(1, parseInt(limitRaw) || 20));
     const offset = (page - 1) * limit;
     const compact = String(req.query.compact || "") === "1";
     const statusFilter = String(req.query.status || "").toLowerCase().trim();
@@ -84,7 +86,7 @@ export default (db, io, emitMissionEvent) => {
 
         const whereSql = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-        const listParams = [...filterParams, limit, offset];
+        const listParams = [...filterParams];
 
         const [rows] = await req.db.query(
           `SELECT id, status, created_at,
@@ -93,8 +95,8 @@ export default (db, io, emitMissionEvent) => {
            FROM requests
            ${whereSql}
            ORDER BY created_at DESC
-           LIMIT ? OFFSET ?`,
-          listParams
+           ${limit ? "LIMIT ? OFFSET ?" : ""}`,
+          limit ? [...listParams, limit, offset] : listParams
         );
 
         const [[{ total }]] = await req.db.query(
@@ -107,7 +109,7 @@ export default (db, io, emitMissionEvent) => {
             page,
             limit,
             total,
-            totalPages: Math.ceil(total / limit),
+            totalPages: limit ? Math.ceil(total / limit) : 1,
             data: [],
           });
         }
@@ -183,7 +185,7 @@ export default (db, io, emitMissionEvent) => {
           page,
           limit,
           total,
-          totalPages: Math.ceil(total / limit),
+          totalPages: limit ? Math.ceil(total / limit) : 1,
           data,
         });
       } catch (e) {
@@ -265,7 +267,7 @@ export default (db, io, emitMissionEvent) => {
         throw e;
       }
 
-      const countSql = `
+    const countSql = `
         SELECT COUNT(*) AS total
         FROM requests r
         WHERE 1
@@ -288,21 +290,21 @@ export default (db, io, emitMissionEvent) => {
       }
 
       // Photos en 2e requête
-      const ids = rows.map((r) => r.id);
-      const placeholders = ids.map(() => "?").join(",");
-      let photoRows = [];
-      try {
-        [photoRows] = await req.db.query(
-          `SELECT request_id, url FROM request_photos WHERE request_id IN (${placeholders}) ORDER BY id ASC`,
-          ids
-        );
-      } catch (e2) {
-        if (e2?.code === "ER_NO_SUCH_TABLE") {
-          photoRows = [];
-        } else {
-          throw e2;
-        }
+    const ids = rows.map((r) => r.id);
+    const placeholders = ids.map(() => "?").join(",");
+    let photoRows = [];
+    try {
+      [photoRows] = await req.db.query(
+        `SELECT request_id, url FROM request_photos WHERE request_id IN (${placeholders}) ORDER BY id ASC`,
+        ids
+      );
+    } catch (e2) {
+      if (e2?.code === "ER_NO_SUCH_TABLE") {
+        photoRows = [];
+      } else {
+        throw e2;
       }
+    }
       const photosByReq = new Map();
       for (const pr of photoRows) {
         if (!photosByReq.has(pr.request_id)) photosByReq.set(pr.request_id, []);
@@ -330,9 +332,9 @@ export default (db, io, emitMissionEvent) => {
 
       return res.json({
         page,
-        limit,
+        limit: limit || total,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: limit ? Math.ceil(total / limit) : 1,
         data,
       });
     } catch (err) {
@@ -405,12 +407,12 @@ export default (db, io, emitMissionEvent) => {
       if (!operator_id) return res.status(400).json({ error: "Opérateur requis" });
 
       await req.db.query(
-        "UPDATE requests SET operator_id = ?, status = 'acceptee', accepted_at = NOW() WHERE id = ?",
+        "UPDATE requests SET operator_id = ?, status = 'publiee' WHERE id = ?",
         [operator_id, req.params.id]
       );
 
       await req.db.query(
-        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'acceptee', ?, NOW())",
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
         [req.params.id, JSON.stringify({ admin_id: req.user.id, operator_id })]
       );
 

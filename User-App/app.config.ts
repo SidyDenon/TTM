@@ -17,6 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config.ios,
     supportsTablet: true,
     infoPlist: {
+      ...(config.ios?.infoPlist || {}),
       NSCameraUsageDescription:
         "Cette application a besoin d'accéder à la caméra pour prendre des photos.",
       NSPhotoLibraryUsageDescription:
@@ -27,6 +28,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "Cette application a besoin d'accéder à votre position même en arrière-plan pour permettre au client de suivre votre progression en temps réel.",
       NSLocationAlwaysUsageDescription:
         "L'application a besoin d'accéder à votre position en permanence pour le suivi de mission.",
+      NSLocationUsageDescription:
+        "TowTruck utilise votre localisation pour afficher et suivre les missions.",
       NSLocationTemporaryUsageDescriptionDictionary: {
         default:
           "TowTruck a besoin de votre localisation temporaire pour router correctement l'opérateur et le client.",

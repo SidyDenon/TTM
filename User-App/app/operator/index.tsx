@@ -8,12 +8,13 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
-  Alert,
   Dimensions,
   Animated,
   PanResponder,
-  ToastAndroid,
   Platform,
+  Alert,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -26,6 +27,7 @@ import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import { syncOperatorLocation } from "../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
+import Toast from "react-native-toast-message";
 
 
 type Mission = {
@@ -44,6 +46,14 @@ type Mission = {
   status?: string;
   operatorId?: number | null;
 };
+
+// Arrondi visuel au plus proche multiple de 50 pour éviter les montants "bizarres"
+const roundTo50 = (n: number) => Math.round(n / 50) * 50;
+
+// Active les animations de layout sur Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const normalizeMissionPayload = (mission: any): Mission | null => {
   if (!mission || mission.id == null) return null;
@@ -86,7 +96,7 @@ const normalizeMissionPayload = (mission: any): Mission | null => {
 };
 
 const { height } = Dimensions.get("window");
-const SNAP_TOP = height * 0.45;
+const SNAP_TOP = 0; // panneau calé en haut par défaut
 const SNAP_BOTTOM = height * 0.90;
 
 export default function OperatorScreen() {
@@ -100,6 +110,9 @@ export default function OperatorScreen() {
   const router = useRouter();
   const { token, logout, user } = useAuth();
   const mapRef = useRef<MapView>(null);
+  const animateList = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, []);
 
   // Nouveau state pour menu
 const [menuVisible, setMenuVisible] = useState(false);
@@ -115,6 +128,7 @@ const slideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).cur
 const fadeAnim = useRef(new Animated.Value(0)).current; // overlay invisible
 const { socket, isConnected } = useSocket();
 const lastProfileSyncRef = useRef(0);
+const cancellationNotifiedRef = useRef(false);
 // --- ouvrir menu ---
 const openMenu = () => {
   setMenuVisible(true);
@@ -218,24 +232,33 @@ useEffect(() => {
     "annulee_client",
   ]);
 
-  const notify = (title: string, message: string) => {
-    if (Platform.OS === "android") {
-      ToastAndroid.show(message, ToastAndroid.SHORT);
-    } else {
-      Alert.alert(title, message);
-    }
+  const notify = (
+    title: string,
+    message: string,
+    type: "success" | "info" | "error" = "info",
+    position: "top" | "bottom" = "bottom"
+  ) => {
+    Toast.show({
+      type,
+      text1: title,
+      text2: message,
+      visibilityTime: 3000,
+      position,
+      topOffset: position === "top" ? 55 : undefined,
+    });
   };
 
-  const handleMissionCreated = (mission: any) => {
-    const normalized = normalizeMissionPayload(mission);
-    if (!normalized) return;
-    console.log("📩 mission:created", normalized.id);
-    setMissions((prev) => {
-      if (prev.some((m) => m.id === normalized.id)) return prev;
-      return [normalized, ...prev];
-    });
-    notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`);
-  };
+    const handleMissionCreated = (mission: any) => {
+      const normalized = normalizeMissionPayload(mission);
+      if (!normalized) return;
+      console.log("📩 mission:created", normalized.id);
+      setMissions((prev) => {
+        if (prev.some((m) => m.id === normalized.id)) return prev;
+        animateList();
+        return [normalized, ...prev];
+      });
+      notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`);
+    };
 
   const handleMissionUpdated = (mission: any) => {
     if (!mission?.id) return;
@@ -243,8 +266,20 @@ useEffect(() => {
     const statusKey = String(mission.status || normalized?.status || "").toLowerCase();
     console.log("📩 mission:updated", mission.id, statusKey);
     if (removalStatuses.has(statusKey)) {
-      setMissions((prev) => prev.filter((m) => m.id !== Number(mission.id)));
-      notify("🚗 Mission mise à jour", mission.message || `Mission #${mission.id} indisponible`);
+      setMissions((prev) => {
+        const next = prev.filter((m) => m.id !== Number(mission.id));
+        if (next !== prev) animateList();
+        return next;
+      });
+      if (!cancellationNotifiedRef.current) {
+        cancellationNotifiedRef.current = true;
+        notify(
+          "Mission annulée",
+          mission.message || `Mission #${mission.id} indisponible`,
+          "error",
+          "top"
+        );
+      }
       return;
     }
     if (!normalized) return;
@@ -265,7 +300,15 @@ useEffect(() => {
     const statusKey = payload.status ? String(payload.status).toLowerCase() : "";
     console.log("📩 mission:status_changed", missionId, payload.status);
     if (removalStatuses.has(statusKey)) {
-      setMissions((prev) => prev.filter((m) => m.id !== Number(missionId)));
+      setMissions((prev) => {
+        const next = prev.filter((m) => m.id !== Number(missionId));
+        if (next !== prev) animateList();
+        return next;
+      });
+      if (!cancellationNotifiedRef.current) {
+        cancellationNotifiedRef.current = true;
+        notify("Mission annulée", `Mission #${missionId} indisponible`, "error", "top");
+      }
       return;
     }
     setMissions((prev) => {
@@ -281,8 +324,15 @@ useEffect(() => {
     const id = typeof data === "object" ? data?.id : data;
     if (!id) return;
     console.log("📩 mission:deleted", id);
-    setMissions((prev) => prev.filter((m) => m.id !== Number(id)));
-    notify("❌ Mission supprimée", `Mission #${id} retirée`);
+    setMissions((prev) => {
+      const next = prev.filter((m) => m.id !== Number(id));
+      if (next !== prev) animateList();
+      return next;
+    });
+    if (!cancellationNotifiedRef.current) {
+      cancellationNotifiedRef.current = true;
+      notify("Mission supprimée", `Mission #${id} retirée`, "error", "top");
+    }
   };
 
   socket.on("mission:created", handleMissionCreated);
@@ -384,6 +434,7 @@ useEffect(() => {
           (mission) => mission.status === "publiee" || (mission.operatorId && user?.id === mission.operatorId)
         );
 
+        animateList();
         setMissions(filtered);
       } catch (err) {
         console.error("❌ Erreur chargement missions", err);
@@ -400,8 +451,19 @@ useEffect(() => {
 
 useEffect(() => {
   (async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Toast.show({
+          type: "error",
+          position: "top",
+          text1: "Localisation refusée",
+          text2: "Active la localisation pour voir les missions.",
+          visibilityTime: 3000,
+          topOffset: 55,
+        });
+        return;
+      }
       let loc = await Location.getCurrentPositionAsync({});
       const coords = {
         lat: Number(loc.coords.latitude),
@@ -409,6 +471,16 @@ useEffect(() => {
       };
       setLocation(coords);
       pushProfileLocation(coords);
+    } catch (err: any) {
+      console.error("❌ Erreur localisation initiale:", err?.message || err);
+      Toast.show({
+        type: "error",
+        position: "top",
+        text1: "Localisation indisponible",
+        text2: "Vérifie les permissions dans les réglages.",
+        visibilityTime: 3000,
+        topOffset: 55,
+      });
     }
   })();
 }, [pushProfileLocation]);
@@ -420,44 +492,66 @@ useEffect(() => {
   let watcher: Location.LocationSubscription;
 
   (async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return;
-
-    watcher = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 3000,   // toutes les 3 secondes
-        distanceInterval: 5,  // ou tous les 5 mètres
-      },
-      (loc) => {
-        const coords = {
-          lat: loc.coords.latitude,
-          lng: loc.coords.longitude,
-        };
-
-        setLocation(coords);
-        pushProfileLocation(coords);
-
-        if (activeMissionId && socket) {
-          socket.emit("operator_location", {
-            operatorId: user.id,
-            requestId: activeMissionId,
-            ...coords,
-          });
-        }
-
-
-        // 👉 et on anime la carte sur la position
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            latitude: coords.lat,
-            longitude: coords.lng,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          });
-        }
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Toast.show({
+          type: "error",
+          position: "top",
+          text1: "Localisation refusée",
+          text2: "Active la localisation pour le suivi en temps réel.",
+          visibilityTime: 3000,
+          topOffset: 55,
+        });
+        return;
       }
-    );
+
+      watcher = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 3000,   // toutes les 3 secondes
+          distanceInterval: 5,  // ou tous les 5 mètres
+        },
+        (loc) => {
+          const coords = {
+            lat: loc.coords.latitude,
+            lng: loc.coords.longitude,
+          };
+
+          setLocation(coords);
+          pushProfileLocation(coords);
+
+          if (activeMissionId && socket) {
+            socket.emit("operator_location", {
+              operatorId: user.id,
+              requestId: activeMissionId,
+              ...coords,
+            });
+          }
+
+
+          // 👉 et on anime la carte sur la position
+          if (mapRef.current) {
+            mapRef.current.animateToRegion({
+              latitude: coords.lat,
+              longitude: coords.lng,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            });
+          }
+        }
+      );
+    } catch (err: any) {
+      console.error("❌ Erreur watchPosition:", err?.message || err);
+      Toast.show({
+        type: "error",
+        position: "top",
+        text1: "Localisation indisponible",
+        text2: "Impossible d’activer le suivi GPS.",
+        visibilityTime: 3000,
+        topOffset: 55,
+      });
+    }
   })();
 
   return () => watcher && watcher.remove();
@@ -666,21 +760,18 @@ const filteredMissions = missions.filter((m) => {
 
 
     {/* ✅ Panneau des missions */}
-    <Animated.View style={[styles.panel, { transform: [{ translateY }] }]}>
-      <View {...panResponder.panHandlers}>
-        <View style={styles.handle} />
-        <View style={styles.headerCard}>
-          <Text style={styles.headerText}>
-            {filteredMissions.length} missions disponibles
-          </Text>
-          <TouchableOpacity onPress={recentrerCarte} style={styles.recenterBtn}>
-            <MaterialIcons name="my-location" size={22} color="#E53935" />
-          </TouchableOpacity>
-        </View>
+    <Animated.View style={styles.panel}>
+      <View style={styles.headerCard}>
+        <Text style={styles.headerText}>
+          {filteredMissions.length} missions disponibles
+        </Text>
+        <TouchableOpacity onPress={recentrerCarte} style={styles.recenterBtn}>
+          <MaterialIcons name="my-location" size={22} color="#E53935" />
+        </TouchableOpacity>
       </View>
 
       {/* Filtres type */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
         {types.map((t, index) => (
           <TouchableOpacity
             key={`type-${index}`}
@@ -707,47 +798,57 @@ const filteredMissions = missions.filter((m) => {
         <FlatList
           data={filteredMissions}
           keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 400 }}
+          contentContainerStyle={{ paddingBottom: 16 }}
+          showsVerticalScrollIndicator
           renderItem={({ item }) => (
             <View style={styles.missionCard}>
               <View style={styles.photoBadge}>
                 <MaterialIcons name="photo-library" size={16} color="#fff" />
-                <Text style={styles.photoBadgeText}>
-                  {item.photos?.length || 0}
+                <Text style={styles.photoBadgeText}>{item.photos?.length || 0}</Text>
+              </View>
+
+              <View style={styles.missionHeader}>
+                <Text style={styles.missionTitle}>
+                  Mission #{item.id} {item.type || "Inconnu"}
+                </Text>
+              </View>
+              <View style={styles.rowInfo}>
+                <MaterialIcons name="place" size={16} color="#777" />
+                <Text style={styles.missionInfoText} numberOfLines={1}>
+                  {item.address || "Adresse non précisée"}
                 </Text>
               </View>
 
-              <Text style={styles.missionTitle}>
-                📍 Mission #{item.id} {item.type || "Inconnu"}
-              </Text>
-              <Text style={styles.missionInfo}>
-                Adresse : {item.address || "Non précisée"}
-              </Text>
-
-              {item.distance !== null && (
-                <Text style={styles.missionInfo}>
-                  📏 Distance : {item.distance} km
-                </Text>
+              {item.distance != null && Number.isFinite(item.distance) && (
+                <View style={styles.rowInfo}>
+                  <MaterialIcons name="straighten" size={16} color="#777" />
+                  <Text style={styles.missionInfoText}>
+                    {Number(item.distance).toFixed(1)} km
+                  </Text>
+                </View>
               )}
               {item.estimated_price !== undefined && (
-                <Text style={styles.missionInfo}>
-                  💰 Prix estimé : {formatCurrency(item.estimated_price)}
-                </Text>
+                <View style={styles.rowInfo}>
+                  <MaterialIcons name="payments" size={16} color="#777" />
+                  <Text style={styles.missionInfoText}>
+                    {formatCurrency(roundTo50(item.estimated_price))}
+                  </Text>
+                </View>
               )}
 
               <View style={styles.btnRow}>
                 <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => router.push(`/operator/details/${item.id}`)}
-                >
-                  <Text style={styles.buttonText}>Voir détails</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
                   style={styles.acceptBtn}
                   onPress={() => accepterMission(item.id)}
                 >
-                  <Text style={styles.buttonText}>✅ Accepter</Text>
+                  <Text style={styles.buttonText}>Accepter</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.detailsBtn}
+                  onPress={() => router.push(`/operator/details/${item.id}`)}
+                >
+                  <Text style={[styles.buttonText, { color: "#444" }]}>Voir détails</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -860,7 +961,7 @@ const filteredMissions = missions.filter((m) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-  map: { flex: 1 },
+  map: { height: 0, width: "100%" },
 
   // ✅ Top bar
   topBar: {
@@ -887,17 +988,10 @@ const styles = StyleSheet.create({
   },
 
   panel: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: height,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    padding: 15,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   handle: {
     width: 60,
@@ -937,7 +1031,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f2f2f2",
     borderRadius: 15,
     marginRight: 8,
-    marginBottom: 10,
+    marginBottom: 0,
     height: 30,
   },
   filterActive: { backgroundColor: "#E53935" },
@@ -945,36 +1039,48 @@ const styles = StyleSheet.create({
   filterTextActive: { color: "#fff", fontWeight: "bold" },
 
   missionCard: {
-    backgroundColor: "#fafafa",
-    borderRadius: 10,
-    padding: 12,
+    position: "relative",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingTop: 18, // espace badge + boutons colonne
+    paddingBottom: 12,
     marginVertical: 6,
-    borderLeftWidth: 4,
-    borderLeftColor: "#E53935",
+    borderWidth: 1,
+    borderColor: "#eee",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    minHeight: 120,
   },
-  missionTitle: { fontWeight: "bold", marginBottom: 5, fontSize: 15 },
-  missionInfo: { fontSize: 13, color: "#555", marginBottom: 3 },
+  missionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  missionTitle: { fontWeight: "bold", fontSize: 15, marginLeft: 6, color: "#111", marginRight: 120 },
+  rowInfo: { flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6, marginRight: 120 },
+  missionInfoText: { fontSize: 13, color: "#444", flexShrink: 1 },
   btnRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "column",
     gap: 8,
-  },
-  detailsBtn: {
-    backgroundColor: "#E53935",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 1,
-    alignItems: "center",
+    alignItems: "stretch",
   },
   acceptBtn: {
     backgroundColor: "#4CAF50",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     alignItems: "center",
+    minWidth: 120,
+  },
+  detailsBtn: {
+    backgroundColor: "#e5e5e5",
+    paddingVertical: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    minWidth: 120,
   },
   buttonText: { color: "#fff", fontWeight: "bold" },
   noMissionContainer: {
@@ -989,8 +1095,8 @@ const styles = StyleSheet.create({
   },
   photoBadge: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    top: -6,
+    left: -6,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#E53935",

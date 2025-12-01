@@ -34,6 +34,7 @@ import { SupportModal } from "../../components/SupportModal";
 import { syncOperatorLocation } from "../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
+import { blue } from "react-native-reanimated/lib/typescript/Colors";
 
 
 type Mission = {
@@ -160,9 +161,9 @@ const [supportVisible, setSupportVisible] = useState(false);
   const isScrolling = useRef(false);
   const missionBounce = useRef(new RNAnimated.Value(1)).current;
 
-  // 🧩 Force le bottom sheet à se placer directement en position BAS (10%)
+// 🧩 Par défaut : sheet ouvert (position haute). L'utilisateur peut le descendre via le geste.
 useEffect(() => {
-  translateY.value = withTiming(SNAP_BOTTOM, { duration: 0 });
+  translateY.value = SNAP_TOP;
 }, []);
 
 
@@ -833,7 +834,7 @@ const filteredMissions = missions.filter((m) => {
       </View>
 
       {/* Filtres type */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {types.map((t, index) => (
           <TouchableOpacity
             key={`type-${index}`}
@@ -852,107 +853,101 @@ const filteredMissions = missions.filter((m) => {
       </ScrollView>
 
       {/* Liste des missions */}
-      <View
-  style={{
-    flexGrow: 0,
-    maxHeight: filteredMissions.length === 1 
-      ? undefined    // ← 1 mission → mode normal
-      : SHEET_OPEN_HEIGHT - 150, // ← plusieurs missions → scroll limité
-  }}
->
-  {filteredMissions.length === 0 ? (
-    <View style={styles.noMissionContainer}>
-      <Text style={styles.noMissionText}> Aucune mission trouvée</Text>
-    </View>
-  ) : (
-    <FlatList
-      data={filteredMissions}
-      keyExtractor={(item) => item.id.toString()}
-      contentContainerStyle={{ paddingBottom: 30 }}
-      showsVerticalScrollIndicator={false}
-      style={{
-        maxHeight:
-          filteredMissions.length === 1
-            ? undefined // ← UNE MISSION → pas de scroll → card tout en haut
-            : SHEET_OPEN_HEIGHT - 150, // ← plusieurs missions → scroll
-      }}
-      renderItem={({ item }) => (
-        <View style={styles.missionCard}>
-          
-          <View style={styles.photoBadge}>
-            <MaterialIcons name="photo-library" size={16} color="#fff" />
-            <Text style={styles.photoBadgeText}>
-              {item.photos?.length || 0}
-            </Text>
+      <View style={{ flex: 100, minHeight: 0}}>
+        {filteredMissions.length === 0 ? (
+          <View style={styles.noMissionContainer}>
+            <Text style={styles.noMissionText}> Aucune mission trouvée</Text>
           </View>
+        ) : (
+          <FlatList
+            data={filteredMissions}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={{
+              paddingBottom: 30,
+              paddingTop: 8,
+              justifyContent: "flex-start",
+              alignItems: "stretch",
+            }}
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 2 }}
+            ListFooterComponent={<View style={{ height: 12 }} />}
+            renderItem={({ item }) => (
+              <View style={styles.missionCard}>
+                
+                <View style={styles.photoBadge}>
+                  <MaterialIcons name="photo-library" size={16} color="#fff" />
+                  <Text style={styles.photoBadgeText}>
+                    {item.photos?.length || 0}
+                  </Text>
+                </View>
 
-          {/* Titre */}
-          <View style={styles.missionHeader}>
-            <Text style={styles.missionTitle}>
-              Mission #{item.id} {item.type || "Inconnu"}
-            </Text>
-          </View>
+                {/* Titre */}
+                <View style={styles.missionHeader}>
+                  <Text style={styles.missionTitle}>
+                    Mission #{item.id} {item.type || "Inconnu"}
+                  </Text>
+                </View>
 
-          {/* Adresse */}
-          <View style={styles.rowInfo}>
-            <MaterialIcons name="place" size={16} color="#777" />
-            <Text style={styles.missionInfoText} numberOfLines={1}>
-              {item.address || "Adresse non précisée"}
-            </Text>
-          </View>
+                {/* Adresse */}
+                <View style={styles.rowInfo}>
+                  <MaterialIcons name="place" size={16} color="#777" />
+                  <Text style={styles.missionInfoText} numberOfLines={1}>
+                    {item.address || "Adresse non précisée"}
+                  </Text>
+                </View>
 
-          {/* Distance */}
-          {item.distance != null && (
-            <View style={styles.rowInfo}>
-              <MaterialIcons name="straighten" size={16} color="#777" />
-              <Text style={styles.missionInfoText}>
-                {Number(item.distance).toFixed(1)} km
-              </Text>
-            </View>
-          )}
-
-          {/* Prix */}
-          {item.preview_final_price !== undefined ||
-          item.final_price !== undefined ||
-          item.estimated_price !== undefined ? (
-            <View style={styles.rowInfo}>
-              <MaterialIcons name="payments" size={16} color="#777" />
-              <Text style={styles.missionInfoText}>
-                {formatCurrency(
-                  roundTo50(
-                    item.preview_final_price ??
-                      item.final_price ??
-                      item.estimated_price ??
-                      0
-                  )
+                {/* Distance */}
+                {item.distance != null && (
+                  <View style={styles.rowInfo}>
+                    <MaterialIcons name="straighten" size={16} color="#777" />
+                    <Text style={styles.missionInfoText}>
+                      {Number(item.distance).toFixed(1)} km
+                    </Text>
+                  </View>
                 )}
-              </Text>
-            </View>
-          ) : null}
 
-          {/* Boutons */}
-          <View style={styles.btnRow}>
-            <TouchableOpacity
-              style={styles.acceptBtn}
-              onPress={() => accepterMission(item.id)}
-            >
-              <Text style={styles.buttonText}>Accepter</Text>
-            </TouchableOpacity>
+                {/* Prix */}
+                {item.preview_final_price !== undefined ||
+                item.final_price !== undefined ||
+                item.estimated_price !== undefined ? (
+                  <View style={styles.rowInfo}>
+                    <MaterialIcons name="payments" size={16} color="#777" />
+                    <Text style={styles.missionInfoText}>
+                      {formatCurrency(
+                        roundTo50(
+                          item.preview_final_price ??
+                            item.final_price ??
+                            item.estimated_price ??
+                            0
+                        )
+                      )}
+                    </Text>
+                  </View>
+                ) : null}
 
-            <TouchableOpacity
-              style={styles.detailsBtn}
-              onPress={() => router.push(`/operator/details/${item.id}`)}
-            >
-              <Text style={[styles.buttonText, { color: "#444" }]}>
-                Voir détails
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-    />
-  )}
-</View>
+                {/* Boutons */}
+                <View style={styles.btnRow}>
+                  <TouchableOpacity
+                    style={styles.acceptBtn}
+                    onPress={() => accepterMission(item.id)}
+                  >
+                    <Text style={styles.buttonText}>Accepter</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.detailsBtn}
+                    onPress={() => router.push(`/operator/details/${item.id}`)}
+                  >
+                    <Text style={[styles.buttonText, { color: "#444" }]}>
+                      Voir détails
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          />
+        )}
+      </View>
 
       </Animated.View>
     </GestureDetector>
@@ -1096,19 +1091,18 @@ const styles = StyleSheet.create({
   right: 0,
   bottom: 0,
   zIndex: 30,
-  backgroundColor: "#fff",
-  height: SHEET_OPEN_HEIGHT,
+  height: SHEET_OPEN_HEIGHT ,
   paddingHorizontal: 12,
-
-  paddingTop: 4,        // ← au lieu de 12
   paddingBottom: 0,     // ← enlève le padding qui pousse vers le haut
 
-  borderTopLeftRadius: 16,
-  borderTopRightRadius: 16,
+  borderTopLeftRadius: 36,
+  borderTopRightRadius: 36,
   shadowColor: "#000",
   shadowOpacity: 0.08,
   shadowRadius: 6,
   elevation: 4,
+  backgroundColor: "#fff",
+
 },
 
   handle: {
@@ -1129,7 +1123,7 @@ const styles = StyleSheet.create({
   borderWidth: 1,
   borderColor: "#eee",
 
-  marginBottom: 4, // ← au lieu de 10
+  marginBottom: 4, 
 },
 
   headerText: { fontSize: 13, fontWeight: "600", color: "#E53935" },
@@ -1171,7 +1165,7 @@ const styles = StyleSheet.create({
     elevation: 2,
     minHeight: 120,
   },
-  missionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  missionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 4},
   missionTitle: { fontWeight: "bold", fontSize: 15, marginLeft: 6, color: "#111", marginRight: 120 },
   rowInfo: { flexDirection: "row", alignItems: "center", marginBottom: 4, gap: 6, marginRight: 120 },
   missionInfoText: { fontSize: 13, color: "#444", flexShrink: 1 },
@@ -1263,6 +1257,7 @@ const styles = StyleSheet.create({
   right: 0,
   backgroundColor: "rgba(0,0,0,0.3)", // devient animé via fadeAnim
   zIndex: 50,
+  borderWidth:2,
 },
 menuContainer: {
   position: "absolute",

@@ -1,6 +1,16 @@
 // utils/mailer.js
 import nodemailer from "nodemailer";
+import sgMail from "@sendgrid/mail";
 
+// ================== SENDGRID (PROD / RENDER) ==================
+const useSendgrid = !!process.env.SENDGRID_API_KEY;
+
+if (useSendgrid) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log("📧 SendGrid configuré (API KEY détectée)");
+}
+
+// ================== SMTP (LOCAL / DEV) ==================
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const smtpSecure =
@@ -86,32 +96,48 @@ if (transporters.length) {
     });
   });
 } else {
-  console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants");
+  console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants (utilisé seulement en dev)");
 }
 
-export async function sendMail(
-  to,
-  subject,
-  text = "",
-  html = ""
-) {
-  if (!transporters.length) {
-    console.warn("⚠️ SMTP non configuré: email ignoré");
-    return;
-  }
+const defaultFrom =
+  process.env.MAIL_FROM ||
+  (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com");
+
+// ================== FONCTION D'ENVOI UNIQUE ==================
+export async function sendMail(to, subject, text = "", html = "") {
   const mail = {
-    from: process.env.MAIL_FROM || `"TTM Admin" <${smtpUser}>`,
+    from: defaultFrom,
     to,
     subject,
     text: text || undefined,
     html: html || undefined,
   };
 
+  // 1️⃣ PROD / RENDER → SENDGRID
+  if (useSendgrid) {
+    try {
+      await sgMail.send(mail);
+      console.log(`📧 Email envoyé via SendGrid à ${to}`);
+      return;
+    } catch (err) {
+      console.error("❌ Erreur envoi email via SendGrid:", err.response?.body || err);
+      throw err;
+    }
+  }
+
+  // 2️⃣ DEV / LOCAL → SMTP (Nodemailer)
+  if (!transporters.length) {
+    console.warn("⚠️ Aucun transport SMTP configuré: email ignoré");
+    return;
+  }
+
   let lastError = null;
   for (const { label, transporter, options } of transporters) {
     try {
       await transporter.sendMail(mail);
-      console.log(`📧 Email envoyé à ${to} via ${label} (${options.host}:${options.port})`);
+      console.log(
+        `📧 Email envoyé à ${to} via ${label} (${options.host}:${options.port})`
+      );
       return;
     } catch (err) {
       lastError = err;
@@ -121,10 +147,7 @@ export async function sendMail(
       );
     }
   }
-  try {
-    throw lastError || new Error("Aucun transport SMTP disponible");
-  } catch (err) {
-    console.error("❌ Erreur envoi email (toutes les tentatives):", err);
-    throw err;
-  }
+
+  console.error("❌ Erreur envoi email (toutes les tentatives SMTP):", lastError);
+  throw lastError || new Error("Aucun transport SMTP disponible");
 }

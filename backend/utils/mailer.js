@@ -1,13 +1,22 @@
 // utils/mailer.js
 import nodemailer from "nodemailer";
-import sgMail from "@sendgrid/mail";
 
 // ================== SENDGRID (PROD / RENDER) ==================
-const useSendgrid = !!process.env.SENDGRID_API_KEY;
-
-if (useSendgrid) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  console.log("📧 SendGrid configuré (API KEY détectée)");
+let sendgridEnabled = false;
+let sgMail = null;
+if (process.env.SENDGRID_API_KEY) {
+  try {
+    const mod = await import("@sendgrid/mail");
+    sgMail = mod.default || mod;
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    sendgridEnabled = true;
+    console.log("📧 SendGrid configuré (API KEY détectée)");
+  } catch (err) {
+    console.warn(
+      "⚠️ SendGrid non chargé (package manquant ou erreur d'init) – fallback SMTP.",
+      err?.message || err
+    );
+  }
 }
 
 // ================== SMTP (LOCAL / DEV) ==================
@@ -114,7 +123,7 @@ export async function sendMail(to, subject, text = "", html = "") {
   };
 
   // 1️⃣ PROD / RENDER → SENDGRID
-  if (useSendgrid) {
+  if (sendgridEnabled && sgMail) {
     try {
       await sgMail.send(mail);
       console.log(`📧 Email envoyé via SendGrid à ${to}`);

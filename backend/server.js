@@ -67,7 +67,7 @@ function getLocalIPv4() {
 const LAN_IP = process.env.LOCAL_IP || getLocalIPv4();
 
 const rawOrigins = (process.env.CORS_ORIGINS ||
-  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000,http://192.168.11.241:5173,https://ttm-production-d022.up.railway.app`)
+  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000,http://192.168.11.241:5173,https://ttm-production-d022.up.railway.app,https://ttmadmin.netlify.app`)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);

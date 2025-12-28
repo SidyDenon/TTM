@@ -3,17 +3,29 @@ import nodemailer from "nodemailer";
 
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpSecure = smtpPort === 465;
+const smtpSecure =
+  typeof process.env.SMTP_SECURE !== "undefined"
+    ? String(process.env.SMTP_SECURE).trim() === "true"
+    : smtpPort === 465;
 const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER;
 const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASS;
+const smtpPool = String(process.env.SMTP_POOL || "true").toLowerCase() !== "false";
+
+const connectionTimeout = Number(process.env.SMTP_CONN_TIMEOUT || 10000);
+const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 10000);
+const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 8000);
 
 export const transporter =
   smtpUser && smtpPass
     ? nodemailer.createTransport({
+        pool: smtpPool,
         host: smtpHost,
         port: smtpPort,
         secure: smtpSecure,
         auth: { user: smtpUser, pass: smtpPass },
+        connectionTimeout,
+        socketTimeout,
+        greetingTimeout,
       })
     : null;
 
@@ -27,6 +39,10 @@ if (transporter) {
     port: smtpPort,
     secure: smtpSecure,
     user: masked,
+    pool: smtpPool,
+    connectionTimeout,
+    socketTimeout,
+    greetingTimeout,
   });
 } else {
   console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants");

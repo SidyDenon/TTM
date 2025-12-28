@@ -16,37 +16,75 @@ const smtpFrom =
   process.env.MAIL_FROM ||
   (smtpUser ? `"Tow Truck Mali" <${smtpUser}>` : undefined);
 
+// Fallback automatique (ex: 587 -> 465) si le port principal est bloqué
+const fallbackHost = process.env.SMTP_FALLBACK_HOST || smtpHost;
+const fallbackPort = Number(
+  process.env.SMTP_FALLBACK_PORT || (smtpPort === 465 ? 587 : 465)
+);
+const fallbackSecure =
+  String(
+    process.env.SMTP_FALLBACK_SECURE || (fallbackPort === 465 ? "true" : "false")
+  )
+    .trim()
+    .toLowerCase() === "true";
+
 if (!smtpUser || !smtpPass) {
   console.warn("⚠️ SMTP Zoho non configuré (SMTP_USER / SMTP_PASS manquants)");
 }
 
-export const transporter =
-  smtpUser && smtpPass
-    ? nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure, // false pour 587 (STARTTLS), true pour 465
-        auth: { user: smtpUser, pass: smtpPass },
-        // optionnel mais propre :
-        connectionTimeout: 10000,
-        socketTimeout: 10000,
-        greetingTimeout: 8000,
-      })
-    : null;
+const transporterDefs = [];
 
-if (transporter) {
-  console.log("📧 SMTP Zoho configuré :", {
+if (smtpUser && smtpPass) {
+  const baseOptions = {
     host: smtpHost,
     port: smtpPort,
-    secure: smtpSecure,
-    user: smtpUser,
+    secure: smtpSecure, // false pour 587 (STARTTLS), true pour 465
+    auth: { user: smtpUser, pass: smtpPass },
+    connectionTimeout: 10000,
+    socketTimeout: 10000,
+    greetingTimeout: 8000,
+  };
+  transporterDefs.push({ label: "primary", options: baseOptions });
+
+  const fallbackOptions = {
+    ...baseOptions,
+    host: fallbackHost,
+    port: fallbackPort,
+    secure: fallbackSecure,
+  };
+  const isDifferent =
+    fallbackOptions.host !== baseOptions.host ||
+    fallbackOptions.port !== baseOptions.port ||
+    fallbackOptions.secure !== baseOptions.secure;
+  if (isDifferent) {
+    transporterDefs.push({ label: "fallback", options: fallbackOptions });
+  }
+}
+
+export const transporters = transporterDefs.map(({ label, options }) => ({
+  label,
+  transporter: nodemailer.createTransport(options),
+  options,
+}));
+
+export const transporter = transporters[0]?.transporter || null;
+
+if (transporters.length) {
+  transporters.forEach(({ label, options }) => {
+    console.log("📧 SMTP Zoho configuré :", {
+      label,
+      host: options.host,
+      port: options.port,
+      secure: options.secure,
+      user: smtpUser,
+    });
   });
 }
 
 // ================== FONCTION D'ENVOI UNIQUE ==================
 
 export async function sendMail(to, subject, text = "", html = "") {
-  if (!transporter) {
+  if (!transporters.length) {
     console.warn("⚠️ Aucun transport SMTP disponible: email ignoré");
     return;
   }
@@ -65,18 +103,28 @@ export async function sendMail(to, subject, text = "", html = "") {
     html: html || undefined,
   };
 
-  try {
-    const info = await transporter.sendMail(mail);
-    console.log(
-      `📧 Email envoyé à ${to} via Zoho SMTP (messageId: ${info.messageId})`
-    );
-    return info;
-  } catch (err) {
-    console.error("❌ Erreur envoi email via Zoho SMTP:", {
-      message: err.message,
-      code: err.code,
-      response: err.response,
-    });
-    throw err;
+  let lastError = null;
+
+  for (const { label, transporter, options } of transporters) {
+    try {
+      const info = await transporter.sendMail(mail);
+      console.log(
+        `📧 Email envoyé à ${to} via Zoho SMTP [${label}] (${options.host}:${options.port}) (messageId: ${info.messageId})`
+      );
+      return info;
+    } catch (err) {
+      lastError = err;
+      console.error(
+        `❌ Envoi via Zoho SMTP [${label}] (${options.host}:${options.port}) échoué:`,
+        err.code || err.message || err
+      );
+    }
   }
+
+  console.error("❌ Erreur envoi email via Zoho SMTP (toutes les tentatives échouées)", {
+    message: lastError?.message,
+    code: lastError?.code,
+    response: lastError?.response,
+  });
+  throw lastError || new Error("Aucun transport SMTP disponible");
 }

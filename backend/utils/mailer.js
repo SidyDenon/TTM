@@ -3,11 +3,23 @@ import nodemailer from "nodemailer";
 
 // ================== SENDGRID (API HTTP) ==================
 const sendgridApiKey = process.env.SENDGRID_API_KEY;
-const sendgridFrom =
+function parseFromAddress(raw) {
+  if (!raw) return { email: "", name: "" };
+  const s = String(raw).trim();
+  const match = s.match(/^(.*)<([^>]+)>$/);
+  if (match) {
+    const name = match[1].trim().replace(/^"|"$/g, "");
+    return { email: match[2].trim(), name };
+  }
+  return { email: s, name: "" };
+}
+
+const rawSendgridFrom =
   process.env.SENDGRID_FROM ||
   process.env.MAIL_FROM ||
   process.env.SMTP_USER ||
   "no-reply@towtruckmali.com";
+const { email: sendgridFromEmail, name: sendgridFromName } = parseFromAddress(rawSendgridFrom);
 const sendgridEnabled = !!sendgridApiKey;
 
 // ================== SMTP (LOCAL / DEV) ==================
@@ -99,9 +111,12 @@ if (transporters.length) {
   console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants (utilisé seulement en dev)");
 }
 
-const defaultFrom =
+const { email: smtpFromEmail, name: smtpFromName } = parseFromAddress(
   process.env.MAIL_FROM ||
-  (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com");
+    (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com")
+);
+const defaultFrom =
+  smtpFromName && smtpFromEmail ? `${smtpFromName} <${smtpFromEmail}>` : smtpFromEmail;
 
 // ================== FONCTION D'ENVOI UNIQUE ==================
 export async function sendMail(to, subject, text = "", html = "") {
@@ -115,9 +130,18 @@ export async function sendMail(to, subject, text = "", html = "") {
 
   // 1️⃣ PROD / RENDER → SENDGRID (HTTP API)
   if (sendgridEnabled) {
+    if (!sendgridFromEmail) {
+      const msg =
+        "SENDGRID_FROM ou MAIL_FROM invalide : email requis (ex: no-reply@votredomaine.com)";
+      console.error(msg);
+      throw new Error(msg);
+    }
+
     const payload = {
       personalizations: [{ to: [{ email: to }] }],
-      from: { email: sendgridFrom },
+      from: sendgridFromName
+        ? { email: sendgridFromEmail, name: sendgridFromName }
+        : { email: sendgridFromEmail },
       subject,
       content: [],
     };

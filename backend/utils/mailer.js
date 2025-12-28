@@ -2,40 +2,45 @@
 import nodemailer from "nodemailer";
 
 // ================== SENDGRID (API HTTP) ==================
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
-function parseFromAddress(raw) {
-  if (!raw) return { email: "", name: "" };
-  const s = String(raw).trim();
-  const match = s.match(/^(.*)<([^>]+)>$/);
-  if (match) {
-    const name = match[1].trim().replace(/^"|"$/g, "");
-    return { email: match[2].trim(), name };
-  }
-  return { email: s, name: "" };
-}
 
-const rawSendgridFrom =
-  process.env.SENDGRID_FROM ||
-  process.env.MAIL_FROM ||
-  process.env.SMTP_USER ||
-  "no-reply@towtruckmali.com";
-const { email: sendgridFromEmail, name: sendgridFromName } = parseFromAddress(rawSendgridFrom);
+const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const sendgridFromEmail =
+  process.env.MAIL_FROM_EMAIL || "sidydenon6@gmail.com"; // doit être ton Single Sender validé
+const sendgridFromName =
+  process.env.MAIL_FROM_NAME || "Tow Truck Mali";
+
 const sendgridEnabled = !!sendgridApiKey;
 
+if (sendgridEnabled) {
+  console.log("📧 SendGrid activé avec :", {
+    email: sendgridFromEmail,
+    name: sendgridFromName,
+  });
+}
+
 // ================== SMTP (LOCAL / DEV) ==================
+
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const smtpSecure =
   typeof process.env.SMTP_SECURE !== "undefined"
     ? String(process.env.SMTP_SECURE).trim() === "true"
     : smtpPort === 465;
+
 const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER;
 const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASS;
-const smtpPool = String(process.env.SMTP_POOL || "true").toLowerCase() !== "false";
+const smtpPool =
+  String(process.env.SMTP_POOL || "true").toLowerCase() !== "false";
 
-const connectionTimeout = Number(process.env.SMTP_CONN_TIMEOUT || 10000);
-const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 10000);
-const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 8000);
+const connectionTimeout = Number(
+  process.env.SMTP_CONN_TIMEOUT || 10000
+);
+const socketTimeout = Number(
+  process.env.SMTP_SOCKET_TIMEOUT || 10000
+);
+const greetingTimeout = Number(
+  process.env.SMTP_GREETING_TIMEOUT || 8000
+);
 
 const fallbackHost = process.env.SMTP_FALLBACK_HOST || smtpHost;
 const fallbackPortEnv = process.env.SMTP_FALLBACK_PORT;
@@ -45,6 +50,7 @@ const fallbackPort =
     : smtpPort === 465
     ? 587
     : 465;
+
 const fallbackSecure =
   typeof process.env.SMTP_FALLBACK_SECURE !== "undefined"
     ? String(process.env.SMTP_FALLBACK_SECURE).trim() === "true"
@@ -63,6 +69,7 @@ if (smtpUser && smtpPass) {
     socketTimeout,
     greetingTimeout,
   };
+
   transporterDefs.push({ label: "primary", options: baseOptions });
 
   const fallbackOptions = {
@@ -71,10 +78,12 @@ if (smtpUser && smtpPass) {
     port: fallbackPort,
     secure: fallbackSecure,
   };
+
   const isDifferent =
     fallbackOptions.host !== baseOptions.host ||
     fallbackOptions.port !== baseOptions.port ||
     fallbackOptions.secure !== baseOptions.secure;
+
   if (isDifferent) {
     transporterDefs.push({ label: "fallback", options: fallbackOptions });
   }
@@ -108,31 +117,24 @@ if (transporters.length) {
     });
   });
 } else {
-  console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants (utilisé seulement en dev)");
+  console.warn(
+    "⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants (utilisé seulement en dev)"
+  );
 }
 
-const { email: smtpFromEmail, name: smtpFromName } = parseFromAddress(
+// From par défaut utilisé pour SMTP (dev/local)
+const smtpDefaultFrom =
   process.env.MAIL_FROM ||
-    (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com")
-);
-const defaultFrom =
-  smtpFromName && smtpFromEmail ? `${smtpFromName} <${smtpFromEmail}>` : smtpFromEmail;
+  (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com");
 
 // ================== FONCTION D'ENVOI UNIQUE ==================
-export async function sendMail(to, subject, text = "", html = "") {
-  const mail = {
-    from: defaultFrom,
-    to,
-    subject,
-    text: text || undefined,
-    html: html || undefined,
-  };
 
+export async function sendMail(to, subject, text = "", html = "") {
   // 1️⃣ PROD / RENDER → SENDGRID (HTTP API)
   if (sendgridEnabled) {
     if (!sendgridFromEmail) {
       const msg =
-        "SENDGRID_FROM ou MAIL_FROM invalide : email requis (ex: no-reply@votredomaine.com)";
+        "MAIL_FROM_EMAIL manquant pour SendGrid (ex: sidydenon6@gmail.com)";
       console.error(msg);
       throw new Error(msg);
     }
@@ -145,9 +147,9 @@ export async function sendMail(to, subject, text = "", html = "") {
       subject,
       content: [],
     };
+
     if (html) payload.content.push({ type: "text/html", value: html });
     if (text) payload.content.push({ type: "text/plain", value: text });
-    // SendGrid requiert au moins un content
     if (!payload.content.length) {
       payload.content.push({ type: "text/plain", value: "" });
     }
@@ -161,14 +163,19 @@ export async function sendMail(to, subject, text = "", html = "") {
         },
         body: JSON.stringify(payload),
       });
+
       if (!resp.ok) {
         const body = await resp.text().catch(() => "");
         throw new Error(`SendGrid HTTP ${resp.status}: ${body}`);
       }
+
       console.log(`📧 Email envoyé via SendGrid API à ${to}`);
       return;
     } catch (err) {
-      console.error("❌ Erreur envoi email via SendGrid API:", err?.message || err);
+      console.error(
+        "❌ Erreur envoi email via SendGrid API:",
+        err?.message || err
+      );
       throw err;
     }
   }
@@ -179,7 +186,16 @@ export async function sendMail(to, subject, text = "", html = "") {
     return;
   }
 
+  const mail = {
+    from: smtpDefaultFrom,
+    to,
+    subject,
+    text: text || undefined,
+    html: html || undefined,
+  };
+
   let lastError = null;
+
   for (const { label, transporter, options } of transporters) {
     try {
       await transporter.sendMail(mail);

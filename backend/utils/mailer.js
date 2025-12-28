@@ -1,217 +1,82 @@
 // utils/mailer.js
 import nodemailer from "nodemailer";
 
-// ================== SENDGRID (API HTTP) ==================
+// ================== SMTP ZOHO ==================
 
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
-const sendgridFromEmail =
-  process.env.MAIL_FROM_EMAIL || "sidydenon6@gmail.com"; // doit être ton Single Sender validé
-const sendgridFromName =
-  process.env.MAIL_FROM_NAME || "Tow Truck Mali";
+const smtpHost = process.env.SMTP_HOST || "smtp.zoho.com";
+const smtpPort = Number(process.env.SMTP_PORT || 587);
 
-const sendgridEnabled = !!sendgridApiKey;
+// SMTP_SECURE doit être "true" ou "false" dans .env
+const smtpSecure =
+  String(process.env.SMTP_SECURE || "false").trim().toLowerCase() === "true";
 
-if (sendgridEnabled) {
-  console.log("📧 SendGrid activé avec :", {
-    email: sendgridFromEmail,
-    name: sendgridFromName,
-  });
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+const smtpFrom =
+  process.env.MAIL_FROM ||
+  (smtpUser ? `"Tow Truck Mali" <${smtpUser}>` : undefined);
+
+if (!smtpUser || !smtpPass) {
+  console.warn("⚠️ SMTP Zoho non configuré (SMTP_USER / SMTP_PASS manquants)");
 }
 
-// ================== SMTP (LOCAL / DEV) ==================
+export const transporter =
+  smtpUser && smtpPass
+    ? nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure, // false pour 587 (STARTTLS), true pour 465
+        auth: { user: smtpUser, pass: smtpPass },
+        // optionnel mais propre :
+        connectionTimeout: 10000,
+        socketTimeout: 10000,
+        greetingTimeout: 8000,
+      })
+    : null;
 
-const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpSecure =
-  typeof process.env.SMTP_SECURE !== "undefined"
-    ? String(process.env.SMTP_SECURE).trim() === "true"
-    : smtpPort === 465;
-
-const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER;
-const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASS;
-const smtpPool =
-  String(process.env.SMTP_POOL || "true").toLowerCase() !== "false";
-
-const connectionTimeout = Number(
-  process.env.SMTP_CONN_TIMEOUT || 10000
-);
-const socketTimeout = Number(
-  process.env.SMTP_SOCKET_TIMEOUT || 10000
-);
-const greetingTimeout = Number(
-  process.env.SMTP_GREETING_TIMEOUT || 8000
-);
-
-const fallbackHost = process.env.SMTP_FALLBACK_HOST || smtpHost;
-const fallbackPortEnv = process.env.SMTP_FALLBACK_PORT;
-const fallbackPort =
-  typeof fallbackPortEnv !== "undefined"
-    ? Number(fallbackPortEnv)
-    : smtpPort === 465
-    ? 587
-    : 465;
-
-const fallbackSecure =
-  typeof process.env.SMTP_FALLBACK_SECURE !== "undefined"
-    ? String(process.env.SMTP_FALLBACK_SECURE).trim() === "true"
-    : fallbackPort === 465;
-
-const transporterDefs = [];
-
-if (smtpUser && smtpPass) {
-  const baseOptions = {
-    pool: smtpPool,
+if (transporter) {
+  console.log("📧 SMTP Zoho configuré :", {
     host: smtpHost,
     port: smtpPort,
     secure: smtpSecure,
-    auth: { user: smtpUser, pass: smtpPass },
-    connectionTimeout,
-    socketTimeout,
-    greetingTimeout,
-  };
-
-  transporterDefs.push({ label: "primary", options: baseOptions });
-
-  const fallbackOptions = {
-    ...baseOptions,
-    host: fallbackHost,
-    port: fallbackPort,
-    secure: fallbackSecure,
-  };
-
-  const isDifferent =
-    fallbackOptions.host !== baseOptions.host ||
-    fallbackOptions.port !== baseOptions.port ||
-    fallbackOptions.secure !== baseOptions.secure;
-
-  if (isDifferent) {
-    transporterDefs.push({ label: "fallback", options: fallbackOptions });
-  }
-}
-
-export const transporters = transporterDefs.map(({ label, options }) => ({
-  label,
-  transporter: nodemailer.createTransport(options),
-  options,
-}));
-
-export const transporter = transporters[0]?.transporter || null;
-
-if (transporters.length) {
-  const masked =
-    smtpUser && smtpUser.length > 3
-      ? `${smtpUser.slice(0, 2)}***${smtpUser.slice(-2)}`
-      : smtpUser || "undefined";
-
-  transporters.forEach(({ label, options }) => {
-    console.log("📧 SMTP configuré", {
-      label,
-      host: options.host,
-      port: options.port,
-      secure: options.secure,
-      user: masked,
-      pool: options.pool,
-      connectionTimeout: options.connectionTimeout,
-      socketTimeout: options.socketTimeout,
-      greetingTimeout: options.greetingTimeout,
-    });
+    user: smtpUser,
   });
-} else {
-  console.warn(
-    "⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants (utilisé seulement en dev)"
-  );
 }
-
-// From par défaut utilisé pour SMTP (dev/local)
-const smtpDefaultFrom =
-  process.env.MAIL_FROM ||
-  (smtpUser ? `"TTM Admin" <${smtpUser}>` : "no-reply@towtruckmali.com");
 
 // ================== FONCTION D'ENVOI UNIQUE ==================
 
 export async function sendMail(to, subject, text = "", html = "") {
-  // 1️⃣ PROD / RENDER → SENDGRID (HTTP API)
-  if (sendgridEnabled) {
-    if (!sendgridFromEmail) {
-      const msg =
-        "MAIL_FROM_EMAIL manquant pour SendGrid (ex: sidydenon6@gmail.com)";
-      console.error(msg);
-      throw new Error(msg);
-    }
-
-    const payload = {
-      personalizations: [{ to: [{ email: to }] }],
-      from: sendgridFromName
-        ? { email: sendgridFromEmail, name: sendgridFromName }
-        : { email: sendgridFromEmail },
-      subject,
-      content: [],
-    };
-
-    if (html) payload.content.push({ type: "text/html", value: html });
-    if (text) payload.content.push({ type: "text/plain", value: text });
-    if (!payload.content.length) {
-      payload.content.push({ type: "text/plain", value: "" });
-    }
-
-    try {
-      const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${sendgridApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => "");
-        throw new Error(`SendGrid HTTP ${resp.status}: ${body}`);
-      }
-
-      console.log(`📧 Email envoyé via SendGrid API à ${to}`);
-      return;
-    } catch (err) {
-      console.error(
-        "❌ Erreur envoi email via SendGrid API:",
-        err?.message || err
-      );
-      throw err;
-    }
-  }
-
-  // 2️⃣ DEV / LOCAL → SMTP (Nodemailer)
-  if (!transporters.length) {
-    console.warn("⚠️ Aucun transport SMTP configuré: email ignoré");
+  if (!transporter) {
+    console.warn("⚠️ Aucun transport SMTP disponible: email ignoré");
     return;
   }
 
+  if (!smtpFrom) {
+    console.warn(
+      "⚠️ MAIL_FROM non défini: l'expéditeur sera égal à SMTP_USER par défaut"
+    );
+  }
+
   const mail = {
-    from: smtpDefaultFrom,
+    from: smtpFrom || smtpUser,
     to,
     subject,
     text: text || undefined,
     html: html || undefined,
   };
 
-  let lastError = null;
-
-  for (const { label, transporter, options } of transporters) {
-    try {
-      await transporter.sendMail(mail);
-      console.log(
-        `📧 Email envoyé à ${to} via ${label} (${options.host}:${options.port})`
-      );
-      return;
-    } catch (err) {
-      lastError = err;
-      console.error(
-        `❌ Envoi via ${label} (${options.host}:${options.port}) échoué:`,
-        err.code || err.message || err
-      );
-    }
+  try {
+    const info = await transporter.sendMail(mail);
+    console.log(
+      `📧 Email envoyé à ${to} via Zoho SMTP (messageId: ${info.messageId})`
+    );
+    return info;
+  } catch (err) {
+    console.error("❌ Erreur envoi email via Zoho SMTP:", {
+      message: err.message,
+      code: err.code,
+      response: err.response,
+    });
+    throw err;
   }
-
-  console.error("❌ Erreur envoi email (toutes les tentatives SMTP):", lastError);
-  throw lastError || new Error("Aucun transport SMTP disponible");
 }

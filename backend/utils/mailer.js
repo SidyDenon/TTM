@@ -15,34 +15,75 @@ const connectionTimeout = Number(process.env.SMTP_CONN_TIMEOUT || 10000);
 const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT || 10000);
 const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT || 8000);
 
-export const transporter =
-  smtpUser && smtpPass
-    ? nodemailer.createTransport({
-        pool: smtpPool,
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: { user: smtpUser, pass: smtpPass },
-        connectionTimeout,
-        socketTimeout,
-        greetingTimeout,
-      })
-    : null;
+const fallbackHost = process.env.SMTP_FALLBACK_HOST || smtpHost;
+const fallbackPortEnv = process.env.SMTP_FALLBACK_PORT;
+const fallbackPort =
+  typeof fallbackPortEnv !== "undefined"
+    ? Number(fallbackPortEnv)
+    : smtpPort === 465
+    ? 587
+    : 465;
+const fallbackSecure =
+  typeof process.env.SMTP_FALLBACK_SECURE !== "undefined"
+    ? String(process.env.SMTP_FALLBACK_SECURE).trim() === "true"
+    : fallbackPort === 465;
 
-if (transporter) {
+const transporterDefs = [];
+
+if (smtpUser && smtpPass) {
+  const baseOptions = {
+    pool: smtpPool,
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: { user: smtpUser, pass: smtpPass },
+    connectionTimeout,
+    socketTimeout,
+    greetingTimeout,
+  };
+  transporterDefs.push({ label: "primary", options: baseOptions });
+
+  const fallbackOptions = {
+    ...baseOptions,
+    host: fallbackHost,
+    port: fallbackPort,
+    secure: fallbackSecure,
+  };
+  const isDifferent =
+    fallbackOptions.host !== baseOptions.host ||
+    fallbackOptions.port !== baseOptions.port ||
+    fallbackOptions.secure !== baseOptions.secure;
+  if (isDifferent) {
+    transporterDefs.push({ label: "fallback", options: fallbackOptions });
+  }
+}
+
+export const transporters = transporterDefs.map(({ label, options }) => ({
+  label,
+  transporter: nodemailer.createTransport(options),
+  options,
+}));
+
+export const transporter = transporters[0]?.transporter || null;
+
+if (transporters.length) {
   const masked =
     smtpUser && smtpUser.length > 3
       ? `${smtpUser.slice(0, 2)}***${smtpUser.slice(-2)}`
       : smtpUser || "undefined";
-  console.log("📧 SMTP configuré", {
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    user: masked,
-    pool: smtpPool,
-    connectionTimeout,
-    socketTimeout,
-    greetingTimeout,
+
+  transporters.forEach(({ label, options }) => {
+    console.log("📧 SMTP configuré", {
+      label,
+      host: options.host,
+      port: options.port,
+      secure: options.secure,
+      user: masked,
+      pool: options.pool,
+      connectionTimeout: options.connectionTimeout,
+      socketTimeout: options.socketTimeout,
+      greetingTimeout: options.greetingTimeout,
+    });
   });
 } else {
   console.warn("⚠️ SMTP non configuré: SMTP_USER / SMTP_PASS manquants");
@@ -54,21 +95,36 @@ export async function sendMail(
   text = "",
   html = ""
 ) {
-  if (!transporter) {
+  if (!transporters.length) {
     console.warn("⚠️ SMTP non configuré: email ignoré");
     return;
   }
+  const mail = {
+    from: process.env.MAIL_FROM || `"TTM Admin" <${smtpUser}>`,
+    to,
+    subject,
+    text: text || undefined,
+    html: html || undefined,
+  };
+
+  let lastError = null;
+  for (const { label, transporter, options } of transporters) {
+    try {
+      await transporter.sendMail(mail);
+      console.log(`📧 Email envoyé à ${to} via ${label} (${options.host}:${options.port})`);
+      return;
+    } catch (err) {
+      lastError = err;
+      console.error(
+        `❌ Envoi via ${label} (${options.host}:${options.port}) échoué:`,
+        err.code || err.message || err
+      );
+    }
+  }
   try {
-    await transporter.sendMail({
-      from: process.env.MAIL_FROM || `"TTM Admin" <${smtpUser}>`,
-      to,
-      subject,
-      text: text || undefined,
-      html: html || undefined,
-    });
-    console.log(`📧 Email envoyé à ${to}`);
+    throw lastError || new Error("Aucun transport SMTP disponible");
   } catch (err) {
-    console.error("❌ Erreur envoi email:", err);
+    console.error("❌ Erreur envoi email (toutes les tentatives):", err);
     throw err;
   }
 }

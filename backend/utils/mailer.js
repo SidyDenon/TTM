@@ -1,23 +1,14 @@
 // utils/mailer.js
 import nodemailer from "nodemailer";
 
-// ================== SENDGRID (PROD / RENDER) ==================
-let sendgridEnabled = false;
-let sgMail = null;
-if (process.env.SENDGRID_API_KEY) {
-  try {
-    const mod = await import("@sendgrid/mail");
-    sgMail = mod.default || mod;
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    sendgridEnabled = true;
-    console.log("📧 SendGrid configuré (API KEY détectée)");
-  } catch (err) {
-    console.warn(
-      "⚠️ SendGrid non chargé (package manquant ou erreur d'init) – fallback SMTP.",
-      err?.message || err
-    );
-  }
-}
+// ================== SENDGRID (API HTTP) ==================
+const sendgridApiKey = process.env.SENDGRID_API_KEY;
+const sendgridFrom =
+  process.env.SENDGRID_FROM ||
+  process.env.MAIL_FROM ||
+  process.env.SMTP_USER ||
+  "no-reply@towtruckmali.com";
+const sendgridEnabled = !!sendgridApiKey;
 
 // ================== SMTP (LOCAL / DEV) ==================
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -122,14 +113,38 @@ export async function sendMail(to, subject, text = "", html = "") {
     html: html || undefined,
   };
 
-  // 1️⃣ PROD / RENDER → SENDGRID
-  if (sendgridEnabled && sgMail) {
+  // 1️⃣ PROD / RENDER → SENDGRID (HTTP API)
+  if (sendgridEnabled) {
+    const payload = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: sendgridFrom },
+      subject,
+      content: [],
+    };
+    if (html) payload.content.push({ type: "text/html", value: html });
+    if (text) payload.content.push({ type: "text/plain", value: text });
+    // SendGrid requiert au moins un content
+    if (!payload.content.length) {
+      payload.content.push({ type: "text/plain", value: "" });
+    }
+
     try {
-      await sgMail.send(mail);
-      console.log(`📧 Email envoyé via SendGrid à ${to}`);
+      const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${sendgridApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        throw new Error(`SendGrid HTTP ${resp.status}: ${body}`);
+      }
+      console.log(`📧 Email envoyé via SendGrid API à ${to}`);
       return;
     } catch (err) {
-      console.error("❌ Erreur envoi email via SendGrid:", err.response?.body || err);
+      console.error("❌ Erreur envoi email via SendGrid API:", err?.message || err);
       throw err;
     }
   }

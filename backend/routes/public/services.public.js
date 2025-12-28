@@ -4,11 +4,39 @@ import { buildUploadUrl } from "../../config/links.js";
 export default (db) => {
   const router = express.Router();
 
-  const resolveServiceIcon = (filename) => {
-    if (!filename) return null;
-    if (filename.startsWith("http")) return filename;
-    const path = filename.startsWith("/uploads/") ? filename : `/uploads/services/${filename}`;
-    return buildUploadUrl(path);
+  const normalizeServiceIcon = (req, value) => {
+    if (!value) return { icon: null, icon_url: null };
+    const raw = String(value).trim();
+
+    const makeAbsolute = (p = "") => {
+      if (!p) return null;
+      if (p.startsWith("http")) return p;
+      const path = p.startsWith("/") ? p : `/${p}`;
+      const proto =
+        (req.headers["x-forwarded-proto"] || "").split(",")[0]?.trim() ||
+        req.protocol ||
+        "http";
+      const host =
+        (req.headers["x-forwarded-host"] || "").split(",")[0]?.trim() ||
+        req.headers.host;
+      if (host) return `${proto}://${host}${path}`;
+      // dernier recours: BASE_URL
+      return buildUploadUrl(path);
+    };
+
+    // Icône virtuelle avec préfixe de pack (fa:, mci:, ion:, gi:, etc.)
+    if (/^[a-z0-9]+:/i.test(raw)) {
+      return { icon: raw, icon_url: raw };
+    }
+
+    // URL absolue déjà servie
+    if (raw.startsWith("http")) {
+      return { icon: raw, icon_url: raw };
+    }
+
+    // Fichier uploadé
+    const path = raw.startsWith("/uploads/") ? raw : `/uploads/services/${raw}`;
+    return { icon: path, icon_url: makeAbsolute(path) };
   };
 
   router.get("/", async (req, res) => {
@@ -25,7 +53,8 @@ export default (db) => {
       if (hasIsActive) {
         sql = `
           SELECT id, name, description, price,
-                 ${hasIconURL ? "icon_url" : hasIcon ? "icon" : "NULL"} AS icon
+                 ${hasIconURL ? "icon_url" : "NULL"} AS icon_url,
+                 ${hasIcon ? "icon" : "NULL"} AS icon
           FROM services
           WHERE is_active = 1
           ORDER BY id DESC
@@ -34,7 +63,8 @@ export default (db) => {
         // Fallback : on prend tout si "is_active" n'existe pas
         sql = `
           SELECT id, name, description, price,
-                 ${hasIconURL ? "icon_url" : hasIcon ? "icon" : "NULL"} AS icon
+                 ${hasIconURL ? "icon_url" : "NULL"} AS icon_url,
+                 ${hasIcon ? "icon" : "NULL"} AS icon
           FROM services
           ORDER BY id DESC
         `;
@@ -52,8 +82,8 @@ export default (db) => {
         id: s.id,
         name: s.name,
         description: s.description,
-        price: s.price,
-        icon_url: resolveServiceIcon(s.icon),
+        price: Number(s.price),
+        ...normalizeServiceIcon(req, hasIconURL ? s.icon_url || s.icon : s.icon || s.icon_url),
       }));
 
       res.json({

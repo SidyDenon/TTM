@@ -88,7 +88,8 @@ const resolveServiceIcon = (name) => {
 
 const normalizeIconUrl = (iconUrl) => {
   if (!iconUrl) return null;
-  if (iconUrl.startsWith("fa:")) return iconUrl; // virtual FA icon
+  // virtual icon (with pack prefix)
+  if (/^[a-z0-9]+:/i.test(iconUrl)) return iconUrl;
   if (iconUrl.startsWith("http")) return iconUrl;
   if (iconUrl.startsWith("/icons/")) {
     const fname = iconUrl.split("/").pop();
@@ -105,7 +106,7 @@ const normalizeIconUrl = (iconUrl) => {
 
 const extractIconName = (iconUrl) => {
   if (!iconUrl) return null;
-  if (iconUrl.startsWith("fa:")) return iconUrl.replace(/^fa:/, "") || null;
+  if (/^[a-z0-9]+:/i.test(iconUrl)) return iconUrl; // keep pack:name
   return null;
 };
 
@@ -164,15 +165,15 @@ export default (db) => {
 
       const data = rows.map((s) => {
         const normUrl = iconUrlEnabled ? normalizeIconUrl(s.icon_url) : null;
-        const iconName =
+        const virtualIcon =
           (hasIconNameColumn ? s.icon : null) ||
           extractIconName(s.icon_url) ||
           extractIconName(normUrl) ||
           null;
         return {
           ...s,
-          icon_url: normUrl || (iconName ? `fa:${iconName}` : null),
-          icon: iconName,
+          icon_url: normUrl || virtualIcon || null,
+          icon: virtualIcon,
         };
       });
 
@@ -211,7 +212,7 @@ export default (db) => {
 
       const data = rows.map((s) => {
         const normUrl = iconUrlEnabled ? normalizeIconUrl(s.icon_url) : null;
-        const iconName =
+        const virtualIcon =
           (hasIconNameColumn ? s.icon : null) ||
           extractIconName(s.icon_url) ||
           extractIconName(normUrl) ||
@@ -220,8 +221,8 @@ export default (db) => {
           id: s.id,
           name: s.name,
           price: Number(s.price),
-          icon_url: normUrl || (iconName ? `fa:${iconName}` : null),
-          icon: iconName,
+          icon_url: normUrl || virtualIcon || null,
+          icon: virtualIcon,
         };
       });
 
@@ -261,12 +262,14 @@ export default (db) => {
         } else if (pickedIcon) {
           if (pickedIcon.startsWith("/service-icons/") || pickedIcon.startsWith("/uploads/")) {
             autoIcon = pickedIcon;
+          } else if (/^[a-z0-9]+:/i.test(pickedIcon)) {
+            autoIcon = pickedIcon; // virtual icon with pack
           } else {
             const cleaned = pickedIcon.replace(/^\/+/, "");
             autoIcon = `/service-icons/${cleaned}`;
           }
         } else if (iconName) {
-          autoIcon = `fa:${iconName}`;
+          autoIcon = /^[a-z0-9]+:/i.test(iconName) ? iconName : `fa:${iconName}`;
         }
 
         let result;
@@ -342,15 +345,18 @@ export default (db) => {
       }
 
       if (iconUrlEnabled && selected_icon && typeof selected_icon === "string" && selected_icon.trim()) {
+        const sel = selected_icon.trim();
         fields.push("icon_url = ?");
-        values.push(selected_icon.trim());
+        values.push(/^[a-z0-9]+:/i.test(sel) ? sel : sel);
       }
       if (hasIconNameColumn && typeof icon_name === "string") {
+        const clean = icon_name.trim();
         fields.push("icon = ?");
-        values.push(icon_name.trim() || null);
+        values.push(clean || null);
       } else if (iconUrlEnabled && typeof icon_name === "string" && icon_name.trim()) {
+        const clean = icon_name.trim();
         fields.push("icon_url = ?");
-        values.push(`fa:${icon_name.trim()}`);
+        values.push(/^[a-z0-9]+:/i.test(clean) ? clean : `fa:${clean}`);
       }
 
       // Mise à jour du prix

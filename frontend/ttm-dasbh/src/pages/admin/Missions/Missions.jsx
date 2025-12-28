@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { toast } from "react-toastify";
 import { API_BASE } from "../../../config/urls";
@@ -11,8 +12,30 @@ import MissionsAssignModal from "./MissionsAssignModal";
 
 import { can, canAny, isSuper } from "../../../utils/rbac";
 
+const STATUS_OPTIONS = [
+  "all",
+  "ongoing",
+  "publiee",
+  "acceptee",
+  "assignee",
+  "en_route",
+  "sur_place",
+  "remorquage",
+  "terminee",
+  "annulee_admin",
+  "annulee_client",
+];
+const ONGOING_STATUSES = new Set([
+  "assignee",
+  "acceptee",
+  "en_route",
+  "sur_place",
+  "remorquage",
+]);
+
 export default function Missions() {
   const { token, user } = useAuth();
+  const location = useLocation();
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +49,11 @@ export default function Missions() {
 
   const [price, setPrice] = useState("");
   const [distance, setDistance] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = String(params.get("status") || "").toLowerCase();
+    return STATUS_OPTIONS.includes(fromUrl) ? fromUrl : "all";
+  });
   const [idSearch, setIdSearch] = useState("");
   const normalizedId = idSearch.replace(/[^0-9]/g, "");
 
@@ -203,6 +230,14 @@ export default function Missions() {
   }, [token, canView]);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = String(params.get("status") || "").toLowerCase();
+    if (STATUS_OPTIONS.includes(fromUrl) && fromUrl !== statusFilter) {
+      setStatusFilter(fromUrl);
+    }
+  }, [location.search, statusFilter]);
+
+  useEffect(() => {
     if (token && canAssign) loadOperators();
   }, [token, canAssign]);
 
@@ -280,11 +315,13 @@ export default function Missions() {
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="all">Tous</option>
+          <option value="ongoing">en cours</option>
           <option value="publiee">publiée</option>
           <option value="acceptee">acceptée</option>
           <option value="assignee">assignée</option>
           <option value="en_route">en route</option>
           <option value="sur_place">sur place</option>
+          <option value="remorquage">remorquage</option>
           <option value="terminee">terminée</option>
           <option value="annulee_admin">annulée admin</option>
           <option value="annulee_client">annulée client</option>
@@ -312,7 +349,12 @@ export default function Missions() {
           }
           // Filtre statut
           if (statusFilter !== 'all') {
-            if (String(r?.status || '').toLowerCase() !== statusFilter) return false;
+            const currentStatus = String(r?.status || '').toLowerCase();
+            if (statusFilter === 'ongoing') {
+              if (!ONGOING_STATUSES.has(currentStatus)) return false;
+            } else if (currentStatus !== statusFilter) {
+              return false;
+            }
           }
           // Recherche ID
           if (normalizedId) {

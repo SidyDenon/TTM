@@ -45,6 +45,7 @@ export default function DashboardStats({ stats, navigate }) {
       label: "Missions en cours",
       key: "ongoing",
       color: "#fb923c",
+      path: "/dashboard/missions?status=ongoing",
       perm: "requests_view",
     },
     {
@@ -52,7 +53,7 @@ export default function DashboardStats({ stats, navigate }) {
       label: "Missions terminées",
       key: "done",
       color: "#22c55e",
-      path: "/dashboard/missions",
+      path: "/dashboard/missions?status=terminee",
       perm: "requests_view",
     },
     {

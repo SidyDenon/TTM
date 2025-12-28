@@ -5,7 +5,7 @@ import { isAdmin } from "../../middleware/isAdmin.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { sendMail } from "../../utils/mailer.js";
 
 const router = express.Router();
 
@@ -142,28 +142,25 @@ router.post("/", superOnly, checkPermission("rbac_users_manage"), async (req, re
 
     // Envoyer l’email (on ne fait pas échouer si ça plante)
     try {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: false,
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
       const appName  = process.env.APP_NAME || "Admin";
       const loginUrl = process.env.ADMIN_LOGIN_URL || "https://example.com/admin/login";
-      const from     = process.env.MAIL_FROM || `"${appName}" <no-reply@example.com>`;
-
-      await transporter.sendMail({
-        from,
-        to: email,
-        subject: `Votre accès administrateur • ${appName}`,
-        html: `
+      await sendMail(
+        email,
+        `Votre accès administrateur • ${appName}`,
+        `Bonjour ${name || ""},
+Un compte administrateur a été créé pour vous.
+Identifiant : ${email}
+Mot de passe provisoire : ${tempPassword}
+Connexion : ${loginUrl}
+Important : changez votre mot de passe à la première connexion.`,
+        `
           <p>Bonjour ${name || ""},</p>
           <p>Un compte administrateur a été créé pour vous.</p>
           <p><b>Identifiant :</b> ${email}<br/><b>Mot de passe provisoire :</b> ${tempPassword}</p>
           <p>Connexion : <a href="${loginUrl}">${loginUrl}</a></p>
           <p><b>Important :</b> changez votre mot de passe à la première connexion.</p>
-        `,
-      });
+        `
+      );
     } catch (mailErr) {
       console.error("✉️  Envoi email échoué:", mailErr);
     }

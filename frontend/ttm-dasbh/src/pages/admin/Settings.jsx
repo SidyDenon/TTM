@@ -1,7 +1,14 @@
 // src/pages/admin/Settings.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { toast } from "react-toastify";
-import * as FaIcons from "react-icons/fa";
+import * as FaIcons from "react-icons/fa";      // UI buttons (edit/save/…)
+import * as Fa6Icons from "react-icons/fa6";    // FontAwesome 6 Free (compat Expo)
+import * as IoIcons from "react-icons/io5";     // Ionicons 5
+import * as FiIcons from "react-icons/fi";      // Feather
+import * as AiIcons from "react-icons/ai";      // AntDesign
+import * as MdIcons from "react-icons/md";      // Material Icons
+import * as GoIcons from "react-icons/go";      // Octicons
+import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
 import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench } from "react-icons/fa";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
@@ -47,23 +54,9 @@ export default function Settings() {
   const [servicesOpen, setServicesOpen] = useState(true);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
-  const iconList = useMemo(() => {
-    const list = [];
-    Object.entries(FaIcons).forEach(([key, Comp]) => {
-      if (typeof Comp !== "function" || !key.startsWith("Fa")) return;
-      const kebab = key
-        .replace(/^Fa/, "")
-        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-        .toLowerCase();
-      list.push({
-        key,
-        name: kebab,
-        label: kebab.replace(/-/g, " "),
-        Comp,
-      });
-    });
-    return list;
-  }, []);
+  const [iconList, setIconList] = useState([]);
+  const [iconsLoading, setIconsLoading] = useState(false);
+  const iconCache = useRef({});
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -92,11 +85,111 @@ export default function Settings() {
     support_email: supportEmail.trim(),
   });
 
+  const resolveIcon = (iconName) => {
+    if (!iconName) return null;
+    const raw = String(iconName).trim();
+    const [packPrefix, rawName] =
+      raw.includes(":") ? raw.split(":") : [null, raw];
+    const key = (packPrefix ? rawName : raw).toLowerCase();
+    const cacheKey = `${packPrefix || "any"}:${key}`;
+    if (iconCache.current[cacheKey]) return iconCache.current[cacheKey];
+
+    const packs = [
+      { entries: FaIcons, prefix: "Fa", tag: "fa" },   // legacy FontAwesome (fa:)
+      // si packPrefix=fa, on tentera aussi fa6 plus bas
+      { entries: Fa6Icons, prefix: "Fa", tag: "fa6" },
+      { entries: IoIcons, prefix: "Io", tag: "io5" },
+      { entries: FiIcons, prefix: "Fi", tag: "fi" },
+      { entries: AiIcons, prefix: "Ai", tag: "ai" },
+      { entries: MdIcons, prefix: "Md", tag: "md" },
+      { entries: GoIcons, prefix: "Go", tag: "go" },
+      { entries: SlIcons, prefix: "Sl", tag: "sl" },
+    ];
+    const toKebab = (rawComp, prefix) =>
+      rawComp
+        .replace(new RegExp(`^${prefix}`), "")
+        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+        .toLowerCase();
+
+    for (const pack of packs) {
+      const prefix = packPrefix ? packPrefix.toLowerCase() : null;
+      if (prefix && prefix !== pack.tag) {
+        // cas fa: → tenter fa6 après fa
+        if (!(prefix === "fa" && pack.tag === "fa6")) continue;
+        if (prefix !== "fa" && pack.tag === "fa6") continue;
+      }
+      for (const [compName, Comp] of Object.entries(pack.entries)) {
+        if (typeof Comp !== "function" || !compName.startsWith(pack.prefix))
+          continue;
+        if (toKebab(compName, pack.prefix) === key) {
+          iconCache.current[cacheKey] = Comp;
+          return Comp;
+        }
+      }
+    }
+    iconCache.current[cacheKey] = null;
+    return null;
+  };
+
   const renderIcon = (iconName, size = 24) => {
-    const found = iconList.find((i) => i.name === iconName);
-    const Comp = found?.Comp || FaWrench;
+    let Comp = FaWrench;
+    if (iconList.length > 0) {
+      const found = iconList.find((i) => i.name === iconName);
+      Comp = found?.Comp || FaWrench;
+    } else {
+      const resolved = resolveIcon(iconName);
+      if (resolved) Comp = resolved;
+    }
     return <Comp style={{ fontSize: size }} />;
   };
+
+  // Chargement paresseux de la grosse liste d'icônes (évite de bloquer au montage)
+  useEffect(() => {
+    if (!iconPickerOpen || iconList.length > 0 || iconsLoading) return;
+    setIconsLoading(true);
+    const list = [];
+    const pushIcons = (entries, prefix, pack) => {
+      Object.entries(entries).forEach(([key, Comp]) => {
+        if (typeof Comp !== "function" || !key.startsWith(prefix)) return;
+        const kebab = key
+          .replace(new RegExp(`^${prefix}`), "")
+          .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+          .toLowerCase();
+        list.push({
+          key,
+          name: kebab,
+          label: `${pack} ${kebab.replace(/-/g, " ")}`,
+          Comp,
+          pack,
+        });
+      });
+    };
+    // Legacy fa (lecture uniquement) non proposé en picker pour éviter les icônes non dispo mobile
+    // pushIcons(FaIcons, "Fa", "fa");
+    pushIcons(Fa6Icons, "Fa", "fa6");
+    pushIcons(IoIcons, "Io", "io5");
+    pushIcons(FiIcons, "Fi", "fi");
+    pushIcons(AiIcons, "Ai", "ai");
+    pushIcons(MdIcons, "Md", "md");
+    pushIcons(GoIcons, "Go", "go");
+    pushIcons(SlIcons, "Sl", "sl");
+    setIconList(list);
+    setIconsLoading(false);
+  }, [iconPickerOpen, iconList.length, iconsLoading]);
+
+  const filteredIcons = useMemo(() => {
+    if (!iconList.length) return [];
+    const q = (iconSearch || addForm.icon || "").toLowerCase().trim();
+    const matches = iconList.filter((ico) => {
+      if (!q) return true;
+      return (
+        ico.name.includes(q) ||
+        ico.label.toLowerCase().includes(q)
+      );
+    });
+    // limiter l'affichage pour ne pas lagger l'UI
+    return matches.slice(0, 200);
+  }, [iconList, iconSearch, addForm.icon]);
 
   // ─────────── Fetchers
   const loadServices = async () => {
@@ -299,6 +392,7 @@ export default function Settings() {
         price: String(price),
         icon_name: addForm.icon || "",
       };
+
       const res = await fetch(`${API_BASE}/api/admin/services`, {
         method: "POST",
         headers: {
@@ -666,22 +760,33 @@ export default function Settings() {
                   services.map((s) => (
                     <tr key={s.id} style={{ borderColor: "var(--border-color)" }}>
                       <td className="px-3 py-2">
-                        {s.icon ? (
-                          renderIcon(s.icon, 22)
-                        ) : s.icon_url ? (
-                          <img
-                            src={`${API_BASE.replace(/\/api$/, "")}${s.icon_url}`}
-                            alt=""
-                            className="w-7 h-7 object-contain"
-                          />
-                        ) : (
-                          <div
-                            className="w-7 h-7 rounded flex items-center justify-center opacity-50"
-                            style={{ background: "var(--bg-card)" }}
-                          >
-                            <FaPlus />
-                          </div>
-                        )}
+                        {(() => {
+                          const iconValue = s.icon || s.icon_url || "";
+                          const isVirtual =
+                            typeof iconValue === "string" &&
+                            /^[a-z0-9]+:/i.test(iconValue);
+
+                          if (iconValue && isVirtual) {
+                            return renderIcon(iconValue, 22);
+                          }
+                          if (s.icon_url && !isVirtual) {
+                            return (
+                              <img
+                                src={`${API_BASE.replace(/\/api$/, "")}${s.icon_url}`}
+                                alt=""
+                                className="w-7 h-7 object-contain"
+                              />
+                            );
+                          }
+                          return (
+                            <div
+                              className="w-7 h-7 rounded flex items-center justify-center opacity-50"
+                              style={{ background: "var(--bg-card)" }}
+                            >
+                              <FaPlus />
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-2">{s.name}</td>
                       <td className="px-3 py-2">
@@ -819,54 +924,46 @@ export default function Settings() {
                             borderColor: "var(--border-color)",
                           }}
                         >
-                          {iconList
-                            .filter((ico) => {
-                              const q = (iconSearch || addForm.icon || "").toLowerCase();
-                              if (!q) return true;
-                              return (
-                                ico.label.toLowerCase().includes(q) ||
-                                ico.name.toLowerCase().includes(q) ||
-                                (q.includes("remor") && ico.name.includes("truck")) ||
-                                (q.includes("porte") && ico.name.includes("door")) ||
-                                (q.includes("carbur") && ico.name.includes("gas-pump")) ||
-                                (q.includes("batter") && ico.name.includes("battery")) ||
-                                (q.includes("diag") && ico.name.includes("stethoscope"))
-                              );
-                            })
-                            .slice(0, 80)
-                            .map((ico) => (
-                            <button
-                              key={ico.name}
-                              type="button"
-                              onClick={() => {
-                                setAddForm((f) => ({ ...f, icon: ico.name }));
-                                setIconSearch(ico.label);
-                                setIconPickerOpen(false);
-                              }}
-                              className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
-                              style={{
-                                background: "var(--bg-card)",
-                                color: "var(--text-color)",
-                                borderColor: "var(--border-color)",
-                              }}
-                            >
-                              <ico.Comp style={{ fontSize: 18 }} />
-                              <div>
-                                <div className="text-sm font-medium capitalize">{ico.label}</div>
-                                <div className="text-xs opacity-70">{ico.name}</div>
+                          {iconsLoading && (
+                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                              Chargement des icônes…
+                            </div>
+                          )}
+                          {!iconsLoading && filteredIcons.length === 0 && (
+                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                              Aucune correspondance. Essaie un autre mot-clé.
+                            </div>
+                          )}
+                          {!iconsLoading &&
+                            filteredIcons.map((ico) => (
+                              <button
+                                key={ico.key}
+                                type="button"
+                                onClick={() => {
+                                  const value = `${ico.pack}:${ico.name}`;
+                                  setAddForm((f) => ({ ...f, icon: value }));
+                                  setIconSearch(value);
+                                  setIconPickerOpen(false);
+                                }}
+                                className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                                style={{
+                                  background: "var(--bg-card)",
+                                  color: "var(--text-color)",
+                                  borderColor: "var(--border-color)",
+                                }}
+                              >
+                                <ico.Comp style={{ fontSize: 18 }} />
+                                <div>
+                                  <div className="text-sm font-medium capitalize">
+                                    {ico.label}
+                                  </div>
+                                <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
                               </div>
                             </button>
                           ))}
-                          {iconList.filter((ico) => {
-                            if (!iconSearch) return true;
-                            const q = iconSearch.toLowerCase();
-                            return (
-                              ico.label.toLowerCase().includes(q) ||
-                              ico.name.toLowerCase().includes(q)
-                            );
-                          }).length === 0 && (
-                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
-                              Aucune correspondance. Tape un nom FontAwesome directement.
+                          {!iconsLoading && filteredIcons.length === 200 && (
+                            <div className="col-span-2 md:col-span-3 text-xs opacity-60">
+                              Résultats limités à 200 pour éviter les lags. Raffine la recherche.
                             </div>
                           )}
                         </div>

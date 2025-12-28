@@ -29,7 +29,8 @@ const FALLBACK_REGION: Region = {
 };
 
 function HomeContent() {
-  const [region, setRegion] = useState<Region | null>(null);
+  const [region, setRegion] = useState<Region>(FALLBACK_REGION);
+  const [satellite, setSatellite] = useState(false);
   const [loading, setLoading] = useState(true);
   const { logout, user, token } = useAuth();
   const { isConnected } = useSocket();
@@ -101,34 +102,22 @@ function HomeContent() {
   // 📍 Récupération position du client
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLoading(false);
-        Alert.alert("Permission refusée", "Active la localisation pour continuer.");
-        return;
-      }
-
-      const servicesEnabled = await Location.hasServicesEnabledAsync();
-      if (!servicesEnabled) {
-        Alert.alert(
-          "Localisation désactivée",
-          "Active les services de localisation. Nous utilisons une position par défaut."
-        );
-      }
-
       try {
-        const location = await Location.getCurrentPositionAsync({});
-        setRegion({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-      } catch (err) {
-        Alert.alert(
-          "Localisation indisponible",
-          "Impossible de récupérer ta position actuelle. Nous utilisons la position par défaut (Bamako)."
-        );
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+
+        if (status === "granted" && servicesEnabled) {
+          const location = await Location.getCurrentPositionAsync({});
+          setRegion({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          });
+        } else {
+          setRegion(FALLBACK_REGION);
+        }
+      } catch {
         setRegion(FALLBACK_REGION);
       } finally {
         setLoading(false);
@@ -140,29 +129,26 @@ function HomeContent() {
   const recenterMap = async () => {
     if (!mapRef.current) return;
     try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
       const servicesEnabled = await Location.hasServicesEnabledAsync();
-      if (!servicesEnabled) {
-        Alert.alert(
-          "Localisation désactivée",
-          "Active les services de localisation. Utilisation d'une position par défaut."
-        );
+
+      if (status === "granted" && servicesEnabled) {
+        const location = await Location.getCurrentPositionAsync({});
+        const newRegion = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        };
+        setRegion(newRegion);
+        mapRef.current.animateToRegion(newRegion, 1000);
+      } else {
+        setRegion(FALLBACK_REGION);
+        mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
       }
-      const location = await Location.getCurrentPositionAsync({});
-      const newRegion = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-      setRegion(newRegion);
-      mapRef.current.animateToRegion(newRegion, 1000);
     } catch (err) {
       setRegion(FALLBACK_REGION);
       mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
-      Alert.alert(
-        "Localisation indisponible",
-        "Impossible de récupérer ta position. Position par défaut (Bamako) utilisée."
-      );
     }
   };
 
@@ -175,43 +161,15 @@ function HomeContent() {
     );
   }
 
-  if (!region) {
-    return (
-      <View style={styles.emptyWrap}>
-        <View style={styles.emptyIcon}>
-          <Ionicons name="location-outline" size={36} color="#E53935" />
-        </View>
-        <Text style={styles.emptyTitle}>Localisation indisponible</Text>
-        <Text style={styles.emptySubtitle}>
-          Active la localisation ou réessaie pour afficher les dépanneuses proches.
-        </Text>
-        <View style={styles.emptyActions}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={recenterMap}>
-            <Ionicons name="refresh" size={18} color="#fff" />
-            <Text style={styles.primaryText}>Réessayer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            onPress={() => {
-              setRegion(FALLBACK_REGION);
-            }}
-          >
-            <Ionicons name="map" size={18} color="#E53935" />
-            <Text style={styles.secondaryText}>Position par défaut</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       {/* 🗺️ Carte Google Maps */}
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
-        mapType="standard"
+        mapType={satellite ? "satellite" : "standard"}
         showsUserLocation
+        showsMyLocationButton={false}
         followsUserLocation
         style={StyleSheet.absoluteFillObject}
         region={region}
@@ -239,13 +197,6 @@ function HomeContent() {
         </Text>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {/* petit indicateur socket */}
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: isConnected ? "#4CAF50" : "#FFC107" },
-            ]}
-          />
           <TouchableOpacity onPress={openMenu} style={styles.profileBtn}>
             <MaterialIcons name="person-outline" size={28} color="#000" />
           </TouchableOpacity>
@@ -262,10 +213,22 @@ function HomeContent() {
         </TouchableOpacity>
       </View>
 
-      {/* Bouton recentrage (match le style du SuiviMission) */}
-      <TouchableOpacity style={styles.recenterBtn} onPress={recenterMap}>
-        <Ionicons name="locate" size={20} color="#fff" />
-      </TouchableOpacity>
+      {/* Boutons flottants (vue + recentrage) */}
+      <View style={styles.fabStack}>
+        <TouchableOpacity
+          style={styles.viewBtn}
+          onPress={() => setSatellite((s) => !s)}
+        >
+          <Ionicons
+            name={satellite ? "eye-off-outline" : "eye-outline"}
+            size={20}
+            color="#fff"
+          />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.recenterBtn} onPress={recenterMap}>
+          <Ionicons name="locate" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       {/* ✅ Menu latéral */}
       {menuVisible && (
@@ -403,22 +366,20 @@ const styles = StyleSheet.create({
   secondaryText: { color: "#E53935", fontWeight: "700", fontSize: 14 },
   header: {
     position: "absolute",
-    top: 50,
-    left: 20,
+    top: 0,
+    left: 0,
     right: 20,
+    padding:20,
+    paddingTop:50,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     zIndex: 100,
+    backgroundColor: "#ffffff90",
+    width: "100%",
   },
   logo: { fontSize: 22, fontWeight: "bold", color: "#000" },
   profileBtn: { padding: 5 },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
   footer: {
     position: "absolute",
     bottom: 30,
@@ -441,10 +402,27 @@ const styles = StyleSheet.create({
   helpText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 
   // bouton recenter harmonisé avec SuiviMission
-  recenterBtn: {
+  fabStack: {
     position: "absolute",
-    bottom: 115, // juste au-dessus du bouton principal
+    bottom: 115,
     right: 20,
+    alignItems: "center",
+    gap: 10,
+  },
+  viewBtn: {
+    backgroundColor: "#444",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  recenterBtn: {
     backgroundColor: "#333",
     width: 44,
     height: 44,

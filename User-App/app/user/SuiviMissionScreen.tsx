@@ -59,6 +59,7 @@ export default function SuiviMissionScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [operatorBoxVisible, setOperatorBoxVisible] = useState(false);
   const [callMenuOpen, setCallMenuOpen] = useState(false);
+  const [satellite, setSatellite] = useState(false);
 
   const slideAnim = useRef(
     new Animated.Value(Dimensions.get("window").width)
@@ -228,6 +229,8 @@ export default function SuiviMissionScreen() {
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
         showsUserLocation
+        showsMyLocationButton={false}
+        mapType={satellite ? "satellite" : "standard"}
         initialRegion={{
           latitude: mission!.lat,
           longitude: mission!.lng,
@@ -293,10 +296,23 @@ export default function SuiviMissionScreen() {
         )}
       </MapView>
 
-      {/* 🔄 BOUTON RECENTRER */}
-      <TouchableOpacity style={styles.recenterBtn} onPress={recenter}>
-        <MaterialIcons name="my-location" size={20} color="#fff" />
-      </TouchableOpacity>
+      {/* 🔄 BOUTONS VUE + RECENTRER */}
+      <View style={styles.fabStack}>
+        <TouchableOpacity
+          style={styles.viewBtn}
+          onPress={() => setSatellite((s) => !s)}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons
+            name={satellite ? "visibility-off" : "visibility"}
+            size={20}
+            color="#fff"
+          />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.recenterBtn} onPress={recenter}>
+          <MaterialIcons name="my-location" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       {/* SPEED DIAL APPEL */}
       <View style={styles.callFabContainer}>
@@ -594,11 +610,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
 
-  // Recentrer
-  recenterBtn: {
+  fabStack: {
     position: "absolute",
     right: 20,
     bottom: 260,
+    gap: 10,
+    alignItems: "center",
+    zIndex: 90,
+  },
+  viewBtn: {
+    backgroundColor: "#444",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  recenterBtn: {
     backgroundColor: "#333",
     width: 44,
     height: 44,
@@ -610,7 +643,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-    zIndex: 90,
   },
 
   // Speed dial appel

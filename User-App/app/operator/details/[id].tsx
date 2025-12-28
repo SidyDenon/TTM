@@ -329,14 +329,34 @@ useEffect(() => {
           <Text style={styles.sectionTitle}>Photos</Text>
           {mission.photos && mission.photos.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {mission.photos.map((url, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setSelectedPhoto(url)}
-                >
-                  <Image source={{ uri: url }} style={styles.photo} />
-                </TouchableOpacity>
-              ))}
+              {mission.photos.map((url, index) => {
+                const baseHost = API_URL.replace(/\/api$/, "");
+                const normalize = (u: string) => {
+                  if (!u) return "";
+                  if (u.startsWith("http")) {
+                    try {
+                      const api = new URL(baseHost);
+                      const current = new URL(u);
+                      if (current.origin !== api.origin && current.pathname.startsWith("/uploads/")) {
+                        return `${api.origin}${current.pathname}`;
+                      }
+                      return u;
+                    } catch {
+                      return u;
+                    }
+                  }
+                  return `${baseHost}${u.startsWith("/") ? u : `/${u}`}`;
+                };
+                const norm = normalize(url);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setSelectedPhoto(norm)}
+                  >
+                    <Image source={{ uri: norm }} style={styles.photo} />
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           ) : (
             <Text style={styles.info}>Aucune photo disponible</Text>

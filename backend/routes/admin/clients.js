@@ -91,12 +91,12 @@ export default (db) => {
       const { clientAddress } = await getSchemaColumns(req.db);
       if (clientAddress) {
         await req.db.query(
-          `INSERT INTO clients (user_id, ${clientAddress}, created_at) VALUES (?, ?, NOW())`,
+          `INSERT INTO clients (user_id, ${clientAddress}) VALUES (?, ?)`,
           [userId, adresse || null]
         );
       } else {
         await req.db.query(
-          `INSERT INTO clients (user_id, created_at) VALUES (?, NOW())`,
+          `INSERT INTO clients (user_id) VALUES (?)`,
           [userId]
         );
       }

@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
-import { MAP_TILES, buildAssetUrl } from "../../../config/urls";
+import { MAP_TILES, buildAssetUrl, getApiBase } from "../../../config/urls";
 
 export default function MissionsDetailsModal({
   mission,
@@ -22,7 +22,24 @@ export default function MissionsDetailsModal({
   };
 
   const parsePhotos = (photos) => (Array.isArray(photos) ? photos : []);
-  const normalizePhotoUrl = (p) => buildAssetUrl(p) || null;
+  const normalizePhotoUrl = (p) => {
+    if (!p) return null;
+    const raw = typeof p === "object" && "url" in p ? p.url : p;
+    if (!raw) return null;
+    if (typeof raw === "string" && raw.startsWith("http")) {
+      try {
+        const api = new URL(getApiBase());
+        const u = new URL(raw);
+        if (u.origin !== api.origin && u.pathname.startsWith("/uploads/")) {
+          return `${api.origin}${u.pathname}`;
+        }
+        return raw;
+      } catch {
+        return raw;
+      }
+    }
+    return buildAssetUrl(raw) || null;
+  };
 
   // 🔒 Vérification des permissions
   const canPublish = isSuper(user) || can(user, "requests_publish");

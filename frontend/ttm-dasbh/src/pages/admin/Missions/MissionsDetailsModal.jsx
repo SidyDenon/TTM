@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { MAP_TILES, buildAssetUrl } from "../../../config/urls";
+import { MAP_TILES, buildAssetUrl, getApiBase } from "../../../config/urls";
 
 export default function MissionsDetailsModal({
   mission,
@@ -14,7 +14,25 @@ export default function MissionsDetailsModal({
   const [photoView, setPhotoView] = useState(null); // 🆕 Lightbox
 
   const parsePhotos = (photos) => (Array.isArray(photos) ? photos : []);
-  const normalizePhotoUrl = (p) => buildAssetUrl(p) || null;
+  const normalizePhotoUrl = (p) => {
+    if (!p) return null;
+    const raw = typeof p === "object" && "url" in p ? p.url : p;
+    if (!raw) return null;
+    if (typeof raw === "string" && raw.startsWith("http")) {
+      try {
+        const api = new URL(getApiBase());
+        const u = new URL(raw);
+        // si le back renvoie http://127.../uploads, on recolle sur le host API
+        if (u.origin !== api.origin && u.pathname.startsWith("/uploads/")) {
+          return `${api.origin}${u.pathname}`;
+        }
+        return raw;
+      } catch {
+        return raw;
+      }
+    }
+    return buildAssetUrl(raw) || null;
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">

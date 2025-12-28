@@ -13,7 +13,18 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import {
+  FontAwesome5,
+  Ionicons,
+  MaterialCommunityIcons,
+  FontAwesome6,
+  Feather,
+  AntDesign,
+  MaterialIcons,
+  Octicons,
+  SimpleLineIcons,
+} from "@expo/vector-icons";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useRequest } from "../../context/RequestContext";
@@ -263,6 +274,296 @@ export default function RequestScreen() {
     ? currentService.name.toLowerCase().includes("remorqu")
     : false;
 
+  // Map icon names (kebab from admin) to Expo icon sets for best fidelity
+  const mapIconNameToExpo = (name: string | null | undefined) => {
+    if (!name) return null;
+    const [packPrefix, raw] = name.includes(":")
+      ? name.split(":")
+      : [null, name];
+    const key = raw.toLowerCase().trim();
+    const table: Record<string, { pack: "mci" | "ion" | "fa"; name: string }> = {
+      "car-door": { pack: "mci", name: "car-door" },
+      "car-battery": { pack: "mci", name: "car-battery" },
+      "gas-pump": { pack: "mci", name: "gas-station" },
+      "gas-station": { pack: "mci", name: "gas-station" },
+      "fuel": { pack: "mci", name: "gas-station" },
+      "stethoscope": { pack: "mci", name: "stethoscope" },
+      "screwdriver-wrench": { pack: "mci", name: "tools" },
+      "screwdriver": { pack: "mci", name: "screwdriver" },
+      "oil-can": { pack: "mci", name: "oil" },
+      "toolbox": { pack: "mci", name: "toolbox-outline" },
+      "wrench": { pack: "mci", name: "wrench" },
+      "key": { pack: "ion", name: "key-outline" },
+      "wheelchair-move": { pack: "mci", name: "wheelchair-accessibility" },
+      "accessible-icon": { pack: "mci", name: "wheelchair-accessibility" },
+      "car-tire-alert": { pack: "mci", name: "car-tire-alert" },
+      "tire-pressure-warning": { pack: "mci", name: "car-tire-alert" },
+      "cart-outline": { pack: "ion", name: "cart-outline" },
+      "shopping-cart": { pack: "ion", name: "cart-outline" },
+      "car": { pack: "mci", name: "car" },
+      "car-side": { pack: "mci", name: "car-side" },
+      "car-alt": { pack: "mci", name: "car" },
+      "car-crash": { pack: "mci", name: "car-off" },
+      "truck": { pack: "mci", name: "truck" },
+      "tow-truck": { pack: "mci", name: "tow-truck" },
+      "ambulance": { pack: "mci", name: "ambulance" },
+      "battery-full": { pack: "mci", name: "battery-positive" },
+      "battery": { pack: "mci", name: "battery" },
+      "ad": { pack: "mci", name: "information-outline" },
+      "headphones": { pack: "ion", name: "headset-outline" },
+      "headset": { pack: "ion", name: "headset-outline" },
+      // game-icons fallbacks
+      "cartwheel": { pack: "mci", name: "steering" },
+    };
+    if (table[key]) return table[key];
+    if (packPrefix && packPrefix.toLowerCase() === "gi") {
+      // generic fallback for game-icons → steering
+      return { pack: "mci", name: "steering" };
+    }
+    // broad keyword mapping
+    if (key.includes("wheelchair") || key.includes("accessible")) {
+      return { pack: "mci", name: "wheelchair-accessibility" };
+    }
+    if (key.includes("battery")) {
+      return { pack: "mci", name: "car-battery" };
+    }
+    if (key.includes("gas") || key.includes("carbur") || key.includes("fuel")) {
+      return { pack: "mci", name: "gas-station" };
+    }
+    if (key.includes("door") || key.includes("porte")) {
+      return { pack: "mci", name: "car-door" };
+    }
+    if (key.includes("pneu") || key.includes("tire") || key.includes("wheel")) {
+      return { pack: "mci", name: "car-tire-alert" };
+    }
+    if (key.includes("diag")) {
+      return { pack: "mci", name: "stethoscope" };
+    }
+    if (key.includes("cart") || key.includes("shop")) {
+      return { pack: "ion", name: "cart-outline" };
+    }
+    if (key.includes("wrench") || key.includes("tool")) {
+      return { pack: "mci", name: "wrench" };
+    }
+    return null;
+  };
+
+const renderServiceIcon = (
+  srv: Service,
+  isSelected: boolean,
+  isRemorquage: boolean,
+  iconUri: string | null,
+  showImage: boolean,
+  _faName: string,
+  _faSupported: boolean
+) => {
+  const color = isSelected ? "#fff" : COLORS.primaryDark;
+
+  const raw =
+    (typeof srv.icon === "string" && srv.icon.trim()) ||
+    (typeof srv.icon_url === "string" && srv.icon_url.trim()) ||
+    "";
+
+  // 1) pack:name
+  if (raw && /^[a-z0-9]+:/i.test(raw)) {
+    const [packPrefix, nameRaw] = raw.split(":");
+    const pack = packPrefix.toLowerCase();
+    const name = (nameRaw || "").trim();
+
+    // 🔹 FontAwesome 6 Free
+    if (pack === "fa6") {
+      return (
+        <FontAwesome6
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 Ionicons 5
+    if (pack === "io5" || pack === "ion") {
+      return (
+        <Ionicons
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 Feather
+    if (pack === "fi") {
+      return (
+        <Feather
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 AntDesign
+    if (pack === "ai") {
+      return (
+        <AntDesign
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 Material Icons
+    if (pack === "md") {
+      return (
+        <MaterialIcons
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 Octicons
+    if (pack === "go") {
+      return (
+        <Octicons
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // 🔹 SimpleLineIcons
+    if (pack === "sl") {
+      return (
+        <SimpleLineIcons
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // Legacy : FontAwesome5, MaterialCommunityIcons
+    if (pack === "fa") {
+      const normalized = name === "500-px" ? "500px" : name;
+      return (
+        <FontAwesome5
+          name={normalized as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    if (pack === "mci") {
+      return (
+        <MaterialCommunityIcons
+          name={name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+
+    // Tout autre pack inconnu -> on tombera sur les fallbacks plus bas
+  }
+
+  // 2) Icône image (upload)
+  if (showImage && iconUri) {
+    return (
+      <Image
+        source={{ uri: iconUri }}
+        style={[styles.serviceIconImage, { tintColor: color }]}
+        resizeMode="contain"
+        onError={() =>
+          setFailedIcons((prev) =>
+            prev.includes(srv.id) ? prev : [...prev, srv.id]
+          )
+        }
+      />
+    );
+  }
+
+  // 3) Remorquage -> camion
+  if (isRemorquage) {
+    return (
+      <Image
+        source={DepanneuseIcon}
+        style={[styles.serviceIconImage, { tintColor: color }]}
+        resizeMode="contain"
+      />
+    );
+  }
+
+  // 4) Fallback mots-clés (pneu, batterie, etc.) – tu peux garder ton code existant ici
+
+  const label = (srv.name || "").toLowerCase();
+  const iconByKeyword: { name: string; pack: "ion" | "mci" } | null =
+    label.includes("pneu") || label.includes("tire") || label.includes("wheel")
+      ? { name: "car-tire-alert", pack: "mci" }
+      : label.includes("carbur") ||
+        label.includes("fuel") ||
+        label.includes("gas")
+      ? { name: "gas-station", pack: "mci" }
+      : label.includes("batter")
+      ? { name: "car-battery", pack: "mci" }
+      : label.includes("porte") || label.includes("door")
+      ? { name: "car-door", pack: "mci" }
+      : label.includes("diag")
+      ? { name: "stethoscope", pack: "mci" }
+      : label.includes("crevais")
+      ? { name: "car-tire-alert", pack: "mci" }
+      : label.includes("achat")
+      ? { name: "cart-outline", pack: "ion" }
+      : null;
+
+  if (iconByKeyword) {
+    if (iconByKeyword.pack === "mci") {
+      return (
+        <MaterialCommunityIcons
+          name={iconByKeyword.name as any}
+          size={26}
+          color={color}
+          style={{ marginBottom: 6 }}
+        />
+      );
+    }
+    return (
+      <Ionicons
+        name={iconByKeyword.name as any}
+        size={26}
+        color={color}
+        style={{ marginBottom: 6 }}
+      />
+    );
+  }
+
+  // 5) Dernier fallback
+  return (
+    <Ionicons
+      name="car-outline"
+      size={26}
+      color={color}
+      style={{ marginBottom: 6 }}
+    />
+  );
+};
+
+
+
   // ─────────────── 🖼️ Rendu ───────────────
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -312,99 +613,62 @@ export default function RequestScreen() {
             />
           ) : (
             <View style={styles.servicesGrid}>
-              {services.map((srv) => {
-                const isSelected = selectedService === srv.id;
-                const isRemorquage = srv.name.toLowerCase().includes("remorqu");
-                // API_BASE contient souvent /api : on enlève ce suffixe pour servir les fichiers statiques
-                const baseHost = API_BASE.replace(/\/api$/, "");
-                const faMatch = srv.icon_url?.match(/fa:([^/]+)/);
-                const isFaIcon = Boolean(faMatch);
-                const rawFaName =
-                  (srv.icon as string | null | undefined) ||
-                  (isFaIcon ? faMatch?.[1] ?? "" : "");
-                const faName = rawFaName === "500-px" ? "500px" : rawFaName; // correction 500px
-                const brandNames = new Set([
-                  "500px",
-                  "accessible-icon",
-                  "facebook",
-                  "google",
-                  "twitter",
-                  "whatsapp",
-                  "instagram",
-                  "linkedin",
-                  "youtube",
-                  "apple",
-                  "android",
-                  "microsoft",
-                ]);
-                const isBrand = faName ? brandNames.has(faName) || /^[0-9]/.test(faName) : false;
-                let iconUri: string | null = null;
-                if (srv.icon_url && !isFaIcon) {
-                  iconUri = srv.icon_url.startsWith("http")
-                    ? srv.icon_url
-                    : `${baseHost}${srv.icon_url}`;
-                }
-                const showImage = iconUri && !failedIcons.includes(srv.id);
+          {services.map((srv) => {
+  const isSelected = selectedService === srv.id;
+  const isRemorquage = srv.name.toLowerCase().includes("remorqu");
+ 
+  const baseHost = API_BASE.replace(/\/api$/, "");
+ 
+  let iconUri: string | null = null;
 
-                return (
-                  <TouchableOpacity
-                    key={srv.id}
-                    style={[
-                      styles.serviceCard,
-                      isSelected && styles.serviceCardSelected,
-                    ]}
-                    onPress={() => setSelectedService(srv.id)}
-                    activeOpacity={0.8}
-                  >
-                    {faName ? (
-                      <FontAwesome5
-                        name={faName as any}
-                        brand={isBrand}
-                        solid={!isBrand}
-                        size={26}
-                        color={isSelected ? "#fff" : COLORS.primaryDark}
-                        style={{ marginBottom: 6 }}
-                      />
-                    ) : showImage && iconUri ? (
-                      <Image
-                        source={{ uri: iconUri }}
-                        style={[
-                          styles.serviceIconImage,
-                          { tintColor: isSelected ? "#fff" : COLORS.primaryDark },
-                        ]}
-                        resizeMode="contain"
-                        onError={() =>
-                          setFailedIcons((prev) =>
-                            prev.includes(srv.id) ? prev : [...prev, srv.id]
-                          )
-                        }
-                      />
-                    ) : isRemorquage ? (
-                      <Image
-                        source={DepanneuseIcon}
-                        style={[
-                          styles.serviceIconImage,
-                          { tintColor: isSelected ? "#fff" : COLORS.primaryDark },
-                        ]}
-                        resizeMode="contain"
-                      />
-                    ) : null}
+  if (
+    typeof srv.icon_url === "string" &&
+    srv.icon_url.trim().length > 0 &&
+    !/^[a-z0-9]+:/i.test(srv.icon_url) // pas fa:/gi:/mci:/ion:
+  ) {
+    iconUri = srv.icon_url.startsWith("http")
+      ? srv.icon_url
+      : `${baseHost}${srv.icon_url}`;
+  }
 
-                    <Text
-                      style={[
-                        styles.serviceTitle,
-                        isSelected && { color: "#fff" },
-                      ]}
-                    >
-                      {srv.name}
-                    </Text>
+  const showImage = !!iconUri && !failedIcons.includes(srv.id);
 
-                    <Text style={{ color: isSelected ? "#fff" : "#666" }}>
-                      {formatPrice(srv.price)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+  return (
+    <TouchableOpacity
+      key={srv.id}
+      style={[
+        styles.serviceCard,
+        isSelected && styles.serviceCardSelected,
+      ]}
+      onPress={() => setSelectedService(srv.id)}
+      activeOpacity={0.8}
+    >
+      {renderServiceIcon(
+        srv,
+        isSelected,
+        isRemorquage,
+        iconUri,
+        showImage,
+        "",     // faName plus utilisé
+        false   // faSupported plus utilisé
+      )}
+
+      <Text
+        style={[
+          styles.serviceTitle,
+          isSelected && { color: "#fff" },
+        ]}
+      >
+        {srv.name}
+      </Text>
+
+      <Text style={{ color: isSelected ? "#fff" : "#666" }}>
+        {formatPrice(srv.price)}
+      </Text>
+    </TouchableOpacity>
+  );
+})}
+
             </View>
           )}
 

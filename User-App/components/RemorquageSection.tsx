@@ -61,6 +61,7 @@ export const RemorquageSection: React.FC<Props> = ({
   const [countryCode, setCountryCode] = useState<string | null>(null);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [mapPreparing, setMapPreparing] = useState(false); // ⬅️ pour le géocodage avant d’ouvrir la carte
+  const [satellite, setSatellite] = useState(false);
 
   useEffect(() => {
     setQuery(destination);
@@ -366,6 +367,7 @@ export const RemorquageSection: React.FC<Props> = ({
         <View style={{ flex: 1 }}>
           <MapView
             style={{ flex: 1 }}
+            mapType={satellite ? "satellite" : "standard"}
             onPress={handleMapPress}
             initialRegion={{
               latitude: initialLat,
@@ -384,6 +386,28 @@ export const RemorquageSection: React.FC<Props> = ({
           </MapView>
 
           <View style={styles.mapFooter}>
+            <TouchableOpacity
+              style={[
+                styles.mapFooterBtn,
+                styles.mapFooterBtnToggle,
+                { borderColor: colors.primary },
+              ]}
+              onPress={() => setSatellite((s) => !s)}
+            >
+              <Ionicons
+                name={satellite ? "eye-off-outline" : "eye-outline"}
+                size={18}
+                color={colors.primary}
+              />
+              <Text
+                style={[
+                  styles.mapFooterBtnTextToggle,
+                  { color: colors.primary, marginLeft: 6 },
+                ]}
+              >
+                {satellite ? "Vue plan" : "Vue satellite"}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.mapFooterBtn,
@@ -488,19 +512,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderColor: "#eee",
+    gap: 6,
   },
   mapFooterBtn: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
-    marginHorizontal: 4,
   },
   mapFooterBtnCancel: {
     backgroundColor: "#fff",
     borderWidth: 1,
   },
   mapFooterBtnConfirm: {},
+  mapFooterBtnToggle: {
+    flexDirection: "row",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  mapFooterBtnTextToggle: {
+    fontWeight: "700",
+    fontSize: 14,
+  },
   mapFooterBtnTextCancel: {
     fontWeight: "600",
   },

@@ -35,6 +35,7 @@ import { syncOperatorLocation } from "../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
 import { blue } from "react-native-reanimated/lib/typescript/Colors";
+import { API_BASE } from "../../utils/api";
 
 
 type Mission = {
@@ -65,17 +66,40 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+const normalizePhotoUrl = (url: any): string | null => {
+  if (!url) return null;
+  const raw = String(url);
+  const base = API_BASE.replace(/\/api$/, "");
+  if (raw.startsWith("http")) {
+    try {
+      const api = new URL(base);
+      const u = new URL(raw);
+      if (u.origin !== api.origin && u.pathname.startsWith("/uploads/")) {
+        return `${api.origin}${u.pathname}`;
+      }
+      return raw;
+    } catch {
+      return raw;
+    }
+  }
+  return `${base}${raw.startsWith("/") ? raw : "/" + raw}`;
+};
+
 const normalizeMissionPayload = (mission: any): Mission | null => {
   if (!mission || mission.id == null) return null;
   const cleanNumber = (value: any, fallback = 0) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
   };
-  const photos = Array.isArray(mission.photos)
-    ? mission.photos
-    : mission.photos
-    ? [mission.photos].flat().filter(Boolean)
-    : [];
+  const photos = (
+    Array.isArray(mission.photos)
+      ? mission.photos
+      : mission.photos
+      ? [mission.photos].flat().filter(Boolean)
+      : []
+  )
+    .map((p: any) => normalizePhotoUrl(p))
+    .filter(Boolean) as string[];
   return {
     id: cleanNumber(mission.id),
     ville: mission.ville || mission.zone || mission.city || "Ville inconnue",

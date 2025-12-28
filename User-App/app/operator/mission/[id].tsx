@@ -59,6 +59,7 @@ type Mission = {
   destination?: string | null;
   dest_lat?: number | null;
   dest_lng?: number | null;
+  operator_id?: number | null;
 };
 
 type Event = {
@@ -102,6 +103,7 @@ export default function MissionSuivi() {
   const [operatorOrigin, setOperatorOrigin] = useState<{ lat: number; lng: number } | null>(null);
 
   const [isFullMap, setIsFullMap] = useState(false); // fullscreen state
+  const [mapType, setMapType] = useState<"standard" | "hybrid">("hybrid");
   const [menuVisible, setMenuVisible] = useState(false);
   const [followOperator, setFollowOperator] = useState(true);
   const [supportVisible, setSupportVisible] = useState(false);
@@ -289,6 +291,7 @@ export default function MissionSuivi() {
           user_phone: m.client_phone,
           status: m.status,
           photos: m.photos || [],
+          operator_id: m.operator_id ?? null,
           estimated_price: m.estimated_price != null ? Number(m.estimated_price) : undefined,
           preview_final_price:
             m.preview_final_price != null ? Number(m.preview_final_price) : null,
@@ -548,6 +551,10 @@ export default function MissionSuivi() {
     }
   }, [eta]);
 
+  const toggleMapType = () => {
+    setMapType((prev) => (prev === "hybrid" ? "standard" : "hybrid"));
+  };
+
   // 🔄 Mettre à jour le statut
   const updateStatus = async (action: string) => {
     try {
@@ -695,7 +702,7 @@ export default function MissionSuivi() {
         }}
       />
 
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff90" }}>
         <View style={styles.topBar}>
           <Text style={styles.logo}>
             <Text style={{ color: "#E53935" }}>TT</Text>M
@@ -709,11 +716,12 @@ export default function MissionSuivi() {
           style={[styles.container, isFullMap && styles.fullContainer]}
           contentContainerStyle={{ paddingBottom: isFullMap ? 0 : 140 }}
         >
-          {typeof mission.lat === "number" && typeof mission.lng === "number" && (
-            <View style={{ position: "relative" }}>
+            {typeof mission.lat === "number" && typeof mission.lng === "number" && (
+              <View style={{ position: "relative" }}>
               <MapView
                 ref={mapRef}
                 style={isFullMap ? styles.mapFull : styles.map}
+                mapType={mapType}
                 initialRegion={{
                   latitude: mission.lat,
                   longitude: mission.lng,
@@ -786,6 +794,18 @@ export default function MissionSuivi() {
                   />
                 )}
               </MapView>
+
+              {/* Bouton type de vue */}
+              <TouchableOpacity
+                style={styles.viewToggleBtn}
+                onPress={toggleMapType}
+              >
+                <MaterialIcons
+                  name={mapType === "hybrid" ? "visibility" : "visibility-off"}
+                  size={22}
+                  color="#fff"
+                />
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.focusBtn}
@@ -962,7 +982,24 @@ export default function MissionSuivi() {
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {mission.photos.slice(0, 3).map((url, index) => {
-                      const fullUrl = url.startsWith("http") ? url : `${API_URL}${url}`;
+                      const baseHost = API_URL.replace(/\/api$/, "");
+                      const normalize = (u: string) => {
+                        if (!u) return "";
+                        if (u.startsWith("http")) {
+                          try {
+                            const api = new URL(baseHost);
+                            const current = new URL(u);
+                            if (current.origin !== api.origin && current.pathname.startsWith("/uploads/")) {
+                              return `${api.origin}${current.pathname}`;
+                            }
+                            return u;
+                          } catch {
+                            return u;
+                          }
+                        }
+                        return `${baseHost}${u.startsWith("/") ? u : `/${u}`}`;
+                      };
+                      const fullUrl = normalize(url);
                       return (
                         <TouchableOpacity
                           key={index}
@@ -978,9 +1015,26 @@ export default function MissionSuivi() {
                   </ScrollView>
 
                   <ImageViewing
-                    images={mission.photos.slice(0, 3).map((url) => ({
-                      uri: url.startsWith("http") ? url : `${API_URL}${url}`,
-                    }))}
+                    images={mission.photos.slice(0, 3).map((url) => {
+                      const baseHost = API_URL.replace(/\/api$/, "");
+                      const normalize = (u: string) => {
+                        if (!u) return "";
+                        if (u.startsWith("http")) {
+                          try {
+                            const api = new URL(baseHost);
+                            const current = new URL(u);
+                            if (current.origin !== api.origin && current.pathname.startsWith("/uploads/")) {
+                              return `${api.origin}${current.pathname}`;
+                            }
+                            return u;
+                          } catch {
+                            return u;
+                          }
+                        }
+                        return `${baseHost}${u.startsWith("/") ? u : `/${u}`}`;
+                      };
+                      return { uri: normalize(url) };
+                    })}
                     imageIndex={currentIndex}
                     visible={isViewerVisible}
                     onRequestClose={() => setIsViewerVisible(false)}
@@ -1230,6 +1284,15 @@ const styles = StyleSheet.create({
   focusBtn: {
     position: "absolute",
     top: 60,
+    right: 15,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    padding: 10,
+    borderRadius: 30,
+    zIndex: 10,
+  },
+  viewToggleBtn: {
+    position: "absolute",
+    top: 105,
     right: 15,
     backgroundColor: "rgba(0,0,0,0.7)",
     padding: 10,

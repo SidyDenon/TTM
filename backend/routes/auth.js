@@ -1,10 +1,10 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import twilio from "twilio";
 import authMiddleware from "../middleware/auth.js";
 import { getSchemaColumns } from "../utils/schema.js";
+import { sendMail } from "../utils/mailer.js";
 
 export default (db) => {
   const router = express.Router();
@@ -21,14 +21,6 @@ export default (db) => {
     req.db = db;
     next();
   });
-
-  const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-});
-
 
   // ⚡ Config Twilio
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
@@ -223,15 +215,15 @@ router.post("/login", async (req, res) => {
       let channel = null;
 
       if (identifier.includes("@") && user.email) {
-        await transporter.sendMail({
-          from: `"Support" <${process.env.SMTP_USER}>`,
-          to: user.email,
-          subject: "Code de réinitialisation",
-          html: `<h2>Bonjour ${user.name || "utilisateur"},</h2>
-                 <p>Voici votre code de réinitialisation :</p>
-                 <h1 style="color:#E53935">${resetCode}</h1>
-                 <p>⚠️ Ce code est valable 15 minutes.</p>`,
-        });
+        await sendMail(
+          user.email,
+          "Code de réinitialisation",
+          `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n⚠️ Ce code est valable 15 minutes.`,
+          `<h2>Bonjour ${user.name || "utilisateur"},</h2>
+           <p>Voici votre code de réinitialisation :</p>
+           <h1 style="color:#E53935">${resetCode}</h1>
+           <p>⚠️ Ce code est valable 15 minutes.</p>`
+        );
         channel = "email";
       }
 

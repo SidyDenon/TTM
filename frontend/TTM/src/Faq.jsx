@@ -192,6 +192,67 @@ export default function Faq() {
           </div>
         </motion.section>
 
+        {/* Politique de confidentialite */}
+        <section id="confidentialite" className="bg-white">
+          <div className="mx-auto max-w-5xl px-4 pb-14 pt-6">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 md:p-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-zinc-900">
+                Politique de confidentialite
+              </h2>
+              <p className="mt-2 text-sm text-zinc-600">
+                Derniere mise a jour : 12/01/2026
+              </p>
+
+              <div className="mt-6 space-y-5 text-sm leading-6 text-zinc-700">
+                <div>
+                  <h3 className="font-semibold text-zinc-900">1) Responsable</h3>
+                  <p>Tow Truck Mali (application mobile). Contact support : +22373585046.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">2) Donnees collectees</h3>
+                  <p>Identification (nom, telephone, email si fournis), localisation, photos du vehicule, donnees techniques et notifications.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">3) Utilisation</h3>
+                  <p>Creer le compte, gerer la demande de depannage, suivre la mission, permettre l'envoi de photos et ameliorer l'app.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">4) Permissions</h3>
+                  <p>Camera (prise de photo), galerie/stockage (choix d'image), localisation (suivi), notifications.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">5) Partage</h3>
+                  <p>Nous ne vendons pas vos donnees. Partage limite aux depanneurs impliques et aux fournisseurs techniques necessaires.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">6) Conservation</h3>
+                  <p>Conservation le temps necessaire aux missions et obligations legales. Les photos peuvent etre conservees pour l'historique.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">7) Vos droits</h3>
+                  <p>Acces, correction ou suppression des donnees sur demande via le support.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">8) Securite</h3>
+                  <p>Mesures techniques et organisationnelles pour proteger vos informations.</p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-zinc-900">9) Modifications</h3>
+                  <p>Cette politique peut evoluer. En cas de changement important, nous vous en informerons.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Footer (inchangé) */}
         <footer className="bg-zinc-900 text-zinc-200">
           <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-1 text-center md:grid-cols-3 gap-8">
@@ -209,7 +270,7 @@ export default function Faq() {
                 <li><a href="#services" className="hover:text-[#800E08]">Nos Services</a></li>
                 <li><a href="#histoire" className="hover:text-[#800E08]">Notre Histoire</a></li>
                 <li><a href="#faq" className="hover:text-[#800E08]">FAQ</a></li>
-                <li><a href="#confidentialite" className="hover:text-[#800E08]">Politique de confidentialité</a></li>
+                <li><a href="/confidentialite" className="hover:text-[#800E08]">Politique de confidentialité</a></li>
               </ul>
             </div>
 

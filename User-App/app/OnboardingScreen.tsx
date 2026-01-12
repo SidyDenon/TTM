@@ -1,26 +1,37 @@
-import React, { useEffect, useState, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  StatusBar,
-} from "react-native";
+// app/OnboardingScreen.tsx
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Animated, StatusBar } from "react-native";
 import Onboarding from "react-native-onboarding-swiper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+const BRAND = "#E53935";
+const BG = "#FFFFFF";
+
+type OnboardingRef = {
+  goToPage: (page: number, animated?: boolean) => void;
+};
+
+type UiOverlayProps = {
+  currentPage: number;
+  pageCount: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onClose: () => void;
+};
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const onboardingRef = useRef<OnboardingRef | null>(null);
 
-  // 🔍 Vérifie si l'utilisateur a déjà vu l’onboarding
   useEffect(() => {
     const check = async () => {
       const seen = await AsyncStorage.getItem("hasSeenOnboarding");
@@ -31,205 +42,282 @@ export default function OnboardingScreen() {
       }
     };
     check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ⚡ Animation du logo d’intro
+  // Splash intro (fond rouge BRAND)
   const startIntro = () => {
     Animated.sequence([
-      Animated.timing(logoOpacity, { toValue: 1, duration: 1200, useNativeDriver: true }),
-      Animated.delay(1200),
-      Animated.timing(logoOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
+      Animated.timing(logoOpacity, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.delay(450),
+      Animated.timing(logoOpacity, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]).start(() => setShowOnboarding(true));
   };
 
   const finishOnboarding = async () => {
     await AsyncStorage.setItem("hasSeenOnboarding", "true");
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace("/login");
   };
 
   if (!ready) return null;
 
-  // 🟥 Intro : logo fade-in/fade-out
+  // Splash rouge
   if (!showOnboarding) {
     return (
-      <LinearGradient colors={["#E53935", "#000"]} style={styles.splash}>
+      <View style={[styles.splash, { backgroundColor: BRAND }]}>
         <StatusBar barStyle="light-content" />
         <Animated.Image
           source={require("../assets/images/logoTTM.png")}
           style={[styles.logo, { opacity: logoOpacity }]}
           resizeMode="contain"
         />
-      </LinearGradient>
+      </View>
     );
   }
 
-  // 🧭 Écrans d’onboarding
+  const pages = [
+    {
+      backgroundColor: "transparent",
+      image: (
+        <LottieView
+          source={require("../assets/animations/truck.json")}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
+      ),
+      title: "Dépannage express",
+      subtitle: "Demandez une dépanneuse en moins d’une minute.",
+    },
+    {
+      backgroundColor: "transparent",
+      image: (
+        <LottieView
+          source={require("../assets/animations/map.json")}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
+      ),
+      title: "Suivi en temps réel",
+      subtitle: "Voyez l’arrivée de la dépanneuse sur la carte.",
+    },
+    {
+      backgroundColor: "transparent",
+      image: (
+        <LottieView
+          source={require("../assets/animations/mechanic.json")}
+          autoPlay
+          loop
+          style={styles.lottie}
+        />
+      ),
+      title: "Pro & sécurisé",
+      subtitle: "Dépanneurs vérifiés, assistance disponible 24h/24.",
+    },
+  ];
+
   return (
-    <LinearGradient colors={["#E53935", "#000"]} style={{ flex: 1 }}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: BG }]} edges={["top", "bottom"]}>
+      <StatusBar barStyle="dark-content" />
+
       <Onboarding
+        ref={onboardingRef}
         bottomBarHighlight={false}
-        onSkip={finishOnboarding}
-        onDone={finishOnboarding}
-        transitionAnimationDuration={800}
+        showSkip={false} // on gère le X nous-mêmes
+        showPagination={false}
+        transitionAnimationDuration={320}
         titleStyles={styles.title}
         subTitleStyles={styles.subtitle}
         containerStyles={{ backgroundColor: "transparent" }}
-        DotComponent={({ selected }: { selected: boolean }) => (
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              marginHorizontal: 4,
-              borderRadius: 4,
-              backgroundColor: selected ? "#fff" : "#777",
-            }}
-          />
-        )}
-        pages={[
-          {
-            backgroundColor: "transparent",
-            image: (
-              <LottieView
-                source={require("../assets/animations/truck.json")}
-                autoPlay
-                loop
-                style={styles.lottie}
-              />
-            ),
-            title: "Dépannage express",
-            subtitle: "Trouvez une dépanneuse proche de vous en quelques clics.",
-          },
-          {
-            backgroundColor: "transparent",
-            image: (
-              <LottieView
-                source={require("../assets/animations/roadassist.json")} // 🆘 nouvelle animation
-                autoPlay
-                loop
-                style={styles.lottie}
-              />
-            ),
-            title: "Assistance fiable 24h/24",
-            subtitle: "Nos équipes sont disponibles partout, à tout moment.",
-          },
-          {
-            backgroundColor: "transparent",
-            image: (
-              <LottieView
-                source={require("../assets/animations/mechanic.json")}
-                autoPlay
-                loop
-                style={styles.lottie}
-              />
-            ),
-            title: "Des pros de confiance",
-            subtitle: "Tous nos dépanneurs sont vérifiés et notés par nos clients.",
-          },
-          {
-            backgroundColor: "transparent",
-            image: (
-              <LottieView
-                source={require("../assets/animations/map.json")}
-                autoPlay
-                loop
-                style={styles.lottie}
-              />
-            ),
-            title: "Suivi en temps réel",
-            subtitle: "Suivez votre dépanneuse directement sur la carte.",
-          },
-        ]}
-        SkipButtonComponent={() => (
-          <TouchableOpacity onPress={finishOnboarding} style={styles.skipBtn}>
-            <Text style={styles.skipText}>Passer</Text>
-          </TouchableOpacity>
-        )}
-        DoneButtonComponent={() => (
-          <AnimatedButton onPress={finishOnboarding} text="Commencer" />
-        )}
+        pageIndexCallback={(index: number) => setCurrentPage(index)}
+        pages={pages}
       />
-    </LinearGradient>
+      <UiOverlay
+        currentPage={currentPage}
+        pageCount={pages.length}
+        onPrev={async () => {
+          if (currentPage <= 0) return;
+          await Haptics.selectionAsync();
+          onboardingRef.current?.goToPage(currentPage - 1, true);
+        }}
+        onNext={async () => {
+          await Haptics.selectionAsync();
+          if (currentPage >= pages.length - 1) {
+            finishOnboarding();
+            return;
+          }
+          onboardingRef.current?.goToPage(currentPage + 1, true);
+        }}
+        onClose={async () => {
+          await Haptics.selectionAsync();
+          finishOnboarding();
+        }}
+      />
+    </SafeAreaView>
   );
 }
 
-/* 🎞️ Bouton animé “Commencer” avec dégradé */
-const AnimatedButton = ({ onPress, text }: { onPress: () => void; text: string }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const pressIn = () =>
-    Animated.spring(scale, { toValue: 0.95, useNativeDriver: true }).start();
-  const pressOut = () =>
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+/** ✅ UI overlay: X en haut droite + flèches au milieu + timeline en bas */
+function UiOverlay({ currentPage, pageCount, onPrev, onNext, onClose }: UiOverlayProps) {
+  const isLast = currentPage === pageCount - 1;
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <TouchableOpacity
-        onPressIn={pressIn}
-        onPressOut={pressOut}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={["#fff", "#FFD6D6"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.doneBtn}
+    <View style={styles.overlayRoot} pointerEvents="box-none">
+      {/* X en haut à droite */}
+      <View style={styles.topRight} pointerEvents="box-none">
+        <TouchableOpacity onPress={onClose} activeOpacity={0.85} style={styles.closeBtn}>
+          <Ionicons name="close" size={22} color={BRAND} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Flèches au milieu (extrémités) */}
+      <View style={styles.midRow} pointerEvents="box-none">
+        <TouchableOpacity
+          onPress={onPrev}
+          activeOpacity={0.85}
+          style={[styles.navBtnGhost, currentPage === 0 && styles.disabledBtn]}
+          disabled={currentPage === 0}
+          accessibilityLabel="Retour"
         >
-          <Text style={styles.doneText}>{text}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animated.View>
+          <Ionicons name="chevron-back" size={26} color={BRAND} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={onNext}
+          activeOpacity={0.9}
+          style={styles.navBtnSolid}
+          accessibilityLabel={isLast ? "Terminer" : "Suivant"}
+        >
+          <Ionicons name={isLast ? "checkmark" : "chevron-forward"} size={26} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Timeline en bas (centrée) */}
+      <View style={styles.timelineWrap} pointerEvents="none">
+        <View style={styles.timelineBar}>
+          {Array.from({ length: pageCount }).map((_, i) => {
+            const active = i === currentPage;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  active ? styles.dotActive : styles.dotInactive,
+                ]}
+              />
+            );
+          })}
+        </View>
+      </View>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logo: {
-    width: 180,
-    height: 180,
-  },
-  lottie: {
-    width: 250,
-    height: 250,
-    alignSelf: "center",
-  },
+  container: { flex: 1 },
+
+  splash: { flex: 1, justifyContent: "center", alignItems: "center" },
+  logo: { width: 170, height: 170 },
+
+  lottie: { width: 240, height: 240, alignSelf: "center" },
+
   title: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 22,
+    color: "#0F172A",
+    fontWeight: "900",
+    fontSize: 24,
     textAlign: "center",
   },
   subtitle: {
-    color: "#f1f1f1",
+    color: "rgba(15,23,42,0.70)",
     fontSize: 15,
     marginTop: 10,
     textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 16,
   },
-  skipBtn: {
-    marginRight: 15,
+
+  overlayRoot: {
+    ...StyleSheet.absoluteFillObject,
   },
-  skipText: {
-    color: "#fff",
-    fontWeight: "600",
+
+  topRight: {
+    position: "absolute",
+    top: 50,
+    right: 15,
   },
-  doneBtn: {
-    marginRight: 15,
-    paddingHorizontal: 22,
-    paddingVertical: 10,
-    borderRadius: 25,
-    shadowColor: "#fff",
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+  closeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(229,57,53,0.10)",
   },
-  doneText: {
-    color: "#E53935",
-    fontWeight: "bold",
-    fontSize: 16,
+
+  // middle row with extremity buttons
+  midRow: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    top: "50%",
+    marginTop: -26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  navBtnGhost: {
+    width: 52,
+    height: 52,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(229,57,53,0.10)",
+  },
+  navBtnSolid: {
+    width: 56,
+    height: 56,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: BRAND,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+
+  disabledBtn: { opacity: 0.35 },
+
+  // Timeline bottom center
+  timelineWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 18,
+    alignItems: "center",
+  },
+  timelineBar: {
+    height: 22,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "rgba(15,23,42,0.06)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 999,
+  },
+  dotActive: {
+    width: 22,
+    backgroundColor: BRAND,
+  },
+  dotInactive: {
+    width: 8,
+    backgroundColor: "rgba(15,23,42,0.18)",
   },
 });

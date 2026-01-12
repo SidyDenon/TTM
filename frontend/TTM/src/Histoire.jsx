@@ -1,7 +1,8 @@
 // src/Histoire.jsx
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { buildWhatsAppLink, DEFAULT_MESSAGES } from "./config/links";
+import { DEFAULT_MESSAGES } from "./config/links";
+import { useSupportConfig } from "./context/SupportConfigContext";
 
 const fadeLeft  = { hidden: {opacity: 0, x: -24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
 const fadeRight = { hidden: {opacity: 0, x:  24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
@@ -21,7 +22,11 @@ const modalVariants = {
 
 export default function Histoire() {
   const [open, setOpen] = React.useState(false);
-  const histoireContactLink = React.useMemo(() => buildWhatsAppLink(DEFAULT_MESSAGES.generalInquiry), []);
+  const { buildSupportWhatsAppLink } = useSupportConfig();
+  const histoireContactLink = React.useMemo(
+    () => buildSupportWhatsAppLink(DEFAULT_MESSAGES.generalInquiry),
+    [buildSupportWhatsAppLink]
+  );
 
   // Esc pour fermer + lock du scroll
   React.useEffect(() => {

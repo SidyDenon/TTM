@@ -1,6 +1,7 @@
 // src/components/Nav.jsx
 import React from "react";
-import { NAV_LINKS, DEFAULT_MESSAGES, buildWhatsAppLink } from "./config/links";
+import { NAV_LINKS, DEFAULT_MESSAGES } from "./config/links";
+import { useSupportConfig } from "./context/SupportConfigContext";
 
 
 
@@ -8,7 +9,11 @@ export default function Nav() {
   const [open, setOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
 
-  const contactUrl = React.useMemo(() => buildWhatsAppLink(DEFAULT_MESSAGES.generalInquiry), []);
+  const { buildSupportWhatsAppLink } = useSupportConfig();
+  const contactUrl = React.useMemo(
+    () => buildSupportWhatsAppLink(DEFAULT_MESSAGES.generalInquiry),
+    [buildSupportWhatsAppLink]
+  );
 
   // Shrink au scroll
   React.useEffect(() => {

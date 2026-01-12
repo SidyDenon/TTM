@@ -1,7 +1,7 @@
 // src/Tarifs.jsx
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { buildServiceRequestLink } from "./config/links";
+import { useSupportConfig } from "./context/SupportConfigContext";
 import "./App.css";
 
 /* ---------- Données enrichies ---------- */
@@ -132,12 +132,8 @@ const cx = (...c) => c.filter(Boolean).join(" ");
 const formatPrice = (p) => p.replace(/\s/g, "\u202F");
 const excerpt = (s, n = 120) => (s.length > n ? s.slice(0, n).trim() + "…" : s);
 
-/* ---------- WhatsApp ---------- */
-function openWhatsApp(service) {
-  window.open(buildServiceRequestLink(service), "_blank", "noopener,noreferrer");
-}
 /* ---------- Modal ---------- */
-function TarifModal({ open, onClose, item }) {
+function TarifModal({ open, onClose, item, onWhatsApp }) {
   // Fermer sur Échap + bloquer le scroll
   React.useEffect(() => {
     if (!open) return;
@@ -203,7 +199,7 @@ function TarifModal({ open, onClose, item }) {
 
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
-                    onClick={() => openWhatsApp(item)}
+                    onClick={() => onWhatsApp(item)}
                     className="inline-flex items-center gap-2 rounded-lg border border-[#800e08] px-4 py-2 text-[#800e08] hover:bg-[#800e08]/10 transition"
                   >
                     <i className="fa-brands fa-whatsapp" />
@@ -226,7 +222,7 @@ function TarifModal({ open, onClose, item }) {
 }
 
 /* ---------- Carte ---------- */
-function Card({ item, onMore }) {
+function Card({ item, onMore, onWhatsApp }) {
   return (
     <motion.article
       layout
@@ -274,7 +270,7 @@ function Card({ item, onMore }) {
 
           <button
             type="button"
-            onClick={() => openWhatsApp(item)}
+            onClick={() => onWhatsApp(item)}
             className="mt-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#25D366] px-3 py-1 text-[12px] text-[#128C7E] hover:bg-[#25D366]/10 transition"
             aria-label={`Demander ${item.title} sur WhatsApp`}
             title="Demander ce service sur WhatsApp"
@@ -292,6 +288,17 @@ function Card({ item, onMore }) {
 export default function Tarifs() {
   const [showMore, setShowMore] = React.useState(false);
   const [selected, setSelected] = React.useState(null);
+  const { buildSupportServiceLink } = useSupportConfig();
+  const openWhatsApp = React.useCallback(
+    (service) => {
+      window.open(
+        buildSupportServiceLink(service),
+        "_blank",
+        "noopener,noreferrer"
+      );
+    },
+    [buildSupportServiceLink]
+  );
 
   const featured = TARIFS.filter((t) => t.featured);
   const extra = TARIFS.filter((t) => !t.featured);
@@ -338,7 +345,12 @@ export default function Tarifs() {
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
         >
           {featured.map((item, i) => (
-            <Card key={`f-${i}`} item={item} onMore={() => setSelected(item)} />
+            <Card
+              key={`f-${i}`}
+              item={item}
+              onMore={() => setSelected(item)}
+              onWhatsApp={openWhatsApp}
+            />
           ))}
         </div>
 
@@ -357,7 +369,12 @@ export default function Tarifs() {
                 style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
               >
                 {extra.map((item, i) => (
-                  <Card key={`x-${i}`} item={item} onMore={() => setSelected(item)} />
+                  <Card
+                    key={`x-${i}`}
+                    item={item}
+                    onMore={() => setSelected(item)}
+                    onWhatsApp={openWhatsApp}
+                  />
                 ))}
               </div>
             </motion.div>
@@ -386,7 +403,12 @@ export default function Tarifs() {
       </div>
 
       {/* Modal détail */}
-      <TarifModal open={!!selected} onClose={() => setSelected(null)} item={selected} />
+      <TarifModal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        item={selected}
+        onWhatsApp={openWhatsApp}
+      />
     </section>
   );
 }

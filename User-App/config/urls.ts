@@ -8,7 +8,7 @@ const DEFAULT_PORT = 5000;
 const LOCAL_ANDROID = `http://10.0.2.2:${DEFAULT_PORT}`;
 const LOCAL_LOCALHOST = `http://localhost:${DEFAULT_PORT}`;
 const LOCAL_LOOPBACK = `http://127.0.0.1:${DEFAULT_PORT}`;
-const LAN_IPS = ["192.168.11.242", "192.168.11.241"]; // ajoute ici tes IP LAN possibles
+const LAN_IPS = ["192.168.11.178", "192.168.11.241"]; // ajoute ici tes IP LAN possibles
 
 export let API_BASE = PROD_BASE; // host sans /api
 export let API_URL = `${API_BASE}/api`;

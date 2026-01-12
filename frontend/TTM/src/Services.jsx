@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
-import { buildServiceRequestLink } from "./config/links";
+import { useSupportConfig } from "./context/SupportConfigContext";
 
 /* ---------- Services : descriptions détaillées ---------- */
 const SERVICES = [
@@ -31,6 +31,8 @@ Avantages TTM :
     icon: "fa-truck-monster",
     title: "Remorquage",
     desc: "Prise en charge sécurisée.",
+    iconImage: "/assets/depanneuse.png",
+    iconAlt: "Depanneuse TTM",
     details: `Notre service de remorquage est disponible 24h/24 et 7j/7, aussi bien pour les véhicules particuliers que pour les utilitaires. Nos dépanneuses modernes sont équipées pour garantir un transport sans risque d’endommagement.
 
 Zones et délais :
@@ -134,14 +136,6 @@ Avantages :
 `
   },
 ];
-function openWhatsApp(service) {
-  window.open(
-    buildServiceRequestLink(service),
-    "_blank",
-    "noopener,noreferrer"
-  );
-}
-
 /* ---------- Variants (Framer Motion) ---------- */
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -165,7 +159,7 @@ const cardVariants = {
 };
 
 /* ---------- Modal (animée) ---------- */
-function Modal({ open, onClose, service }) {
+function Modal({ open, onClose, service, onWhatsApp }) {
   React.useEffect(() => {
     if (!open) return;
     const original = document.body.style.overflow;
@@ -205,7 +199,18 @@ function Modal({ open, onClose, service }) {
             variants={modalVariants}
           >
             <div className="flex items-start gap-3 p-5">
-              <i className={`fa-solid ${service.icon} text-5xl text-[#800E08] mt-1`} />
+              {service.iconImage ? (
+                <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-full bg-[#800E08]/10">
+                  <img
+                    src={service.iconImage}
+                    alt={service.iconAlt || service.title}
+                    className="h-7 w-7 object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              ) : (
+                <i className={`fa-solid ${service.icon} text-5xl text-[#800E08] mt-1`} />
+              )}
               <div className="flex-1">
                 <h2 id="service-title" className="text-xl font-semibold text-zinc-900">
                   {service.title}
@@ -229,7 +234,7 @@ function Modal({ open, onClose, service }) {
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   className="inline-flex items-center gap-2 rounded-lg border border-[#800E08] px-4 py-2 text-[#800E08] hover:bg-[#800E08] hover:text-white transition"
-                  onClick={() => openWhatsApp(service)}
+                  onClick={() => onWhatsApp(service)}
                 >
                   Demander ce service <i className="fa-solid fa-arrow-right" />
                 </button>
@@ -249,7 +254,7 @@ function Modal({ open, onClose, service }) {
 }
 
 /* ---------- Card (révélation au scroll + hover overlay) ---------- */
-function ServiceCard({ icon, title, desc, onMore, index }) {
+function ServiceCard({ icon, iconImage, iconAlt, title, desc, onMore, index }) {
   return (
     <motion.div
       className="group relative overflow-hidden rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-zinc-200"
@@ -261,7 +266,18 @@ function ServiceCard({ icon, title, desc, onMore, index }) {
     >
       {/* Contenu */}
       <div className="relative z-10 space-y-2 transition-opacity duration-500 group-hover:opacity-0 group-hover:pointer-events-none">
-        <i className={`fa-solid ${icon} text-4xl text-[#800E08]`} />
+        {iconImage ? (
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#800E08]/10">
+            <img
+              src={iconImage}
+              alt={iconAlt || title}
+              className="h-7 w-7 object-contain"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <i className={`fa-solid ${icon} text-4xl text-[#800E08]`} />
+        )}
         <h3 className="font-semibold text-zinc-900">{title}</h3>
         <p className="text-sm text-zinc-600">{desc}</p>
       </div>
@@ -287,18 +303,26 @@ function ServiceCard({ icon, title, desc, onMore, index }) {
 export default function Services() {
   const [selected, setSelected] = React.useState(null);
   const [open, setOpen] = React.useState(false);
+  const { buildSupportServiceLink } = useSupportConfig();
 
   const openModal = (service) => {
     setSelected(service);
     setOpen(true);
   };
   const closeModal = () => setOpen(false);
+  const openWhatsApp = (service) => {
+    window.open(
+      buildSupportServiceLink(service),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
 
   return (
     <section className="w-full min-h-screen flex relative">
 
       <div className="z-5 min-h-screen w-full bg-black/50 text-white flex flex-col items-center gap-35 py-20 px-4">
-        <motion.h1
+        <motion.h2
           className="text-3xl font-bold"
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -306,7 +330,7 @@ export default function Services() {
           transition={{ duration: 0.4 }}
         >
           Nos Services
-        </motion.h1>
+        </motion.h2>
 
         <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {SERVICES.map((s, i) => (
@@ -320,7 +344,7 @@ export default function Services() {
         </div>
       </div>
 
-      <Modal open={open} onClose={closeModal} service={selected} />
+      <Modal open={open} onClose={closeModal} service={selected} onWhatsApp={openWhatsApp} />
     </section>
   );
 }

@@ -1,10 +1,15 @@
 // src/AccueilInfo.jsx
 import React from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { buildWhatsAppLink, DEFAULT_MESSAGES } from "./config/links";
+import { DEFAULT_MESSAGES } from "./config/links";
+import { useSupportConfig } from "./context/SupportConfigContext";
 
 export default function AccueilInfo() {
-  const waUrl = buildWhatsAppLink(DEFAULT_MESSAGES.appInfo);
+  const { buildSupportWhatsAppLink } = useSupportConfig();
+  const waUrl = React.useMemo(
+    () => buildSupportWhatsAppLink(DEFAULT_MESSAGES.appInfo),
+    [buildSupportWhatsAppLink]
+  );
 
   // Micro-parallaxe : translateY de 0 à -24px selon le scroll
   const { scrollYProgress } = useScroll();
@@ -14,14 +19,14 @@ export default function AccueilInfo() {
     <section className="min-h-screen w-full flex justify-center items-center text-white px-3">
       <motion.div
         style={{ y: parallaxY }}
-        className="z-5 max-w-3xl w-full bg-black/60 px-5 py-8 rounded-2xl flex flex-col items-center gap-6 backdrop-blur-sm shadow-[0_10px_40px_-12px_rgba(0,0,0,.6)]"
+        className="z-5 w-full max-w-[700px] bg-black/40 px-5 py-7 md:px-7 md:py-9 rounded-3xl flex flex-col items-center gap-6 backdrop-blur-sm shadow-[0_10px_40px_-12px_rgba(0,0,0,.6)]"
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         whileInView={{ opacity: 1, y: 0, scale: 1 }}
         viewport={{ once: true, amount: 0.4 }}
         transition={{ duration: 0.45, ease: "easeOut" }}
       >
         <motion.h1
-          className="text-3xl md:text-4xl text-center font-extrabold leading-snug"
+          className="text-2xl md:text-3xl text-center font-extrabold tracking-tight leading-tight"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}
@@ -29,9 +34,20 @@ export default function AccueilInfo() {
         >
           DÉPANNAGE AUTO PARTOUT AU MALI
         </motion.h1>
+        <motion.p
+          className="text-center text-xs md:text-sm text-white/85 leading-relaxed max-w-xl"
+          initial={{ opacity: 0, y: 8 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
+        >
+          TTM intervient 24/7 pour le dépannage automobile et le remorquage à Bamako
+          et dans les principales zones du Mali. Intervention rapide, suivi en direct
+          et tarifs transparents.
+        </motion.p>
 
         <motion.ul
-          className="flex flex-col gap-2 font-light items-start text-sm md:text-base"
+          className="flex flex-wrap justify-center gap-3 text-sm md:text-base"
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.5 }}
@@ -43,7 +59,7 @@ export default function AccueilInfo() {
           ].map((it, i) => (
             <motion.li
               key={i}
-              className="flex gap-2 items-center"
+              className="flex gap-2 items-center rounded-full border border-white/15 bg-white/5 px-4 py-2"
               initial={{ opacity: 0, x: -10 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true, amount: 0.6 }}
@@ -54,6 +70,32 @@ export default function AccueilInfo() {
             </motion.li>
           ))}
         </motion.ul>
+        <motion.div
+          className="w-full grid gap-3 text-xs md:text-sm text-white/90 text-center"
+          initial={{ opacity: 0, y: 8 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 }}
+        >
+          <p className="font-semibold tracking-wide uppercase text-white/70">Services clés</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {[
+              "Remorquage",
+              "Batterie",
+              "Crevaison",
+              "Carburant",
+              "Ouverture de porte",
+              "Diagnostic",
+            ].map((label) => (
+              <span
+                key={label}
+                className="rounded-full bg-white/10 px-3 py-1 text-[11px] md:text-xs"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </motion.div>
 
         {/* CTA WhatsApp */}
         <motion.div

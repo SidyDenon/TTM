@@ -24,6 +24,9 @@ const getSocket = () => {
   return socket;
 };
 
+// Expose instance for listeners without forcing a connect
+export const getSocketInstance = () => getSocket();
+
 // Connexion sécurisée avec token
 export const connectSocket = (token) => {
   if (!token) {

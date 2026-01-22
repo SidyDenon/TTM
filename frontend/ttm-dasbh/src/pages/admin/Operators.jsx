@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { API_BASE } from "../../config/urls";
@@ -6,6 +6,8 @@ import { ClipboardIcon, EllipsisHorizontalIcon, CheckBadgeIcon, NoSymbolIcon, Lo
 import "react-toastify/dist/ReactToastify.css";
 import { PencilSquareIcon, TrashIcon, KeyIcon, StarIcon } from "@heroicons/react/24/solid";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { getSocketInstance } from "../../utils/socket";
+import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Operators() {
   const { token, user } = useAuth(); // ✅ on récupère user
@@ -29,6 +31,17 @@ export default function Operators() {
   const [error, setError] = useState("");
   const [detailOp, setDetailOp] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [onlineOperatorIds, setOnlineOperatorIds] = useState([]);
+  const [onlineOperatorMeta, setOnlineOperatorMeta] = useState({});
+  const [internalFilter, setInternalFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showOnlineModal, setShowOnlineModal] = useState(false);
+  const [onlineInternalOnly, setOnlineInternalOnly] = useState(false);
+  const [closingOnlineModal, setClosingOnlineModal] = useState(false);
+  const [closingDetailModal, setClosingDetailModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [closingConfirm, setClosingConfirm] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const vehicleOptions = ["Voiture", "Moto", "Camion", "Pick-up", "Van", "Autre"];
 
   useEffect(() => {
@@ -73,9 +86,63 @@ export default function Operators() {
     if (token) loadOperators();
   }, [token]);
 
-  const filtered = operators.filter((o) =>
-    (o?.name || "").toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    const s = getSocketInstance();
+    if (!s) return;
+    const handleOnline = (payload) => {
+      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
+      setOnlineOperatorIds(ids);
+      const meta = {};
+      if (Array.isArray(payload?.operators)) {
+        payload.operators.forEach((op) => {
+          if (!op || op.id == null) return;
+          meta[Number(op.id)] = { has_active_mission: !!op.has_active_mission };
+        });
+      }
+      setOnlineOperatorMeta(meta);
+    };
+    const requestOnline = () => s.emit("operators_online_request");
+    s.on("operators_online", handleOnline);
+    s.on("connect", requestOnline);
+    if (s.connected) requestOnline();
+    return () => {
+      s.off("operators_online", handleOnline);
+      s.off("connect", requestOnline);
+    };
+  }, []);
+
+  const onlineSet = useMemo(
+    () => new Set(onlineOperatorIds.map((id) => Number(id))),
+    [onlineOperatorIds]
   );
+  const connectedOperators = useMemo(
+    () => operators.filter((o) => onlineSet.has(Number(o.id))),
+    [operators, onlineSet]
+  );
+  const connectedOperatorsFiltered = useMemo(
+    () => connectedOperators.filter((o) => (!onlineInternalOnly ? true : !!o.is_internal)),
+    [connectedOperators, onlineInternalOnly]
+  );
+
+  const detailModalRef = useModalOrigin(!!detailOp);
+  const onlineModalRef = useModalOrigin(showOnlineModal);
+  const formModalRef = useModalOrigin(showForm);
+  const confirmModalRef = useModalOrigin(!!confirmAction);
+
+  const filtered = useMemo(() => {
+    const term = search.toLowerCase();
+    return operators.filter((o) => {
+      const nameMatch = (o?.name || "").toLowerCase().includes(term);
+      if (!nameMatch) return false;
+      const isInternal = !!o.is_internal;
+      const isBlocked = Number(o.dispo) === 0;
+      if (internalFilter === "internal" && !isInternal) return false;
+      if (internalFilter === "external" && isInternal) return false;
+      if (statusFilter === "blocked" && !isBlocked) return false;
+      if (statusFilter === "active" && isBlocked) return false;
+      return true;
+    });
+  }, [operators, search, internalFilter, statusFilter]);
 
   const saveOperator = async () => {
     const latNum = form.lat !== "" ? Number(form.lat) : null;
@@ -179,10 +246,10 @@ export default function Operators() {
   const deleteOperator = async (id) => {
     if (!canDelete) {
       toast.error("Permission refusée : suppression opérateur");
-      return;
+      return false;
     }
-    if (!confirm("Voulez-vous vraiment supprimer cet opérateur ?")) return;
     try {
+      setConfirmLoading(true);
       const res = await fetch(`${API_BASE}/api/admin/operators/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
@@ -191,18 +258,22 @@ export default function Operators() {
       if (!res.ok) throw new Error(data.error || "Erreur suppression");
       toast.success("Opérateur supprimé ✅");
       await loadOperators();
+      return true;
     } catch (err) {
       toast.error(err.message);
+      return false;
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
   const resetPassword = async (id) => {
     if (!canReset) {
       toast.error("Permission refusée : réinitialisation mot de passe");
-      return;
+      return false;
     }
-    if (!confirm("Réinitialiser le mot de passe de cet opérateur ?")) return;
     try {
+      setConfirmLoading(true);
       const res = await fetch(
         `${API_BASE}/api/admin/operators/${id}/reset-password`,
         {
@@ -239,9 +310,18 @@ export default function Operators() {
         </div>,
         { autoClose: false }
       );
+      return true;
     } catch (err) {
       toast.error(err.message);
+      return false;
+    } finally {
+      setConfirmLoading(false);
     }
+  };
+
+  const openConfirm = (action, operator) => {
+    setClosingConfirm(false);
+    setConfirmAction({ action, operator });
   };
 
   const toggleInternal = async (op) => {
@@ -345,6 +425,21 @@ export default function Operators() {
         <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text-color)" }}>
           <CheckBadgeIcon className="w-6 h-6" style={{ color: "var(--accent)" }} />
           Opérateurs
+          <button
+            type="button"
+            onClick={() => {
+              setClosingOnlineModal(false);
+              setShowOnlineModal(true);
+            }}
+            className="text-xs px-2 py-1 rounded-full border transition"
+            style={{
+              background: "rgba(16,185,129,0.15)",
+              color: "#34d399",
+              borderColor: "rgba(16,185,129,0.35)",
+            }}
+          >
+            En ligne {onlineOperatorIds.length}
+          </button>
         </h2>
         {/* ✅ visible seulement si création autorisée */}
         {canCreate && (
@@ -373,19 +468,52 @@ export default function Operators() {
         )}
       </div>
 
-      {/* Recherche */}
-      <input
-        type="text"
-        placeholder="🔍 Rechercher..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full mb-4 p-2 rounded border"
-        style={{
-          background: "var(--bg-card)",
-          color: "var(--text-color)",
-          borderColor: "var(--border-color)",
-        }}
-      />
+      {/* Recherche + filtres */}
+      <div className="mb-4 flex flex-col gap-3">
+        <input
+          type="text"
+          placeholder="🔍 Rechercher..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full p-2 rounded border"
+          style={{
+            background: "var(--bg-card)",
+            color: "var(--text-color)",
+            borderColor: "var(--border-color)",
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <button
+            type="button"
+            onClick={() => setInternalFilter((prev) => (prev === "internal" ? "all" : "internal"))}
+            className="px-3 py-1 rounded-full border transition"
+            style={{
+              background: internalFilter === "internal" ? "var(--accent)" : "transparent",
+              color: internalFilter === "internal" ? "#fff" : "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            Interne
+          </button>
+          <div className="flex items-center gap-2">
+            <span style={{ color: "var(--muted)" }}>Statut</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+            >
+              <option value="all">Tous</option>
+              <option value="active">Actifs</option>
+              <option value="blocked">Bloqués</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Tableau */}
       <table className="w-full text-sm text-left border-collapse">
@@ -504,7 +632,7 @@ export default function Operators() {
                           {canDelete && (
                             <button
                               onClick={() => {
-                                deleteOperator(o.id);
+                                openConfirm("delete", o);
                                 setOpenMenuId(null);
                               }}
                               className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
@@ -517,7 +645,7 @@ export default function Operators() {
                           {canReset && (
                             <button
                               onClick={() => {
-                                resetPassword(o.id);
+                                openConfirm("reset", o);
                                 setOpenMenuId(null);
                               }}
                               className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
@@ -547,19 +675,22 @@ export default function Operators() {
       {/* Modal */}
       {showForm && (
         <div
-          className="fixed inset-0 flex justify-center items-center"
+          className="fixed inset-0 flex justify-center items-center modal-backdrop"
           style={{
             background: "rgba(0,0,0,0.6)",
             zIndex: 50,
           }}
+          onClick={() => setShowForm(false)}
         >
           <div
-            className="p-6 rounded shadow w-96"
+            ref={formModalRef}
+            className="p-6 rounded shadow w-96 modal-panel"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
               border: "1px solid var(--border-color)",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4">
               {editing ? "✏ Modifier opérateur" : "➕ Nouvel opérateur"}
@@ -730,12 +861,19 @@ export default function Operators() {
 
       {detailOp && (
         <div
-          className="fixed inset-0 flex justify-center items-center"
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingDetailModal ? "closing" : ""}`}
           style={{ background: "rgba(0,0,0,0.55)", zIndex: 50 }}
-          onClick={() => setDetailOp(null)}
+          onClick={() => {
+            setClosingDetailModal(true);
+            setTimeout(() => {
+              setDetailOp(null);
+              setClosingDetailModal(false);
+            }, 180);
+          }}
         >
           <div
-            className="rounded-xl shadow-xl w-full max-w-lg p-6 relative"
+            ref={detailModalRef}
+            className={`rounded-xl shadow-xl w-full max-w-lg p-6 relative modal-panel ${closingDetailModal ? "closing" : ""}`}
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
@@ -793,7 +931,13 @@ export default function Operators() {
             </div>
             <div className="mt-4 flex justify-end">
               <button
-                onClick={() => setDetailOp(null)}
+                onClick={() => {
+                  setClosingDetailModal(true);
+                  setTimeout(() => {
+                    setDetailOp(null);
+                    setClosingDetailModal(false);
+                  }, 180);
+                }}
                 className="px-4 py-2 rounded"
                 style={{
                   background: "var(--accent)",
@@ -801,6 +945,186 @@ export default function Operators() {
                 }}
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOnlineModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingOnlineModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.55)", zIndex: 60 }}
+          onClick={() => {
+            setClosingOnlineModal(true);
+            setTimeout(() => {
+              setShowOnlineModal(false);
+              setClosingOnlineModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={onlineModalRef}
+            className={`rounded-xl shadow-xl w-full max-w-lg p-5 relative modal-panel ${closingOnlineModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold">Opérateurs connectés</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOnlineInternalOnly((prev) => !prev)}
+                  className="text-xs px-2 py-1 rounded border transition"
+                  style={{
+                    background: onlineInternalOnly ? "var(--accent)" : "transparent",
+                    color: onlineInternalOnly ? "#fff" : "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  Interne
+                </button>
+                <span className="text-xs" style={{ color: "var(--muted)" }}>
+                  {connectedOperatorsFiltered.length} en ligne
+                </span>
+              </div>
+            </div>
+            {connectedOperatorsFiltered.length === 0 ? (
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                Aucun opérateur connecté.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {connectedOperatorsFiltered.map((o) => (
+                  <button
+                    key={`online-modal-${o.id}`}
+                    type="button"
+                    onClick={() => {
+                      setClosingOnlineModal(true);
+                      setTimeout(() => {
+                        setShowOnlineModal(false);
+                        setClosingOnlineModal(false);
+                        setClosingDetailModal(false);
+                        setDetailOp(o);
+                      }, 180);
+                    }}
+                    className="w-full text-left flex items-center gap-3 px-3 py-2 rounded border transition hover:brightness-105"
+                    style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}
+                  >
+                    <span className="online-dot" aria-hidden="true" />
+                    <span className="flex-1">{o.name}</span>
+                    {onlineOperatorMeta?.[Number(o.id)]?.has_active_mission && (
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                        style={{ background: "rgba(234,88,12,0.15)", color: "#f97316" }}
+                      >
+                        Mission en cours
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setClosingOnlineModal(true);
+                  setTimeout(() => {
+                    setShowOnlineModal(false);
+                    setClosingOnlineModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirm ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (confirmLoading) return;
+            setClosingConfirm(true);
+            setTimeout(() => {
+              setConfirmAction(null);
+              setClosingConfirm(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={confirmModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingConfirm ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">
+              {confirmAction.action === "delete"
+                ? "Supprimer l’opérateur"
+                : "Réinitialiser le mot de passe"}
+            </h3>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              {confirmAction.action === "delete"
+                ? "Supprimer définitivement"
+                : "Réinitialiser le mot de passe de"}{" "}
+              <span className="font-semibold" style={{ color: "var(--text-color)" }}>
+                {confirmAction.operator?.name || "cet opérateur"}
+              </span>
+              ?
+            </p>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  if (confirmLoading) return;
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmAction(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
+                disabled={confirmLoading}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirmAction?.operator) return;
+                  const ok = confirmAction.action === "delete"
+                    ? await deleteOperator(confirmAction.operator.id)
+                    : await resetPassword(confirmAction.operator.id);
+                  if (ok) {
+                    setClosingConfirm(true);
+                    setTimeout(() => {
+                      setConfirmAction(null);
+                      setClosingConfirm(false);
+                    }, 180);
+                  }
+                }}
+                className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
+                style={{
+                  background: confirmAction.action === "delete" ? "#e5372e" : "var(--accent)",
+                }}
+                disabled={confirmLoading}
+              >
+                {confirmLoading ? "..." : confirmAction.action === "delete" ? "Supprimer" : "Réinitialiser"}
               </button>
             </div>
           </div>

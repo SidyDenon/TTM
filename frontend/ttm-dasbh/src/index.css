@@ -194,7 +194,9 @@ html.dark .theme-toggle::after {
   background: var(--bg-card);
   border-right: 1px solid var(--border-color);
   color: var(--text-color);
-  transition: background 0.4s ease, border 0.4s ease, color 0.4s ease;
+  transition: background 0.4s ease, border 0.4s ease, color 0.4s ease,
+    transform 0.28s cubic-bezier(0.2, 0.75, 0.25, 1);
+  will-change: transform;
 }
 
 .topbar {
@@ -337,6 +339,60 @@ html.dark button:hover, html.dark a:hover {
   animation: statPulse 0.6s ease-in-out;
 }
 
+.online-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: onlineBlink 1.4s ease-in-out infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes onlineBlink {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); opacity: 0.9; }
+  70% { transform: scale(1.2); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); opacity: 1; }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); opacity: 0.85; }
+}
+
+.modal-backdrop {
+  animation: modalFadeIn 0.18s ease-out;
+}
+
+.modal-panel {
+  animation: modalScaleIn 0.2s ease-out;
+  transform-origin: center;
+}
+
+.modal-backdrop.closing {
+  animation: modalFadeOut 0.16s ease-in forwards;
+}
+
+.modal-panel.closing {
+  animation: modalScaleOut 0.16s ease-in forwards;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modalScaleIn {
+  from { transform: translateY(6px) scale(0.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes modalScaleOut {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to { transform: translateY(6px) scale(0.96); opacity: 0; }
+}
+
 /* ==========================
    📱 RESPONSIVE DASHBOARD
 ========================== */
@@ -349,7 +405,11 @@ html.dark button:hover, html.dark a:hover {
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(2px);
-  z-index: 30;
+  z-index: 60;
+}
+
+body.sidebar-open .leaflet-control-container {
+  display: none;
 }
 
 @media (max-width: 1024px) {
@@ -359,13 +419,13 @@ html.dark button:hover, html.dark a:hover {
   .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    z-index: 40;
-    width: 260px;
-    max-width: 80%;
+    z-index: 70;
+    width: 70vw;
+    max-width: 70vw;
     transform: translateX(-100%);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
   }
-  .sidebar.translate-x-0 {
+  .sidebar.sidebar-open {
     transform: translateX(0);
   }
   .topbar {

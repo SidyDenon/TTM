@@ -10,6 +10,16 @@ const PERM_ALIASES = {
   transactions_confirm: "transactions_manage",
   withdrawals_approve: "withdrawals_manage",
   withdrawals_reject: "withdrawals_manage",
+  // Aliases clients
+  clients_create: "clients_manage",
+  clients_update: "clients_manage",
+  clients_delete: "clients_manage",
+  clients_reset_password: "clients_manage",
+  // Aliases opérateurs
+  operators_create: "operators_manage",
+  operators_update: "operators_manage",
+  operators_delete: "operators_manage",
+  operators_reset_password: "operators_manage",
 };
 const canon = (p) => PERM_ALIASES[p] || p;
 
@@ -71,6 +81,8 @@ export async function loadAdminPermissions(req, res, next) {
     const [[row]] = await req.db.query(
       `
       SELECT u.id, u.is_super, u.role_id,
+             r.name AS role_name,
+             r.slug AS role_slug,
              r.permissions AS role_permissions
       FROM admin_users u
       LEFT JOIN admin_roles r ON r.id = u.role_id
@@ -110,10 +122,13 @@ export async function loadAdminPermissions(req, res, next) {
     };
 
     const rolePerms = toArray(row.role_permissions).map(canon);
+    const roleLabelRaw = String(row.role_slug || row.role_name || "").toLowerCase().trim();
+    const roleLabel = roleLabelRaw.replace(/[^a-z0-9]/g, "");
+    const roleIsSuper = roleLabel === "superadmin";
     // pas d'extraPerms → []
     req.adminPermissions = Array.from(new Set(rolePerms));
     req.adminPerms = new Set(req.adminPermissions);
-    req.isSuperAdmin = !!row.is_super;
+    req.isSuperAdmin = !!row.is_super || roleIsSuper;
 
     next();
   } catch (e) {

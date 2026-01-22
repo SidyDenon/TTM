@@ -142,6 +142,45 @@ const onlineUsers = {
 };
 const operatorMeta = new Map(); // id -> { is_internal: boolean }
 
+function emitAdminsOnline(target) {
+  const payload = {
+    ids: Array.from(onlineUsers.admins.keys()).map((id) => Number(id)),
+  };
+  if (target && typeof target.emit === "function") {
+    target.emit("admins_online", payload);
+    return;
+  }
+  io.to("admins").emit("admins_online", payload);
+}
+
+async function emitOperatorsOnline(target) {
+  const ids = Array.from(onlineUsers.operators.keys()).map((id) => Number(id));
+  let operators = ids.map((id) => ({ id, has_active_mission: false }));
+  if (ids.length) {
+    try {
+      const placeholders = ids.map(() => "?").join(",");
+      const [rows] = await db.query(
+        `SELECT operator_id, COUNT(*) AS active_count
+         FROM requests
+         WHERE operator_id IN (${placeholders})
+           AND status IN ('acceptee','en_route','sur_place')
+         GROUP BY operator_id`,
+        ids
+      );
+      const activeSet = new Set(rows.map((r) => Number(r.operator_id)));
+      operators = ids.map((id) => ({ id, has_active_mission: activeSet.has(Number(id)) }));
+    } catch (err) {
+      console.warn("⚠️ operators_online active missions:", err?.message || err);
+    }
+  }
+  const payload = { ids, operators };
+  if (target && typeof target.emit === "function") {
+    await target.emit("operators_online", payload);
+    return;
+  }
+  io.to("admins").emit("operators_online", payload);
+}
+
 function joinRoleRooms(user, socket, meta = {}) {
   if (!user || !socket) return;
   const id = Number(user.id);
@@ -288,6 +327,18 @@ io.on("connection", async (socket) => {
     console.log(`👋 ${socket.user?.role} ${socket.user?.id} quitte ${requestId}`);
   });
 
+  socket.on("admins_online_request", () => {
+    const role = String(socket.user?.role || "").toLowerCase();
+    if (role !== "admin") return;
+    emitAdminsOnline(socket);
+  });
+
+  socket.on("operators_online_request", () => {
+    const role = String(socket.user?.role || "").toLowerCase();
+    if (role !== "admin") return;
+    emitOperatorsOnline(socket);
+  });
+
   socket.on("disconnect", (reason) => {
     console.log(`❌ Déconnexion socket ${socket.id} (${reason})`);
     cleanupSocket(socket.id);
@@ -357,15 +408,31 @@ async function registerSocket(user, socket) {
 
   console.log(`✅ ${role} ${id} enregistré sur socket ${socket.id}`);
   socket.emit("register_success", { userId: id });
+
+  if (role === "admin") {
+    emitAdminsOnline(socket);
+    emitOperatorsOnline(socket);
+  }
+  if (role === "operator") {
+    emitOperatorsOnline();
+  }
 }
 
 function cleanupSocket(socketId) {
   let found = false;
+  let adminsChanged = false;
+  let operatorsChanged = false;
   for (const [roleName, map] of Object.entries(onlineUsers)) {
     for (const [uid, sid] of map.entries()) {
       if (sid === socketId) {
         map.delete(uid);
-        if (roleName === "operators") operatorMeta.delete(Number(uid));
+        if (roleName === "operators") {
+          operatorMeta.delete(Number(uid));
+          operatorsChanged = true;
+        }
+        if (roleName === "admins") {
+          adminsChanged = true;
+        }
         console.log(`🧹 Nettoyage ${roleName} ${uid}`);
         found = true;
       }
@@ -373,6 +440,12 @@ function cleanupSocket(socketId) {
   }
   if (!found) {
     console.log(`⚠️ Socket ${socketId} non trouvé dans onlineUsers`);
+  }
+  if (adminsChanged) {
+    emitAdminsOnline();
+  }
+  if (operatorsChanged) {
+    emitOperatorsOnline();
   }
 }
 
@@ -541,9 +614,11 @@ async function handleMe(req, res) {
 
     if (user.role === "admin") {
       const [[row]] = await db.query(
-        `SELECT u.id, u.name, u.email, u.is_super, r.name AS role_name, r.permissions
+        `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super,
+                r.name AS role_name, r.slug AS role_slug, r.permissions
          FROM admin_users u
          LEFT JOIN admin_roles r ON r.id = u.role_id
+         LEFT JOIN users us ON us.id = u.id
          WHERE u.id = ?`,
         [user.id]
       );
@@ -559,17 +634,30 @@ async function handleMe(req, res) {
         transactions_confirm: "transactions_manage",
         withdrawals_approve: "withdrawals_manage",
         withdrawals_reject: "withdrawals_manage",
+        clients_create: "clients_manage",
+        clients_update: "clients_manage",
+        clients_delete: "clients_manage",
+        clients_reset_password: "clients_manage",
+        operators_create: "operators_manage",
+        operators_update: "operators_manage",
+        operators_delete: "operators_manage",
+        operators_reset_password: "operators_manage",
       };
       const canon = (p) => PERM_ALIASES[p] || p;
       const permissions = Array.from(new Set((permissionsRaw || []).map(canon)));
+
+      const roleLabelRaw = String(row.role_slug || row.role_name || "").toLowerCase().trim();
+      const roleLabel = roleLabelRaw.replace(/[^a-z0-9]/g, "");
+      const roleIsSuper = roleLabel === "superadmin";
 
       return res.json({
         id: row.id,
         name: row.name,
         email: row.email,
+        phone: row.phone || null,
         role: "admin",
         role_name: row.role_name || null,
-        is_super: !!row.is_super,
+        is_super: !!row.is_super || roleIsSuper,
         permissions, // toujours un tableau
       });
     }

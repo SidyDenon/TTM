@@ -9,11 +9,13 @@ import * as AiIcons from "react-icons/ai";      // AntDesign
 import * as MdIcons from "react-icons/md";      // Material Icons
 import * as GoIcons from "react-icons/go";      // Octicons
 import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
-import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench } from "react-icons/fa";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset } from "react-icons/fa";
+import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
+import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Settings() {
   const { user, token } = useAuth();
@@ -31,7 +33,10 @@ export default function Settings() {
   const canAccessPage = true;
 
   // ─────────── Profile
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [closingEditProfile, setClosingEditProfile] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [closingPasswordModal, setClosingPasswordModal] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -52,11 +57,20 @@ export default function Settings() {
   const [adding, setAdding] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", price: "", icon: "" });
   const [servicesOpen, setServicesOpen] = useState(true);
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [closingAddServiceModal, setClosingAddServiceModal] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const [iconList, setIconList] = useState([]);
   const [iconsLoading, setIconsLoading] = useState(false);
   const iconCache = useRef({});
+  const [confirmService, setConfirmService] = useState(null);
+  const [closingConfirmService, setClosingConfirmService] = useState(false);
+  const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
+  const confirmServiceModalRef = useModalOrigin(!!confirmService);
+  const editProfileModalRef = useModalOrigin(showEditProfile);
+  const passwordModalRef = useModalOrigin(showPasswordModal);
+  const addServiceModalRef = useModalOrigin(showAddServiceModal);
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -281,7 +295,11 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour profil");
       toast.success("Profil mis à jour ✅");
-      setProfileOpen(false);
+      setClosingEditProfile(true);
+      setTimeout(() => {
+        setShowEditProfile(false);
+        setClosingEditProfile(false);
+      }, 180);
       setAvatarFile(null);
       setAvatarPreview("");
     } catch (e) {
@@ -315,6 +333,11 @@ export default function Settings() {
         throw new Error(data.error || "Erreur changement mot de passe");
       toast.success("Mot de passe mis à jour ✅");
       setPwd({ current: "", next: "", confirm: "" });
+      setClosingPasswordModal(true);
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setClosingPasswordModal(false);
+      }, 180);
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -354,14 +377,14 @@ export default function Settings() {
     }
   };
 
-  const deleteService = async (srv) => {
+  const performDeleteService = async (srv) => {
     if (!canManageServices) {
       return toast.error(
         "Vous n’avez pas les droits pour supprimer un service."
       );
     }
-    if (!confirm(`Supprimer le service "${srv.name}" ?`)) return;
     try {
+      setConfirmServiceLoading(true);
       const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
@@ -371,9 +394,18 @@ export default function Settings() {
         throw new Error(data.error || "Erreur suppression service");
       toast.success(`Service "${srv.name}" supprimé ✅`);
       setServices((prev) => prev.filter((s) => s.id !== srv.id));
+      return true;
     } catch (e) {
       toast.error(e.message);
+      return false;
+    } finally {
+      setConfirmServiceLoading(false);
     }
+  };
+
+  const deleteService = (srv) => {
+    setClosingConfirmService(false);
+    setConfirmService(srv);
   };
 
   const addService = async () => {
@@ -406,6 +438,11 @@ export default function Settings() {
       toast.success("Service ajouté ✅");
       setAddForm({ name: "", price: "", icon: "" });
       setIconPickerOpen(false);
+      setClosingAddServiceModal(true);
+      setTimeout(() => {
+        setShowAddServiceModal(false);
+        setClosingAddServiceModal(false);
+      }, 180);
       setServices((prev) => [data.data, ...prev]);
     } catch (e) {
       toast.error(e.message);
@@ -509,198 +546,244 @@ export default function Settings() {
         className="p-6 rounded shadow"
         style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
       >
-        <button
-          onClick={() => setProfileOpen((s) => !s)}
-          className="w-full flex items-center justify-between mb-6 px-2 py-1"
-        >
-          <h2 className="text-xl font-bold">👤 Profil</h2>
-          <span
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <FaRegCircleUser />
+          Profil
+        </h2>
+
+        <div className="flex items-center gap-5 mb-4">
+          <div
+            className="w-20 h-20 rounded-full overflow-hidden border"
             style={{
-              transition: "transform 0.25s ease",
-              transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)",
+              background: "var(--bg-card)",
+              borderColor: "var(--border-color)",
             }}
           >
-            ⌄
-          </span>
-        </button>
-
-        <div
-          className="transition-all duration-300"
-          style={{
-            maxHeight: profileOpen ? "800px" : "0",
-            overflow: "hidden",
-            opacity: profileOpen ? 1 : 0,
-          }}
-        >
-          <div className="flex items-center gap-5 mb-4">
-            <div
-              className="w-20 h-20 rounded-full overflow-hidden border"
-              style={{
-                background: "var(--bg-card)",
-                borderColor: "var(--border-color)",
-              }}
-            >
-              {avatarPreview ? (
-                <img
-                  src={avatarPreview}
-                  alt="preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center opacity-60">
-                  A
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1">
-              <p className="text-lg font-semibold">{user?.name || "—"}</p>
-              <p className="opacity-70">{user?.email || "—"}</p>
-              <p className="opacity-70">{user?.phone || "—"}</p>
-            </div>
+            {avatarPreview ? (
+              <img
+                src={avatarPreview}
+                alt="preview"
+                className="w-full h-full object-cover"
+              />
+            ) : user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt="avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-60">
+                A
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            {/* Infos */}
-            <div
-              className="p-4 rounded"
-              style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
-            >
-              <h3 className="font-semibold mb-3">✏️ Modifier mes infos</h3>
-              <label className="block text-sm opacity-70 mb-1">
-                Photo de profil
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onPickAvatar}
-                className="w-full mb-3"
-              />
+          <div className="flex-1">
+            <p className="text-lg font-semibold">{user?.name || "?"}</p>
+            <p className="opacity-70">{user?.email || "?"}</p>
+            <p className="opacity-70">{user?.phone || "?"}</p>
+          </div>
+          <div className="flex flex-col gap-3 max-w-xs items-start">
+          <button
+            type="button"
+            onClick={() => {
+              setClosingEditProfile(false);
+              setShowEditProfile(true);
+            }}
+            className="px-4 py-2 rounded flex items-center gap-2"
+            style={{ background: "var(--bg-main)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
+          >
+            <FaEdit />
+            Modifier mes infos
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPwd({ current: "", next: "", confirm: "" });
+              setClosingPasswordModal(false);
+              setShowPasswordModal(true);
+            }}
+            className="px-4 py-2 rounded flex items-center gap-2"
+            style={{ background: "var(--bg-main)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
+          >
+            <FaKey />
+            Changer le mot de passe
+          </button>
+        </div>
+        </div>
 
-              <label className="block text-sm opacity-70 mb-1">Nom</label>
-              <input
-                type="text"
-                value={profile.name}
-                onChange={(e) =>
-                  setProfile({ ...profile, name: e.target.value })
-                }
-                className="w-full mb-3 p-2 rounded border"
-                style={{
-                  background: "var(--bg-card)",
-                  color: "var(--text-color)",
-                  borderColor: "var(--border-color)",
-                }}
-              />
-              <label className="block text-sm opacity-70 mb-1">Email</label>
-              <input
-                type="email"
-                value={profile.email}
-                onChange={(e) =>
-                  setProfile({ ...profile, email: e.target.value })
-                }
-                className="w-full mb-3 p-2 rounded border"
-                style={{
-                  background: "var(--bg-card)",
-                  color: "var(--text-color)",
-                  borderColor: "var(--border-color)",
-                }}
-              />
-              <label className="block text-sm opacity-70 mb-1">
-                Téléphone
-              </label>
-              <input
-                type="text"
-                value={profile.phone}
-                onChange={(e) =>
-                  setProfile({ ...profile, phone: e.target.value })
-                }
-                className="w-full mb-4 p-2 rounded border"
-                style={{
-                  background: "var(--bg-card)",
-                  color: "var(--text-color)",
-                  borderColor: "var(--border-color)",
-                }}
-              />
 
-              <div className="flex gap-3">
-                <button
-                  onClick={saveProfile}
-                  disabled={savingProfile}
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
-                >
-                  {savingProfile ? (
-                    <AiOutlineLoading3Quarters className="animate-spin" />
-                  ) : (
-                    <FaSave />
-                  )}
-                  Enregistrer
-                </button>
-                <button
-                  onClick={() => setProfileOpen(false)}
-                  className="px-4 py-2 rounded border"
-                  style={{ borderColor: "var(--border-color)" }}
-                >
-                  Annuler
-                </button>
-              </div>
+        
+      </section>
+
+      {showEditProfile && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingEditProfile ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            setClosingEditProfile(true);
+            setTimeout(() => {
+              setShowEditProfile(false);
+              setClosingEditProfile(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={editProfileModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingEditProfile ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4">Modifier mes infos</h3>
+            <label className="block text-sm opacity-70 mb-1">Nom</label>
+            <input
+              type="text"
+              value={profile.name}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+              className="w-full mb-3 p-2 rounded border"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+            />
+            <label className="block text-sm opacity-70 mb-1">Email</label>
+            <input
+              type="email"
+              value={profile.email}
+              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+              className="w-full mb-3 p-2 rounded border"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+            />
+            <label className="block text-sm opacity-70 mb-1">T?l?phone</label>
+            <input
+              type="text"
+              value={profile.phone}
+              onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+              className="w-full mb-4 p-2 rounded border"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setClosingEditProfile(true);
+                  setTimeout(() => {
+                    setShowEditProfile(false);
+                    setClosingEditProfile(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile}
+                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                {savingProfile ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaSave />
+                )}
+                Enregistrer
+              </button>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Mot de passe */}
-            <div
-              className="p-4 rounded"
-              style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
-            >
-              <h3 className="font-semibold mb-3">🔑 Changer le mot de passe</h3>
-              {["current", "next", "confirm"].map((key, i) => (
-                <div key={i} className="mb-3">
-                  <label className="block text-sm opacity-70 mb-1">
-                    {key === "current"
-                      ? "Mot de passe actuel"
-                      : key === "next"
-                      ? "Nouveau mot de passe"
-                      : "Confirmer"}
-                  </label>
-                  <input
-                    type="password"
-                    value={pwd[key]}
-                    onChange={(e) =>
-                      setPwd({ ...pwd, [key]: e.target.value })
-                    }
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                  />
-                </div>
-              ))}
+      {showPasswordModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingPasswordModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            setClosingPasswordModal(true);
+            setTimeout(() => {
+              setShowPasswordModal(false);
+              setClosingPasswordModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={passwordModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingPasswordModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4">Changer le mot de passe</h3>
+            {['current', 'next', 'confirm'].map((key, i) => (
+              <div key={i} className="mb-3">
+                <label className="block text-sm opacity-70 mb-1">
+                  {key === 'current'
+                    ? 'Mot de passe actuel'
+                    : key === 'next'
+                    ? 'Nouveau mot de passe'
+                    : 'Confirmer'}
+                </label>
+                <input
+                  type="password"
+                  value={pwd[key]}
+                  onChange={(e) => setPwd({ ...pwd, [key]: e.target.value })}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+              </div>
+            ))}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setClosingPasswordModal(true);
+                  setTimeout(() => {
+                    setShowPasswordModal(false);
+                    setClosingPasswordModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
               <button
                 onClick={savePassword}
                 disabled={savingPassword}
-                style={{ background: "var(--accent)", color: "#fff" }}
                 className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                style={{ background: "var(--accent)", color: "#fff" }}
               >
                 {savingPassword ? (
                   <AiOutlineLoading3Quarters className="animate-spin" />
                 ) : (
                   <FaSave />
                 )}
-                Mettre à jour
+                Mettre ? jour
               </button>
             </div>
           </div>
-          </div>
+        </div>
+      )}
 
-        
-      </section>
 
       {/* ──────────────── Section Services (RBAC) */}
       {canViewServices && (
@@ -712,7 +795,10 @@ export default function Settings() {
             onClick={() => setServicesOpen((s) => !s)}
             className="w-full flex items-center justify-between mb-4"
           >
-            <h2 className="text-xl font-bold">🧰 Gestion des services</h2>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <FaWrench />
+              Gestion des services
+            </h2>
             <span
               style={{
                 transition: "transform 0.25s ease",
@@ -847,154 +933,20 @@ export default function Settings() {
               </table>
             </div>
 
-            {/* Ajout service (seulement si canManageServices) */}
             {canManageServices && (
-              <div className="mt-6 p-4 rounded" style={{ background: "var(--bg-card)" }}>
-                <h3 className="font-semibold mb-3">➕ Ajouter un service</h3>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                  <div>
-                    <label className="block text-sm opacity-70 mb-1">Nom</label>
-                    <input
-                      type="text"
-                      value={addForm.name}
-                      onChange={(e) =>
-                        setAddForm({ ...addForm, name: e.target.value })
-                      }
-                      className="w-full p-2 rounded border"
-                      style={{
-                        background: "var(--bg-card)",
-                        color: "var(--text-color)",
-                        borderColor: "var(--border-color)",
-                      }}
-                      placeholder="Ex: Remorquage"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm opacity-70 mb-1">Prix (FCFA)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={addForm.price}
-                      onChange={(e) =>
-                        setAddForm({ ...addForm, price: e.target.value })
-                      }
-                      className="w-full p-2 rounded border"
-                      style={{
-                        background: "var(--bg-card)",
-                        color: "var(--text-color)",
-                        borderColor: "var(--border-color)",
-                      }}
-                      placeholder="Ex: 150"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm opacity-70 mb-1">Icône</label>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={addForm.icon}
-                          onChange={(e) => {
-                            setAddForm({ ...addForm, icon: e.target.value });
-                            setIconSearch(e.target.value);
-                          }}
-                          onFocus={() => setIconPickerOpen(true)}
-                          className="flex-1 p-2 rounded border"
-                          style={{
-                            background: "var(--bg-card)",
-                            color: "var(--text-color)",
-                            borderColor: "var(--border-color)",
-                          }}
-                          placeholder="Tape le nom de l´icône ici …"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setIconPickerOpen((s) => !s)}
-                          className="px-3 py-2 rounded border text-sm"
-                          style={{ borderColor: "var(--border-color)" }}
-                        >
-                          Suggestions
-                        </button>
-                      </div>
-                      {iconPickerOpen && (
-                        <div
-                          className="p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
-                          style={{
-                            background: "var(--bg-card)",
-                            borderColor: "var(--border-color)",
-                          }}
-                        >
-                          {iconsLoading && (
-                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
-                              Chargement des icônes…
-                            </div>
-                          )}
-                          {!iconsLoading && filteredIcons.length === 0 && (
-                            <div className="col-span-2 md:col-span-3 text-sm opacity-70">
-                              Aucune correspondance. Essaie un autre mot-clé.
-                            </div>
-                          )}
-                          {!iconsLoading &&
-                            filteredIcons.map((ico) => (
-                              <button
-                                key={ico.key}
-                                type="button"
-                                onClick={() => {
-                                  const value = `${ico.pack}:${ico.name}`;
-                                  setAddForm((f) => ({ ...f, icon: value }));
-                                  setIconSearch(value);
-                                  setIconPickerOpen(false);
-                                }}
-                                className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
-                                style={{
-                                  background: "var(--bg-card)",
-                                  color: "var(--text-color)",
-                                  borderColor: "var(--border-color)",
-                                }}
-                              >
-                                <ico.Comp style={{ fontSize: 18 }} />
-                                <div>
-                                  <div className="text-sm font-medium capitalize">
-                                    {ico.label}
-                                  </div>
-                                <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
-                              </div>
-                            </button>
-                          ))}
-                          {!iconsLoading && filteredIcons.length === 200 && (
-                            <div className="col-span-2 md:col-span-3 text-xs opacity-60">
-                              Résultats limités à 200 pour éviter les lags. Raffine la recherche.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={addService}
-                      disabled={adding}
-                      style={{ background: "var(--accent)", color: "#fff" }}
-                      className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
-                    >
-                      {adding ? (
-                        <AiOutlineLoading3Quarters className="animate-spin" />
-                      ) : (
-                        <FaPlus />
-                      )}
-                      Ajouter
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAddForm({ name: "", price: "", icon: "" });
-                      }}
-                      className="px-4 py-2 rounded border"
-                      style={{ borderColor: "var(--border-color)" }}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </div>
+              <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClosingAddServiceModal(false);
+                    setShowAddServiceModal(true);
+                  }}
+                  className="px-4 py-2 rounded flex items-center gap-2"
+                  style={{ background: "var(--accent)", color: "#fff" }}
+                >
+                  <FaPlus />
+                  Ajouter un service
+                </button>
               </div>
             )}
           </div>
@@ -1011,7 +963,10 @@ export default function Settings() {
             onClick={() => setBusinessOpen((s) => !s)}
             className="w-full flex items-center justify-between mb-4"
           >
-            <h2 className="text-xl font-bold">💼 Paramètres Business</h2>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <FaBriefcase />
+              Paramètres Business
+            </h2>
             <span
               style={{
                 transition: "transform 0.25s ease",
@@ -1154,7 +1109,10 @@ export default function Settings() {
             onClick={() => setSupportOpen((s) => !s)}
             className="w-full flex items-center justify-between mb-4"
           >
-            <h2 className="text-xl font-bold">📞 Coordonnées service client</h2>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <FaHeadset />
+              Coordonnées service client
+            </h2>
             <span
               style={{
                 transition: "transform 0.25s ease",
@@ -1236,11 +1194,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="mt-4 text-sm opacity-70">
-                Seuls les utilisateurs disposant du droit <code>config_manage</code> peuvent modifier
-                ces coordonnées.
-              </div>
-
+              
               <div className="mt-4">
                 <button
                   onClick={saveSupportContacts}
@@ -1261,6 +1215,251 @@ export default function Settings() {
             )}
           </div>
         </section>
+      )}
+      {confirmService && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirmService ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (confirmServiceLoading) return;
+            setClosingConfirmService(true);
+            setTimeout(() => {
+              setConfirmService(null);
+              setClosingConfirmService(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={confirmServiceModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingConfirmService ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">Supprimer le service</h3>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Supprimer définitivement{" "}
+              <span className="font-semibold" style={{ color: "var(--text-color)" }}>
+                {confirmService?.name || "ce service"}
+              </span>
+              ?
+            </p>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  if (confirmServiceLoading) return;
+                  setClosingConfirmService(true);
+                  setTimeout(() => {
+                    setConfirmService(null);
+                    setClosingConfirmService(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
+                disabled={confirmServiceLoading}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  const ok = await performDeleteService(confirmService);
+                  if (ok) {
+                    setClosingConfirmService(true);
+                    setTimeout(() => {
+                      setConfirmService(null);
+                      setClosingConfirmService(false);
+                    }, 180);
+                  }
+                }}
+                className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
+                style={{ background: "#e5372e" }}
+                disabled={confirmServiceLoading}
+              >
+                {confirmServiceLoading ? "..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showAddServiceModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingAddServiceModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (adding) return;
+            setClosingAddServiceModal(true);
+            setTimeout(() => {
+              setShowAddServiceModal(false);
+              setClosingAddServiceModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={addServiceModalRef}
+            className={`p-6 rounded shadow w-full max-w-2xl modal-panel ${closingAddServiceModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <FaPlus />
+              Ajouter un service
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm opacity-70 mb-1">Nom</label>
+                <input
+                  type="text"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Ex: Remorquage"
+                />
+              </div>
+              <div>
+                <label className="block text-sm opacity-70 mb-1">Prix (FCFA)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={addForm.price}
+                  onChange={(e) => setAddForm({ ...addForm, price: e.target.value })}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Ex: 150"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-1">Icône</label>
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={addForm.icon}
+                      onChange={(e) => {
+                        setAddForm({ ...addForm, icon: e.target.value });
+                        setIconSearch(e.target.value);
+                      }}
+                      onFocus={() => setIconPickerOpen(true)}
+                      className="flex-1 p-2 rounded border"
+                      style={{
+                        background: "var(--bg-card)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                      placeholder="Tape le nom de l´icône ici …"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIconPickerOpen((s) => !s)}
+                      className="px-3 py-2 rounded border text-sm"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      Suggestions
+                    </button>
+                  </div>
+                  {iconPickerOpen && (
+                    <div
+                      className="p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
+                      style={{
+                        background: "var(--bg-card)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {iconsLoading && (
+                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                          Chargement des icônes…
+                        </div>
+                      )}
+                      {!iconsLoading && filteredIcons.length === 0 && (
+                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                          Aucune correspondance. Essaie un autre mot-clé.
+                        </div>
+                      )}
+                      {!iconsLoading &&
+                        filteredIcons.map((ico) => (
+                          <button
+                            key={ico.key}
+                            type="button"
+                            onClick={() => {
+                              const value = `${ico.pack}:${ico.name}`;
+                              setAddForm((f) => ({ ...f, icon: value }));
+                              setIconSearch(value);
+                              setIconPickerOpen(false);
+                            }}
+                            className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          >
+                            <ico.Comp style={{ fontSize: 18 }} />
+                            <div>
+                              <div className="text-sm font-medium capitalize">{ico.label}</div>
+                              <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
+                            </div>
+                          </button>
+                        ))}
+                      {!iconsLoading && filteredIcons.length === 200 && (
+                        <div className="col-span-2 md:col-span-3 text-xs opacity-60">
+                          Résultats limités à 200 pour éviter les lags. Raffine la recherche.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setClosingAddServiceModal(true);
+                  setTimeout(() => {
+                    setShowAddServiceModal(false);
+                    setClosingAddServiceModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={addService}
+                disabled={adding}
+                style={{ background: "var(--accent)", color: "#fff" }}
+                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+              >
+                {adding ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaPlus />
+                )}
+                Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

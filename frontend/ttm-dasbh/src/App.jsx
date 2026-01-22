@@ -17,6 +17,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import { initApiBase } from "./config/urls"; // ton fichier
+import { setLastModalClick } from "./utils/modalOrigin";
 
 
 // Toastify
@@ -63,6 +64,17 @@ function Layout() {
   useEffect(() => {
     if (supported && permission === "default") requestPermission();
   }, [supported, permission, requestPermission]);
+
+  useEffect(() => {
+    const handlePointer = (event) => setLastModalClick(event);
+    document.addEventListener("pointerdown", handlePointer, true);
+    return () => document.removeEventListener("pointerdown", handlePointer, true);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("sidebar-open", sidebarOpen);
+    return () => document.body.classList.remove("sidebar-open");
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (permission === "granted") {

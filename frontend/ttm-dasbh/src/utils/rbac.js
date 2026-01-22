@@ -14,6 +14,16 @@ const PERM_ALIASES = {
   transactions_confirm: "transactions_manage",
   withdrawals_approve: "withdrawals_manage",
   withdrawals_reject: "withdrawals_manage",
+  // clients
+  clients_create: "clients_manage",
+  clients_update: "clients_manage",
+  clients_delete: "clients_manage",
+  clients_reset_password: "clients_manage",
+  // opérateurs
+  operators_create: "operators_manage",
+  operators_update: "operators_manage",
+  operators_delete: "operators_manage",
+  operators_reset_password: "operators_manage",
 };
 const canon = (p) => PERM_ALIASES[p] || p;
 

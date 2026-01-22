@@ -256,7 +256,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(229,57,53,0.10)",
   },
 
-  // middle row with extremity buttons
   midRow: {
     position: "absolute",
     left: 14,

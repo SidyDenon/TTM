@@ -12,6 +12,18 @@ const router = express.Router();
 
 // 🧠 Cache global pour le tableau de bord
 let dashboardCache = { data: null, lastFetch: 0 };
+let adminAvatarColumn = null;
+let adminAvatarChecked = false;
+
+const resolveAdminAvatarColumn = async (db) => {
+  if (adminAvatarChecked) return adminAvatarColumn;
+  const [[{ cnt }]] = await db.query(
+    "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'avatar_url'"
+  );
+  adminAvatarChecked = true;
+  adminAvatarColumn = Number(cnt) > 0 ? "avatar_url" : null;
+  return adminAvatarColumn;
+};
 
 const emitToAdmins = (req, event, payload) => {
   try {
@@ -59,26 +71,37 @@ export default (db, io, emitMissionEvent) => {
         return res.status(403).json({ error: "Action non autorisée" });
       }
 
+      const avatarCol = await resolveAdminAvatarColumn(req.db);
+      const selectCols = ["id", "name", "email", "phone"];
+      if (avatarCol) selectCols.push(avatarCol);
       const [[admin]] = await req.db.query(
-        "SELECT id, name, email, avatar_url FROM admin_users WHERE id = ?",
+        `SELECT ${selectCols.join(", ")} FROM admin_users WHERE id = ?`,
         [id]
       );
       if (!admin) return res.status(404).json({ error: "Admin introuvable" });
 
       const name = (req.body?.name ?? admin.name) || admin.name;
       const email = (req.body?.email ?? admin.email) || admin.email;
-      const fields = ["name = ?", "email = ?"];
-      const params = [name, email];
-      let avatar_url = admin.avatar_url || null;
+      const phone = (req.body?.phone ?? admin.phone) || admin.phone || null;
+      const fields = ["name = ?", "email = ?", "phone = ?"];
+      const params = [name, email, phone];
+      let avatar_url = avatarCol ? admin[avatarCol] || null : null;
       if (req.file) {
-        avatar_url = `/uploads/avatars/${req.file.filename}`;
-        fields.push("avatar_url = ?");
-        params.push(avatar_url);
+        if (!avatarCol) {
+          fs.unlink(req.file.path, () => {});
+        } else {
+          avatar_url = `/uploads/avatars/${req.file.filename}`;
+          fields.push("avatar_url = ?");
+          params.push(avatar_url);
+        }
       }
       const sql = `UPDATE admin_users SET ${fields.join(", ")}, updated_at = NOW() WHERE id = ?`;
       await req.db.query(sql, [...params, id]);
 
-      return res.json({ message: "Profil mis à jour ✅", user: { id, name, email, avatar_url } });
+      return res.json({
+        message: "Profil mis à jour ✅",
+        user: { id, name, email, phone, ...(avatarCol ? { avatar_url } : {}) },
+      });
     } catch (err) {
       console.error("❌ PUT /admin/utilisateurs/:id:", err);
       return res.status(500).json({ error: "Erreur serveur" });

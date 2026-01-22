@@ -15,13 +15,14 @@ import { ADMIN_API, DASHBOARD_ROUTES } from "../config/urls";
 import { socket } from "../utils/socket";
 import { can, canAny, isSuper } from "../utils/rbac";
 
-function NavLinkItem({ to, icon, label, badge = 0 }) {
+function NavLinkItem({ to, icon, label, badge = 0, onClick }) {
   return (
     <NavLink
       to={to}
       end
+      onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center justify-between p-2 rounded transition
+        `flex items-center gap-3 p-2 rounded transition
         ${
           isActive
             ? "bg-[var(--bg-card)] text-[var(--accent)] font-medium"
@@ -29,14 +30,15 @@ function NavLinkItem({ to, icon, label, badge = 0 }) {
         }`
       }
     >
-      <div className="flex items-center gap-3">
-        {icon} {label}
-      </div>
-      {badge > 0 && (
-        <span className="bg-red-600 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
-          {badge}
-        </span>
-      )}
+      {icon}
+      <span className="flex items-center gap-2">
+        {label}
+        {badge > 0 && (
+          <span className="bg-red-600 text-white text-xs font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full">
+            {badge}
+          </span>
+        )}
+      </span>
     </NavLink>
   );
 }
@@ -52,6 +54,7 @@ export default function Sidebar({ open = false, onClose }) {
 
   const missionViewPerms = [
     "requests_view",
+    "requests_manage",
     "requests_publish",
     "requests_assign",
     "requests_cancel",
@@ -88,16 +91,32 @@ export default function Sidebar({ open = false, onClose }) {
         show: () => canViewMissions,
       },
       {
+        to: DASHBOARD_ROUTES.clients,
+        label: "Clients",
+        icon: <UsersIcon className="w-5 h-5" />,
+        show: () => isSuperAdmin || can(user, "clients_view"),
+      },
+      {
         to: DASHBOARD_ROUTES.operators,
         label: "Opérateurs",
         icon: <WrenchScrewdriverIcon className="w-5 h-5" />,
         show: () => isSuperAdmin || can(user, "operators_view"),
       },
       {
-        to: DASHBOARD_ROUTES.clients,
-        label: "Clients",
+        to: DASHBOARD_ROUTES.admins,
+        label: "Admins & Rôles",
         icon: <UsersIcon className="w-5 h-5" />,
-        show: () => isSuperAdmin || can(user, "clients_view"),
+        show: () =>
+          isSuperAdmin ||
+          can(user, "rbac_users_view") ||
+          can(user, "rbac_users_manage") ||
+          can(user, "rbac_roles_view") ||
+          can(user, "rbac_roles_manage") ||
+          can(user, "admins_view") ||
+          can(user, "roles_view") ||
+          can(user, "rbac_assign_role") ||
+          can(user, "rbac_grant_permission") ||
+          can(user, "rbac_revoke_permission"),
       },
       // 🔹 Transactions (avec badge)
       {
@@ -116,22 +135,16 @@ export default function Sidebar({ open = false, onClose }) {
         show: () => canViewWithdrawals,
       },
       {
-        to: DASHBOARD_ROUTES.admins,
-        label: "Admins & Rôles",
-        icon: <UsersIcon className="w-5 h-5" />,
-        show: () =>
-          isSuperAdmin ||
-          can(user, "admins_view") ||
-          can(user, "roles_view") ||
-          can(user, "rbac_assign_role") ||
-          can(user, "rbac_grant_permission") ||
-          can(user, "rbac_revoke_permission"),
-      },
-      {
         to: DASHBOARD_ROUTES.settings,
         label: "Paramètres",
         icon: <Cog6ToothIcon className="w-5 h-5" />,
-        show: () => isSuperAdmin || can(user, "settings_view"),
+        show: () =>
+          isSuperAdmin ||
+          can(user, "settings_view") ||
+          can(user, "config_view") ||
+          can(user, "config_manage") ||
+          can(user, "services_view") ||
+          can(user, "services_manage"),
       },
     ],
     [
@@ -237,10 +250,14 @@ export default function Sidebar({ open = false, onClose }) {
     };
   }, [token, canSeeFinance, canViewWithdrawals, canViewTransactions]);
 
+  const handleNavClick = () => {
+    onClose?.();
+  };
+
   return (
     <aside
-      className={`sidebar w-64 p-6 flex flex-col border-r border-[var(--border-color)] transition-transform lg:translate-x-0 ${
-        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      className={`sidebar w-64 p-6 flex flex-col border-r border-[var(--border-color)] ${
+        open ? "sidebar-open" : ""
       }`}
     >
       {/* Logo + close mobile */}
@@ -271,13 +288,17 @@ export default function Sidebar({ open = false, onClose }) {
               icon={it.icon}
               label={it.label}
               badge={it.badge}
+              onClick={handleNavClick}
             />
           ))}
       </nav>
 
     {/* Déconnexion */}
     <button
-      onClick={logout}
+      onClick={() => {
+        handleNavClick();
+        logout();
+      }}
       className="mt-auto flex items-center gap-3 p-2 rounded transition hover:bg-red-800 text-red-400"
     >
       <ArrowRightOnRectangleIcon className="w-5 h-5" /> Déconnexion

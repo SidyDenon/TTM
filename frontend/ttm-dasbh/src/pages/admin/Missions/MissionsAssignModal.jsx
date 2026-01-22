@@ -1,4 +1,7 @@
+import { useModalOrigin } from "../../../hooks/useModalOrigin";
+
 export default function MissionsAssignModal({ mission, operators, onClose, onAssign }) {
+  const modalRef = useModalOrigin(true);
   const availableOps = Array.isArray(operators)
     ? operators.filter((op) => op.dispo === 1 || op.dispo === true || op.dispo === "1")
     : [];
@@ -11,8 +14,15 @@ export default function MissionsAssignModal({ mission, operators, onClose, onAss
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-xl shadow-xl w-96 font-roboto">
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 modal-backdrop"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-xl shadow-xl w-96 font-roboto modal-panel"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-lg font-bold mb-4 font-poppins text-[var(--accent)]">
           Assigner la mission #{mission.id}
         </h2>

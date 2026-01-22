@@ -7,6 +7,17 @@ import { getCommissionPercent } from "../../utils/commission.js";
 const router = express.Router();
 
 export default (db) => {
+  async function logAdminEvent(adminId, action, meta = {}) {
+    try {
+      await db.query(
+        "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+        [adminId, action, JSON.stringify(meta)]
+      );
+    } catch (e) {
+      console.warn("⚠️ log admin_events (transactions):", e?.message || e);
+    }
+  }
+
   let hasCommissionColumn = null;
   const ensureTxCommissionColumn = async () => {
     if (hasCommissionColumn !== null) return hasCommissionColumn;
@@ -267,6 +278,15 @@ export default (db) => {
       res.json({
         message: `Transaction #${id} confirmée ✅`,
         data: { id, operator_id: tx.operator_id, amount: txAmount, netAmount, commission, status: "confirmée" },
+      });
+
+      await logAdminEvent(req.user?.id, "transaction_confirmee", {
+        transaction_id: Number(id),
+        operator_id: Number(tx.operator_id),
+        request_id: tx.request_id ? Number(tx.request_id) : null,
+        amount: txAmount,
+        net_amount: netAmount,
+        commission,
       });
     } catch (err) {
       console.error("❌ Erreur PATCH /transactions/:id/confirm:", err);

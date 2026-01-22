@@ -6,6 +6,7 @@ import { ClipboardIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outli
 import "react-toastify/dist/ReactToastify.css";
 import { PencilSquareIcon, TrashIcon, KeyIcon } from "@heroicons/react/24/solid";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Clients() {
   const { token, user } = useAuth(); // ✅ on récupère user
@@ -17,6 +18,11 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [closingConfirm, setClosingConfirm] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const clientModalRef = useModalOrigin(showForm);
+  const confirmModalRef = useModalOrigin(!!confirmAction);
 
   useEffect(() => {
     const closeMenus = (e) => {
@@ -148,10 +154,10 @@ export default function Clients() {
   const deleteClient = async (id) => {
     if (!canDelete) {
       toast.error("Permission refusée : suppression client");
-      return;
+      return false;
     }
-    if (!confirm("Voulez-vous vraiment supprimer ce client ?")) return;
     try {
+      setConfirmLoading(true);
       const res = await fetch(`${API_BASE}/api/admin/clients/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
@@ -160,8 +166,12 @@ export default function Clients() {
       if (!res.ok) throw new Error(data.error || "Erreur suppression");
       toast.success("Client supprimé ✅");
       await loadClients();
+      return true;
     } catch (err) {
       toast.error(err.message);
+      return false;
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
@@ -169,10 +179,10 @@ export default function Clients() {
   const resetPassword = async (id) => {
     if (!canReset) {
       toast.error("Permission refusée : réinitialisation du mot de passe");
-      return;
+      return false;
     }
-    if (!confirm("Réinitialiser le mot de passe de ce client ?")) return;
     try {
+      setConfirmLoading(true);
       const res = await fetch(
         `${API_BASE}/api/admin/clients/${id}/reinitialiser-mdp`,
         {
@@ -209,9 +219,18 @@ export default function Clients() {
         </div>,
         { autoClose: false }
       );
+      return true;
     } catch (err) {
       toast.error(err.message);
+      return false;
+    } finally {
+      setConfirmLoading(false);
     }
+  };
+
+  const openConfirm = (action, client) => {
+    setClosingConfirm(false);
+    setConfirmAction({ action, client });
   };
 
   // ✅ Blocage vue si pas la permission
@@ -370,7 +389,7 @@ export default function Clients() {
                         {canDelete && (
                           <button
                             onClick={() => {
-                              deleteClient(c.id);
+                              openConfirm("delete", c);
                               setOpenMenuId(null);
                             }}
                             className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
@@ -383,7 +402,7 @@ export default function Clients() {
                         {canReset && (
                           <button
                             onClick={() => {
-                              resetPassword(c.id);
+                              openConfirm("reset", c);
                               setOpenMenuId(null);
                             }}
                             className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
@@ -412,19 +431,22 @@ export default function Clients() {
       {/* Modal ajout/modif */}
       {showForm && (
         <div
-          className="fixed inset-0 flex justify-center items-center"
+          className="fixed inset-0 flex justify-center items-center modal-backdrop"
           style={{
             background: "rgba(0,0,0,0.6)",
             zIndex: 50,
           }}
+          onClick={() => setShowForm(false)}
         >
           <div
-            className="p-6 rounded shadow w-96"
+            ref={clientModalRef}
+            className="p-6 rounded shadow w-96 modal-panel"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
               border: "1px solid var(--border-color)",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4">
               {editing ? "✏ Modifier client" : "➕ Nouveau client"}
@@ -490,6 +512,89 @@ export default function Clients() {
                 }}
               >
                 {editing ? "Mettre à jour" : "Ajouter"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirm ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (confirmLoading) return;
+            setClosingConfirm(true);
+            setTimeout(() => {
+              setConfirmAction(null);
+              setClosingConfirm(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={confirmModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingConfirm ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">
+              {confirmAction.action === "delete"
+                ? "Supprimer le client"
+                : "Réinitialiser le mot de passe"}
+            </h3>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              {confirmAction.action === "delete"
+                ? "Supprimer définitivement"
+                : "Réinitialiser le mot de passe de"}{" "}
+              <span className="font-semibold" style={{ color: "var(--text-color)" }}>
+                {confirmAction.client?.name || "ce client"}
+              </span>
+              ?
+            </p>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  if (confirmLoading) return;
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmAction(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
+                disabled={confirmLoading}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirmAction?.client) return;
+                  const ok = confirmAction.action === "delete"
+                    ? await deleteClient(confirmAction.client.id)
+                    : await resetPassword(confirmAction.client.id);
+                  if (ok) {
+                    setClosingConfirm(true);
+                    setTimeout(() => {
+                      setConfirmAction(null);
+                      setClosingConfirm(false);
+                    }, 180);
+                  }
+                }}
+                className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
+                style={{
+                  background: confirmAction.action === "delete" ? "#e5372e" : "var(--accent)",
+                }}
+                disabled={confirmLoading}
+              >
+                {confirmLoading ? "..." : confirmAction.action === "delete" ? "Supprimer" : "Réinitialiser"}
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
 import { MAP_TILES, buildAssetUrl, getApiBase } from "../../../config/urls";
+import { useModalOrigin } from "../../../hooks/useModalOrigin";
 
 export default function MissionsDetailsModal({
   mission,
@@ -15,6 +16,7 @@ export default function MissionsDetailsModal({
 }) {
   const [closing, setClosing] = useState(false);
   const { user } = useAuth();
+  const modalRef = useModalOrigin(true);
 
   const handleClose = () => {
     setClosing(true);
@@ -53,11 +55,14 @@ export default function MissionsDetailsModal({
       className={`fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center z-50 transition-opacity duration-300 ${
         closing ? "opacity-0" : "opacity-100"
       }`}
+      onClick={handleClose}
     >
       <div
+        ref={modalRef}
         className={`relative w-[600px] max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-[var(--border-color)] bg-[var(--bg-card)]/80 text-[var(--text-color)] backdrop-blur-xl transition-all duration-300 transform ${
           closing ? "scale-95 opacity-0" : "scale-100 opacity-100"
         } font-roboto`}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* ❌ Bouton fermer */}
         <button

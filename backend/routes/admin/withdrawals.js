@@ -6,6 +6,17 @@ import { sendPushNotification } from "../../utils/sendPush.js";
 
 const router = express.Router();
 
+async function logAdminEvent(db, adminId, action, meta = {}) {
+  try {
+    await db.query(
+      "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+      [adminId, action, JSON.stringify(meta)]
+    );
+  } catch (e) {
+    console.warn("⚠️ log admin_events (withdrawals):", e?.message || e);
+  }
+}
+
 // 🔧 Helpers pour récupérer io & onlineUsers injectés dans app (server.js)
 const getIo = (req) => {
   try {
@@ -213,6 +224,14 @@ export default (db) => {
             status === "approuvée" ? "approuvé ✅" : "rejeté ❌"
           }`,
           id,
+          status,
+        });
+
+        await logAdminEvent(req.db, req.user?.id, status === "approuvée" ? "retrait_approuve" : "retrait_rejete", {
+          withdrawal_id: Number(id),
+          operator_id: Number(withdrawal.operator_id),
+          amount: Number(withdrawal.amount || 0),
+          currency: withdrawal.currency || "FCFA",
           status,
         });
       } catch (err) {

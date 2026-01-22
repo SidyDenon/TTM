@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
+import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Withdrawals() {
   const { token, user } = useAuth();
@@ -19,6 +20,9 @@ export default function Withdrawals() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("tous");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [closingConfirm, setClosingConfirm] = useState(false);
+  const confirmModalRef = useModalOrigin(!!confirmAction);
 
   const formatAmount = (v = 0) =>
     Number(v || 0).toLocaleString("fr-FR", {
@@ -69,8 +73,6 @@ export default function Withdrawals() {
       toast.error("Permission refusée : approbation de retrait");
       return;
     }
-    if (!confirm("Confirmer l’approbation de ce retrait ?")) return;
-
     try {
       const res = await fetch(ADMIN_API.withdrawalStatus(id), {
         method: "PATCH",
@@ -97,8 +99,6 @@ export default function Withdrawals() {
       toast.error("Permission refusée : rejet de retrait");
       return;
     }
-    if (!confirm("Rejeter cette demande de retrait ?")) return;
-
     try {
       const res = await fetch(ADMIN_API.withdrawalStatus(id), {
         method: "PATCH",
@@ -418,7 +418,7 @@ export default function Withdrawals() {
                       <div className="flex justify-center gap-2">
                         {canApprove && (
                           <button
-                            onClick={() => approve(w.id)}
+                            onClick={() => setConfirmAction({ id: w.id, type: "approve" })}
                             className="px-3 py-1 rounded-full text-sm transition-all flex items-center gap-1 border"
                             style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", borderColor: "#22c55e" }}
                             title="Approuver le retrait"
@@ -428,7 +428,7 @@ export default function Withdrawals() {
                         )}
                         {canReject && (
                           <button
-                            onClick={() => reject(w.id)}
+                            onClick={() => setConfirmAction({ id: w.id, type: "reject" })}
                             className="px-3 py-1 rounded-full text-sm transition-all flex items-center gap-1 border"
                             style={{ background: "rgba(229,55,46,0.1)", color: "#e5372e", borderColor: "#e5372e" }}
                             title="Rejeter le retrait"
@@ -455,6 +455,73 @@ export default function Withdrawals() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {confirmAction && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirm ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.55)", zIndex: 60 }}
+          onClick={() => {
+            setClosingConfirm(true);
+            setTimeout(() => {
+              setConfirmAction(null);
+              setClosingConfirm(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={confirmModalRef}
+            className={`w-full max-w-md p-5 rounded-xl shadow-xl modal-panel ${closingConfirm ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">
+              {confirmAction.type === "approve" ? "Approuver le retrait" : "Rejeter le retrait"}
+            </h3>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              {confirmAction.type === "approve"
+                ? "Voulez-vous approuver ce retrait ?"
+                : "Voulez-vous rejeter ce retrait ?"}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+                onClick={() => {
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmAction(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                className="px-4 py-2 rounded text-white"
+                style={{
+                  background: confirmAction.type === "approve" ? "#22c55e" : "#e5372e",
+                }}
+                onClick={async () => {
+                  const action = confirmAction;
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmAction(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                  if (!action) return;
+                  if (action.type === "approve") await approve(action.id);
+                  if (action.type === "reject") await reject(action.id);
+                }}
+              >
+                {confirmAction.type === "approve" ? "Approuver" : "Rejeter"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

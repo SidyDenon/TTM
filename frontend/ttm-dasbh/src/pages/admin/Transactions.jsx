@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
+import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Transactions() {
   const { token, user } = useAuth();
@@ -22,6 +23,9 @@ export default function Transactions() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [confirmId, setConfirmId] = useState(null);
+  const [closingConfirm, setClosingConfirm] = useState(false);
+  const confirmModalRef = useModalOrigin(!!confirmId);
 
   // Permissions pour transactions uniquement
   const canTxView = isSuper(user) || can(user, "transactions_view");
@@ -82,8 +86,6 @@ export default function Transactions() {
       toast.error("Permission refusée : confirmation de transaction");
       return;
     }
-    if (!confirm("Confirmer cette transaction ?")) return;
-
     try {
       const res = await fetch(ADMIN_API.transactionConfirm(id), {
         method: "PATCH",
@@ -421,7 +423,7 @@ export default function Transactions() {
                     {t.status === "en_attente" ? (
                       canTxConfirm ? (
                         <button
-                          onClick={() => confirmTransaction(t.id)}
+                          onClick={() => setConfirmId(t.id)}
                           className="px-3 py-1 rounded text-sm transition-all flex items-center gap-1"
                           style={{ background: "var(--accent)", color: "#fff" }}
                           title="Confirmer la transaction"
@@ -448,6 +450,65 @@ export default function Transactions() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {confirmId != null && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirm ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.55)", zIndex: 60 }}
+          onClick={() => {
+            setClosingConfirm(true);
+            setTimeout(() => {
+              setConfirmId(null);
+              setClosingConfirm(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={confirmModalRef}
+            className={`w-full max-w-md p-5 rounded-xl shadow-xl modal-panel ${closingConfirm ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">Confirmer la transaction</h3>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Voulez-vous confirmer cette transaction ?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+                onClick={() => {
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmId(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                className="px-4 py-2 rounded text-white"
+                style={{ background: "var(--accent)" }}
+                onClick={async () => {
+                  const id = confirmId;
+                  setClosingConfirm(true);
+                  setTimeout(() => {
+                    setConfirmId(null);
+                    setClosingConfirm(false);
+                  }, 180);
+                  if (id != null) await confirmTransaction(id);
+                }}
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

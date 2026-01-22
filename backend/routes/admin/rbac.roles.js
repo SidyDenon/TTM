@@ -45,12 +45,18 @@ const normalizePerms = (val) => {
 const CATALOG = [
   "rbac_users_view", "rbac_users_manage",
   "rbac_roles_view", "rbac_roles_manage",
+  "clients_view", "clients_manage",
+  "operators_view", "operators_manage",
   "services_view", "services_manage",
   "config_view", "config_manage",
   "transactions_view", "transactions_manage",
   "withdrawals_view", "withdrawals_manage",
   "requests_view", "requests_manage",
   "dashboard_view",
+  "chart_view",
+  "map_view",
+  "map_fullscreen",
+  "requests_refresh",
   "pricing_calculate" // optionnel : pour la route /prix si tu veux un droit séparé
 ];
 

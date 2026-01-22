@@ -1,0 +1,2 @@
+ALTER TABLE admin_users
+  ADD COLUMN is_blocked TINYINT(1) NOT NULL DEFAULT 0;

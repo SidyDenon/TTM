@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { MAP_TILES, buildAssetUrl, getApiBase } from "../../../config/urls";
+import { useModalOrigin } from "../../../hooks/useModalOrigin";
 
 export default function MissionsDetailsModal({
   mission,
@@ -12,6 +13,8 @@ export default function MissionsDetailsModal({
   onAssign,
 }) {
   const [photoView, setPhotoView] = useState(null); // 🆕 Lightbox
+  const modalRef = useModalOrigin(true);
+  const photoRef = useModalOrigin(!!photoView);
 
   const parsePhotos = (photos) => (Array.isArray(photos) ? photos : []);
   const normalizePhotoUrl = (p) => {
@@ -35,9 +38,14 @@ export default function MissionsDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 modal-backdrop"
+      onClick={onClose}
+    >
       <div
-        className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-2xl shadow-xl w-[600px] relative overflow-y-auto max-h-[90vh] font-roboto"
+        ref={modalRef}
+        className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-2xl shadow-xl w-[600px] relative overflow-y-auto max-h-[90vh] font-roboto modal-panel"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* ❌ Bouton fermer */}
         <button
@@ -171,14 +179,20 @@ export default function MissionsDetailsModal({
       {/* 🖼️ Lightbox */}
       {photoView && (
         <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]"
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] modal-backdrop"
           onClick={() => setPhotoView(null)}
         >
-          <img
-            src={photoView}
-            alt="mission"
-            className="max-w-[95vw] max-h-[90vh] rounded-xl object-contain shadow-2xl border border-[var(--border-color)]"
-          />
+          <div
+            ref={photoRef}
+            className="modal-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={photoView}
+              alt="mission"
+              className="max-w-[95vw] max-h-[90vh] rounded-xl object-contain shadow-2xl border border-[var(--border-color)]"
+            />
+          </div>
           <button
             onClick={() => setPhotoView(null)}
             className="absolute top-4 right-6 text-white text-2xl font-bold hover:scale-110 transition"

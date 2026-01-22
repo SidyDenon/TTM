@@ -8,6 +8,26 @@ import { sendMail } from "../utils/mailer.js";
 
 export default (db) => {
   const router = express.Router();
+  let adminBlockColumn = null;
+  let adminBlockChecked = false;
+
+  const resolveAdminBlockColumn = async () => {
+    if (adminBlockChecked) return adminBlockColumn;
+    const [[{ cnt }]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'is_blocked'"
+    );
+    if (Number(cnt) > 0) {
+      adminBlockChecked = true;
+      adminBlockColumn = "is_blocked";
+      return adminBlockColumn;
+    }
+    const [[{ cnt: cnt2 }]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'blocked'"
+    );
+    adminBlockChecked = true;
+    adminBlockColumn = Number(cnt2) > 0 ? "blocked" : null;
+    return adminBlockColumn;
+  };
 
   const canonicalRole = (role) => {
     const r = String(role || "").toLowerCase();
@@ -146,9 +166,22 @@ router.post("/login", async (req, res) => {
             [userMatch.id]
           );
           if (opRow && Number(opRow.dispo) === 0) {
-            return res.status(403).json({ error: "Compte opérateur bloqué. Contactez un administrateur." });
-          }
+        return res.status(403).json({ error: "Compte opérateur bloqué. Contactez un administrateur." });
+      }
+    }
+
+    if (canonicalRole(userMatch.role) === "admin") {
+      const blockCol = await resolveAdminBlockColumn();
+      if (blockCol) {
+        const [[row]] = await req.db.query(
+          `SELECT ${blockCol} AS is_blocked FROM admin_users WHERE id = ?`,
+          [userMatch.id]
+        );
+        if (row?.is_blocked) {
+          return res.status(403).json({ error: "Compte administrateur bloqué." });
         }
+      }
+    }
       } catch (e) {
         console.warn("⚠️ Vérification blocage opérateur échouée:", e?.message || e);
       }
@@ -161,6 +194,23 @@ router.post("/login", async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    if (canonicalRole(u.role) === "admin") {
+      try {
+        await req.db.query(
+          "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, 'admin_connexion', ?, NOW())",
+          [
+            u.id,
+            JSON.stringify({
+              ip: req.ip,
+              user_agent: req.headers["user-agent"] || "",
+            }),
+          ]
+        );
+      } catch (e) {
+        console.warn("⚠️ log admin_events (login):", e?.message || e);
+      }
+    }
 
     return res.json({
       message: "Connexion réussie ✅",
@@ -190,6 +240,7 @@ router.post("/login", async (req, res) => {
       }
 
       let query, params;
+      let adminRow = null;
       if (identifier.includes("@")) {
         query = "SELECT * FROM users WHERE email = ?";
         params = [identifier];
@@ -200,10 +251,53 @@ router.post("/login", async (req, res) => {
 
       const [rows] = await req.db.query(query, params);
       if (rows.length === 0) {
+        try {
+          if (identifier.includes("@")) {
+            const [admins] = await req.db.query(
+              "SELECT id, name, email, phone, password_hash FROM admin_users WHERE email = ?",
+              [identifier]
+            );
+            adminRow = admins[0] || null;
+          } else {
+            const [adminsByPhone] = await req.db.query(
+              "SELECT id, name, email, phone, password_hash FROM admin_users WHERE phone = ?",
+              [identifier]
+            );
+            adminRow = adminsByPhone[0] || null;
+          }
+        } catch (e) {
+          if (e?.code !== "ER_BAD_FIELD_ERROR") throw e;
+        }
+      }
+
+      if (rows.length === 0 && !adminRow) {
         return res.status(400).json({ error: "Utilisateur introuvable" });
       }
 
-      const user = rows[0];
+      let user = rows[0];
+      if (!user && adminRow) {
+        const [existing] = await req.db.query(
+          "SELECT * FROM users WHERE id = ? OR email = ?",
+          [adminRow.id, adminRow.email]
+        );
+        if (existing.length === 0) {
+          await req.db.query(
+            "INSERT INTO users (id, name, phone, email, password, role, must_change_password, created_at) VALUES (?, ?, ?, ?, ?, 'admin', 1, NOW())",
+            [adminRow.id, adminRow.name, adminRow.phone || null, adminRow.email, adminRow.password_hash]
+          );
+        } else {
+          await req.db.query(
+            "UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), email = COALESCE(?, email), role = 'admin' WHERE id = ?",
+            [adminRow.name, adminRow.phone || null, adminRow.email, adminRow.id]
+          );
+        }
+        const [[fresh]] = await req.db.query("SELECT * FROM users WHERE id = ?", [adminRow.id]);
+        user = fresh;
+      }
+
+      if (!user) {
+        return res.status(400).json({ error: "Utilisateur introuvable" });
+      }
       const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
       const expires = new Date(Date.now() + 1000 * 60 * 15);
 

@@ -1,3 +1,5 @@
+import { useModalOrigin } from "../../../hooks/useModalOrigin";
+
 export default function MissionsPublishModal({
   mission,
   price,
@@ -12,9 +14,18 @@ export default function MissionsPublishModal({
     mission.service.toLowerCase().includes("remorqu");
   const maxDistance = isTowing ? 100 : undefined;
 
+  const modalRef = useModalOrigin(true);
+
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-xl shadow-xl w-96 font-roboto">
+    <div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 modal-backdrop"
+      onClick={onClose}
+    >
+      <div
+        ref={modalRef}
+        className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-xl shadow-xl w-96 font-roboto modal-panel"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-lg font-bold mb-4 font-poppins text-[var(--accent)]">
           Publier la mission #{mission.id}
         </h2>

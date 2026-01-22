@@ -1,14 +1,17 @@
 import { createPortal } from "react-dom";
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from "react-leaflet";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { getServiceIcon, FitBounds } from "./helpers";
 import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
 import { MAP_TILES } from "../../../config/urls";
+import { useModalOrigin } from "../../../hooks/useModalOrigin";
 
 export default function FullscreenMapPortal({ requests, onClose, onSelectMission }) {
   const { user } = useAuth();
+  const [userLocation, setUserLocation] = useState(null);
+  const modalRef = useModalOrigin(true);
 
   // ✅ Filtrer uniquement les missions actives
   const active = (requests || []).filter((r) => {
@@ -23,11 +26,41 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
     return () => (document.body.style.overflow = "unset");
   }, []);
 
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    let watchId = null;
+    const onSuccess = (pos) => {
+      setUserLocation({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+      });
+    };
+    navigator.geolocation.getCurrentPosition(onSuccess, () => {}, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 10000,
+    });
+    watchId = navigator.geolocation.watchPosition(onSuccess, () => {}, {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 10000,
+    });
+    return () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
   // ✅ Règle RBAC : seuls les admins avec droit de lecture peuvent voir la carte
   if (!user || (!isSuper(user) && !can(user, "requests_view"))) {
     return createPortal(
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]">
-        <div className="bg-[var(--bg-card)] p-6 rounded-xl shadow-xl text-center text-[var(--text-color)]">
+      <div
+        className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] modal-backdrop"
+        onClick={onClose}
+      >
+        <div
+          className="bg-[var(--bg-card)] p-6 rounded-xl shadow-xl text-center text-[var(--text-color)]"
+          onClick={(e) => e.stopPropagation()}
+        >
           <p className="text-lg font-semibold text-[var(--accent)]">
             🚫 Accès restreint
           </p>
@@ -47,7 +80,10 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
   }
 
   const content = (
-    <div className="fixed inset-0 z-[9999] bg-[var(--bg-main)] text-[var(--text-color)] animate-fadeIn">
+    <div
+      ref={modalRef}
+      className="fixed inset-0 z-[9999] bg-[var(--bg-main)] text-[var(--text-color)] animate-fadeIn modal-panel"
+    >
       {/* 🔘 Bouton Fermer */}
       <button
         onClick={onClose}
@@ -86,6 +122,15 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
         fadeAnimation
       >
         <TileLayer url={MAP_TILES.DEFAULT} />
+        {userLocation && (
+          <CircleMarker
+            center={[Number(userLocation.lat), Number(userLocation.lng)]}
+            radius={6}
+            pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
+          >
+            <Popup>Votre position</Popup>
+          </CircleMarker>
+        )}
 
         {active.map((r, i) => {
           const operator = r.operator_name || r.operator?.name || "—";
@@ -149,10 +194,24 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
         })}
 
         <FitBounds requests={active} />
+        <AutoCenterOnUser userLocation={userLocation} hasActive={active.length > 0} />
       </MapContainer>
     </div>
   );
 
   return createPortal(content, document.body);
+}
+
+function AutoCenterOnUser({ userLocation, hasActive }) {
+  const map = useMap();
+  const didCenter = useRef(false);
+
+  useEffect(() => {
+    if (!userLocation || hasActive || didCenter.current) return;
+    map.setView([Number(userLocation.lat), Number(userLocation.lng)], 12, { animate: true });
+    didCenter.current = true;
+  }, [map, userLocation, hasActive]);
+
+  return null;
 }
 

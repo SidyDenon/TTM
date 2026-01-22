@@ -66,6 +66,7 @@ export function AuthProvider({ children }) {
         phone: me.phone,
         role: me.role,                 // "admin" | "client" | "operator"...
         is_super: !!me.is_super,       // si fourni par backend quand admin
+        role_name: me.role_name || null,
         permissions: perms,            // permissions admin si middleware les ajoute
         must_change_password: !!me.must_change_password,
       };

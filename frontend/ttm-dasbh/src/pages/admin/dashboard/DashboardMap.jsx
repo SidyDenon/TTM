@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from "react-leaflet";
 import { ArrowsPointingOutIcon } from "@heroicons/react/24/outline";
 import { getServiceIcon, FitBounds } from "./helpers";
 import { useAuth } from "../../../context/AuthContext";
@@ -13,6 +14,13 @@ export default function DashboardMap({
   operatorPositions = {},
 }) {
   const { user } = useAuth();
+  const [userLocation, setUserLocation] = useState(null);
+  const hasActive = requests.some(
+    (r) =>
+      !["terminee", "annulee", "annulee_client", "annulee_admin"].includes(
+        r.status?.toLowerCase()
+      )
+  );
 
   // 🔒 Permissions
   const canViewMap = isSuper(user) || can(user, "map_view") || can(user, "requests_view");
@@ -25,6 +33,30 @@ export default function DashboardMap({
         r.status?.toLowerCase()
       )
   );
+
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    let watchId = null;
+    const onSuccess = (pos) => {
+      setUserLocation({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+      });
+    };
+    navigator.geolocation.getCurrentPosition(onSuccess, () => {}, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 10000,
+    });
+    watchId = navigator.geolocation.watchPosition(onSuccess, () => {}, {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 10000,
+    });
+    return () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
 
   // 🧭 Si l’utilisateur n’a pas accès à la carte
   if (!canViewMap) {
@@ -83,6 +115,15 @@ export default function DashboardMap({
         attributionControl={false}
       >
         <TileLayer url={MAP_TILES.DEFAULT} />
+        {userLocation && (
+          <CircleMarker
+            center={[Number(userLocation.lat), Number(userLocation.lng)]}
+            radius={6}
+            pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
+          >
+            <Popup>Votre position</Popup>
+          </CircleMarker>
+        )}
         {active
           .filter((r) => r.lat && r.lng)
           .map((r) => (
@@ -129,8 +170,22 @@ export default function DashboardMap({
           );
         })}
         <FitBounds requests={active} />
+        <AutoCenterOnUser userLocation={userLocation} hasActive={hasActive} />
       </MapContainer>
     </div>
   );
+}
+
+function AutoCenterOnUser({ userLocation, hasActive }) {
+  const map = useMap();
+  const didCenter = useRef(false);
+
+  useEffect(() => {
+    if (!userLocation || hasActive || didCenter.current) return;
+    map.setView([Number(userLocation.lat), Number(userLocation.lng)], 12, { animate: true });
+    didCenter.current = true;
+  }, [map, userLocation, hasActive]);
+
+  return null;
 }
 

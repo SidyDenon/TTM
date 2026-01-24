@@ -1,23 +1,45 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
+import LottieView from "lottie-react-native";
+
+const logoutAnim = require("../../assets/animations/ttmload.json");
 
 export default function ParametreScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = () => {
     Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
       { text: "Annuler", style: "cancel" },
-      { text: "Oui", onPress: logout },
+      {
+        text: "Oui",
+        onPress: () => {
+          setLoggingOut(true);
+          setTimeout(() => {
+            logout();
+          }, 1600);
+        },
+      },
     ]);
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {loggingOut && (
+        <View style={styles.logoutOverlay}>
+          <LottieView
+            source={logoutAnim}
+            autoPlay
+            loop
+            style={styles.logoutAnim}
+          />
+        </View>
+      )}
       <View style={styles.headerRow}>
         <MaterialIcons name="settings" size={22} color="#E53935" />
         <Text style={styles.header}>Paramètres</Text>
@@ -130,4 +152,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoutText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  logoutOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+    elevation: 50,
+  },
+  logoutAnim: { width: 300, height: 300 },
 });

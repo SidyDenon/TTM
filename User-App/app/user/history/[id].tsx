@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../../context/AuthContext";
@@ -7,6 +7,7 @@ import { API_URL } from "../../../utils/api";
 import { MaterialIcons } from "@expo/vector-icons";
 import { formatCurrency } from "../../../utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Loader from "../../../components/Loader";
 
 export default function MissionDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,7 +51,7 @@ export default function MissionDetailsScreen() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 10 }}>Chargement de la mission...</Text>
       </View>
     );

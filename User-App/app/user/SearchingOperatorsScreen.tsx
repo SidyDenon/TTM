@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Animated,
   Linking,
@@ -20,6 +19,7 @@ import AnimatedRe, { FadeInUp } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
+import Loader from "../../components/Loader";
 
 const SERVICE_CLIENT_NUMBER = "+22300000000"; // 👉 remplace par ton vrai numéro
 
@@ -431,7 +431,7 @@ export default function SearchingOperatorsScreen() {
                 disabled={cancelling}
               >
                 {cancelling ? (
-                  <ActivityIndicator color="#fff" />
+                  <Loader />
                 ) : (
                   <>
                     <MaterialIcons

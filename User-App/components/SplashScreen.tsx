@@ -9,9 +9,7 @@ export default function SplashScreen() {
   const subTranslateY = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    // Animation séquencée
     Animated.sequence([
-      // ⚡ Apparition brutale de TTM
       Animated.parallel([
         Animated.timing(ttmOpacity, {
           toValue: 1,
@@ -25,9 +23,7 @@ export default function SplashScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // ⏳ petit délai avant le sous-titre
       Animated.delay(200),
-      // ⚡ TOW TRUCK MALI qui sort d’en bas
       Animated.parallel([
         Animated.timing(subOpacity, {
           toValue: 1,

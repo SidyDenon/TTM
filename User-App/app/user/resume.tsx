@@ -6,7 +6,6 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
   Image,
   TextInput,
 } from "react-native";
@@ -16,6 +15,7 @@ import { useRequest } from "../../context/RequestContext";
 import { API_URL } from "../../utils/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
+import Loader from "../../components/Loader";
 
 type Params = {
   service?: string | string[];
@@ -261,7 +261,7 @@ export default function Resume() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <Loader />
             ) : (
               <Text style={styles.confirmText}>Confirmer</Text>
             )}

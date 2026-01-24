@@ -7,11 +7,11 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from "react-native";
 import MapView, { Marker, MapPressEvent } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import Loader from "./Loader";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -286,7 +286,7 @@ export const RemorquageSection: React.FC<Props> = ({
         {/* Suggestions */}
         {loadingSuggestions && (
           <View style={styles.suggestionsLoading}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <Loader />
           </View>
         )}
 
@@ -352,7 +352,7 @@ export const RemorquageSection: React.FC<Props> = ({
           disabled={mapPreparing}
         >
           {mapPreparing ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <Loader />
           ) : (
             <>
               <Ionicons name="map" size={18} color="#fff" />

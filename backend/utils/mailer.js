@@ -134,11 +134,29 @@ if (transporters.length) {
  * await sendMail("client@email.com", "Sujet", "texte", "<b>html</b>", "Nom")
  */
 export async function sendMail(to, subject, text = "", html = "", toName = "") {
-  // ✅ ZeptoMail API si token présent (prioritaire, même hors prod)
-  if (zeptoClient) {
-    const resp = await sendMailViaZepto(to, subject, text, html, toName);
-    console.log(`📧 Email envoyé à ${to} via ZeptoMail API`);
-    return resp;
+  // ✅ ZeptoMail API seulement en prod
+  if (IS_PROD && zeptoClient) {
+    try {
+      const resp = await sendMailViaZepto(to, subject, text, html, toName);
+      console.log(`📧 Email envoyé à ${to} via ZeptoMail API`);
+      return resp;
+    } catch (err) {
+      const message =
+        err?.message ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        (typeof err === "string" ? err : "") ||
+        "Erreur ZeptoMail inconnue";
+      console.error("❌ Envoi via ZeptoMail API échoué", {
+        message,
+        code: err?.code,
+        status: err?.response?.status,
+        data: err?.response?.data,
+      });
+      const wrapped = new Error(message);
+      wrapped.cause = err;
+      throw wrapped;
+    }
   }
 
   // ✅ DEV local: Zoho SMTP
@@ -151,12 +169,17 @@ export async function sendMail(to, subject, text = "", html = "", toName = "") {
     console.warn("⚠️ MAIL_FROM non défini: l'expéditeur sera égal à SMTP_USER par défaut");
   }
 
+  const fromAddress = smtpUser;
   const mail = {
-    from: smtpFrom || smtpUser,
+    from: fromAddress,
     to,
     subject,
     text: text || undefined,
     html: html || undefined,
+    replyTo:
+      smtpFrom && smtpFrom !== smtpUser
+        ? smtpFrom
+        : undefined,
   };
 
   let lastError = null;

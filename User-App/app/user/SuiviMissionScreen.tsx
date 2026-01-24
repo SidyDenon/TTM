@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   Animated,
   TouchableOpacity,
   Dimensions,
@@ -17,6 +16,7 @@ import { useSuiviMissionLogic } from "./SuiviMissionLogic";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
 import { MissionStepper } from "../../components/MissionStepper";
+import Loader from "../../components/Loader";
 
 const BASE_STEPS = [
   { key: "demande", label: "Demande" },
@@ -180,7 +180,7 @@ export default function SuiviMissionScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 8 }}>Chargement de la mission…</Text>
       </SafeAreaView>
     );

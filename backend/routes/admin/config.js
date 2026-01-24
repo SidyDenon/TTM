@@ -2,6 +2,7 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
+import { sendSMS } from "../../config/twilo.js";
 
 const router = express.Router();
 
@@ -212,6 +213,36 @@ export default (db) => {
     } catch (err) {
       console.error("❌ Erreur PUT /admin/config:", err);
       res.status(500).json({ error: "Erreur mise à jour config" });
+    }
+  });
+
+  // ---------------------------------------------------------
+  // 📲 POST — Tester l'envoi SMS (admin panel)
+  // ---------------------------------------------------------
+  router.post("/test-sms", checkPermission("config_manage"), async (req, res) => {
+    try {
+      const rawPhone = String(req.body?.phone || "").trim();
+      if (!rawPhone) {
+        return res.status(400).json({ error: "Numero requis" });
+      }
+
+      const compact = rawPhone.replace(/\s+/g, "");
+      let to = compact;
+      if (compact.startsWith("00")) {
+        to = `+${compact.slice(2)}`;
+      } else if (!compact.startsWith("+")) {
+        to = `+223${compact.replace(/^\+?223/, "")}`;
+      }
+
+      await sendSMS(to, "TTM test SMS OK");
+      return res.json({ message: "SMS de test envoye", to });
+    } catch (err) {
+      console.error("❌ Erreur POST /admin/config/test-sms:", err);
+      return res.status(500).json({
+        error: "Erreur envoi SMS",
+        code: err?.code,
+        message: err?.message,
+      });
     }
   });
 

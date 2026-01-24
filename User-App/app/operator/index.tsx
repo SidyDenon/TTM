@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   FlatList,
-  ActivityIndicator,
   Dimensions,
   Platform,
   ToastAndroid,
@@ -29,14 +28,17 @@ import { API_URL } from "../../utils/api";
 import { formatCurrency } from "../../utils/format";
 import { useAuth } from "../../context/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
+import Loader from "../../components/Loader";
 import { syncOperatorLocation } from "../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
 import { blue } from "react-native-reanimated/lib/typescript/Colors";
 import { API_BASE } from "../../utils/api";
 
+const logoutAnim = require("../../assets/animations/ttmload.json");
 
 type Mission = {
   id: number;
@@ -161,6 +163,7 @@ export default function OperatorScreen() {
   // Nouveau state pour menu
 const [menuVisible, setMenuVisible] = useState(false);
 const [supportVisible, setSupportVisible] = useState(false);
+const [loggingOut, setLoggingOut] = useState(false);
 
   // Récupérer flag interne pour masquer wallet/mission libres
   useEffect(() => {
@@ -754,7 +757,7 @@ const filteredMissions = missions.filter((m) => {
   if (loading || checkingActiveMission) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 8 }}>Chargement des missions...</Text>
       </View>
     );
@@ -763,14 +766,19 @@ const filteredMissions = missions.filter((m) => {
   if (!location || isNaN(location.lat) || isNaN(location.lng)) {
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color="#E53935" />
-      <Text>Chargement de la carte...</Text>
+      <Loader />
+      <Text style={{ marginTop: 6 }}>Chargement de la carte...</Text>
     </View>
   );
 }
 
   return (
   <View style={styles.container}>
+    {loggingOut && (
+      <View style={styles.logoutOverlay}>
+        <LottieView source={logoutAnim} autoPlay loop style={styles.logoutAnim} />
+      </View>
+    )}
     {/* ✅ Barre top avec logo + icône profil */}
     <View style={styles.topBar}>
       <Text style={styles.logo}>
@@ -1062,7 +1070,10 @@ const filteredMissions = missions.filter((m) => {
             style={[styles.menuItem, { marginTop: 30 }]}
             onPress={() => {
                   closeMenu();
-                  logout();
+                  setLoggingOut(true);
+                  setTimeout(() => {
+                    logout();
+                  }, 1600);
                 }}
               >
                 <MaterialIcons name="logout" size={22} color="#E53935" />
@@ -1108,6 +1119,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
   },
+  logoutOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 60,
+    elevation: 60,
+  },
+  logoutAnim: { width: 300, height: 300 },
 
   panel: {
   position: "absolute",

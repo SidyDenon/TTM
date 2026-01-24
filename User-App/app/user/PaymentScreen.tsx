@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   BackHandler,
   Modal,
@@ -16,6 +15,7 @@ import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../utils/api";
 import { MaterialIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
+import Loader from "../../components/Loader";
 
 type MissionPayment = {
   id: number;
@@ -183,7 +183,7 @@ export default function PaymentScreen() {
   if (loadingMission) {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={styles.errorText}>Chargement de la mission...</Text>
       </SafeAreaView>
     );
@@ -407,7 +407,7 @@ export default function PaymentScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <Loader />
               ) : (
                 <Text style={styles.modalBtnText}>Valider le paiement</Text>
               )}

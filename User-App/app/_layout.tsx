@@ -133,9 +133,15 @@ function RootNavigator() {
 
   // ✅ Navigation principale
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: "#E53935" },
+      }}
+    >
       <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
+      <Stack.Screen name="login" options={{ animation: "none" }} />
+      <Stack.Screen name="registre" options={{ animation: "none" }} />
       <Stack.Screen name="user" />
       <Stack.Screen name="operator" />
       <Stack.Screen name="OnboardingScreen" />

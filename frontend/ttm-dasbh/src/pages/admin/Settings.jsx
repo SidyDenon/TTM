@@ -9,7 +9,7 @@ import * as AiIcons from "react-icons/ai";      // AntDesign
 import * as MdIcons from "react-icons/md";      // Material Icons
 import * as GoIcons from "react-icons/go";      // Octicons
 import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
-import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset } from "react-icons/fa";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
@@ -67,10 +67,15 @@ export default function Settings() {
   const [confirmService, setConfirmService] = useState(null);
   const [closingConfirmService, setClosingConfirmService] = useState(false);
   const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
+  const [showTestSmsModal, setShowTestSmsModal] = useState(false);
+  const [closingTestSmsModal, setClosingTestSmsModal] = useState(false);
+  const [testSmsPhone, setTestSmsPhone] = useState("");
+  const [sendingTestSms, setSendingTestSms] = useState(false);
   const confirmServiceModalRef = useModalOrigin(!!confirmService);
   const editProfileModalRef = useModalOrigin(showEditProfile);
   const passwordModalRef = useModalOrigin(showPasswordModal);
   const addServiceModalRef = useModalOrigin(showAddServiceModal);
+  const testSmsModalRef = useModalOrigin(showTestSmsModal);
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -535,6 +540,45 @@ export default function Settings() {
       toast.error(e.message);
     } finally {
       setSavingSupportContacts(false);
+    }
+  };
+
+  const sendTestSms = async () => {
+    if (!canManageConfig) {
+      return toast.error("Vous n’avez pas les droits pour tester un SMS.");
+    }
+    const phone = testSmsPhone.trim();
+    if (!phone) return toast.error("Numero requis");
+    try {
+      setSendingTestSms(true);
+      const res = await fetch(`${API_BASE}/api/admin/config/test-sms`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data?.code === 21612) {
+          throw new Error(
+            "Numero non compatible avec ce numero Twilio. Verifie un numero autorise ou les permissions SMS."
+          );
+        }
+        throw new Error(data.error || "Erreur envoi SMS");
+      }
+      toast.success(`SMS de test envoye a ${data.to || phone}`);
+      setTestSmsPhone("");
+      setClosingTestSmsModal(true);
+      setTimeout(() => {
+        setShowTestSmsModal(false);
+        setClosingTestSmsModal(false);
+      }, 180);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSendingTestSms(false);
     }
   };
 
@@ -1195,7 +1239,7 @@ export default function Settings() {
               </div>
 
               
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   onClick={saveSupportContacts}
                   disabled={savingSupportContacts || !canManageConfig}
@@ -1210,11 +1254,105 @@ export default function Settings() {
                   )}
                   Enregistrer les coordonnées
                 </button>
+                <button
+                  onClick={() => {
+                    setClosingTestSmsModal(false);
+                    setShowTestSmsModal(true);
+                  }}
+                  disabled={!canManageConfig}
+                  className="px-4 py-2 rounded flex items-center gap-2"
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-color)",
+                  }}
+                  title={canManageConfig ? "" : "Droit requis: config_manage"}
+                >
+                  <FaPaperPlane />
+                  Tester SMS
+                </button>
               </div>
             </>
             )}
           </div>
         </section>
+      )}
+      {showTestSmsModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingTestSmsModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (sendingTestSms) return;
+            setClosingTestSmsModal(true);
+            setTimeout(() => {
+              setShowTestSmsModal(false);
+              setClosingTestSmsModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={testSmsModalRef}
+            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingTestSmsModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-2">Tester l'envoi SMS</h3>
+            <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+              Entre un numéro pour recevoir un SMS de test.
+            </p>
+            <label className="block text-sm opacity-70 mb-1">Numéro</label>
+            <input
+              type="tel"
+              value={testSmsPhone}
+              onChange={(e) => setTestSmsPhone(e.target.value)}
+              className="w-full p-2 rounded border"
+              style={{
+                background: "var(--bg-card)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+              placeholder="+22300000000"
+            />
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  if (sendingTestSms) return;
+                  setClosingTestSmsModal(true);
+                  setTimeout(() => {
+                    setShowTestSmsModal(false);
+                    setClosingTestSmsModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
+                disabled={sendingTestSms}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={sendTestSms}
+                className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
+                style={{ background: "var(--accent)" }}
+                disabled={sendingTestSms}
+              >
+                {sendingTestSms ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaPaperPlane />
+                )}
+                Envoyer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {confirmService && (
         <div

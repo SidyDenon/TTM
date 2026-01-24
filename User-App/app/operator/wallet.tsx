@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   Alert,
   TextInput,
   Modal,
@@ -25,6 +24,7 @@ import { formatCurrency } from "../../utils/format";
 import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { useSocket } from "../../context/SocketContext";
+import Loader from "../../components/Loader";
 
 type Transaction = {
   id: number;
@@ -240,7 +240,7 @@ export default function WalletScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 10 }}>Chargement du wallet...</Text>
       </SafeAreaView>
     );

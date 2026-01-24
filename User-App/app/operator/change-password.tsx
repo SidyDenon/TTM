@@ -6,12 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { API_URL } from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
+import Loader from "../../components/Loader";
 
 export default function OperatorChangePassword() {
   const router = useRouter();
@@ -122,7 +122,7 @@ export default function OperatorChangePassword() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <Loader />
           ) : (
             <Text style={styles.btnText}>Mettre à jour</Text>
           )}

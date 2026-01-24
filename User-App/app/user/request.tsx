@@ -7,7 +7,6 @@ import {
   ScrollView,
   Image,
   Modal,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -32,6 +31,7 @@ import { API_BASE } from "../../utils/api";
 
 import DepanneuseIcon from "../../assets/images/depanneuse.png";
 import { RemorquageSection } from "../../components/RemorquageSection";
+import Loader from "../../components/Loader";
 
 type Service = {
   id: number;
@@ -588,7 +588,7 @@ const renderServiceIcon = (
                 <View
                   style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
                 >
-                  <ActivityIndicator size="small" color={COLORS.primary} />
+                  <Loader />
                   <Text style={[styles.cardSubtitle, { marginLeft: 8 }]}>
                     Localisation en cours...
                   </Text>
@@ -606,11 +606,9 @@ const renderServiceIcon = (
           <Text style={styles.sectionIntro}>Choisissez le type d’aide :</Text>
 
           {loadingServices ? (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.primary}
-              style={{ marginVertical: 20 }}
-            />
+            <View style={{ marginVertical: 20, alignItems: "center" }}>
+              <Loader />
+            </View>
           ) : (
             <View style={styles.servicesGrid}>
           {services.map((srv) => {

@@ -43,7 +43,14 @@ export default (db) => {
   });
 
   // ⚡ Config Twilio
-  const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH);
+  const twilioSid =
+    process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || "";
+  const twilioToken =
+    process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_AUTH || "";
+  const twilioPhone =
+    process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_PHONE || "";
+
+  const twilioClient = twilio(twilioSid, twilioToken);
 
   // 🔑 Enregistrement utilisateur
   router.post("/register", async (req, res) => {
@@ -308,7 +315,20 @@ router.post("/login", async (req, res) => {
 
       let channel = null;
 
-      if (identifier.includes("@") && user.email) {
+      if (user.phone) {
+        try {
+          await twilioClient.messages.create({
+            body: `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`,
+          from: twilioPhone,
+            to: user.phone.startsWith("+") ? user.phone : `+223${user.phone}`,
+          });
+          channel = "sms";
+        } catch (smsError) {
+          console.warn("⚠️ Envoi SMS reset échoué:", smsError?.message || smsError);
+        }
+      }
+
+      if (!channel && user.email) {
         await sendMail(
           user.email,
           "Code de réinitialisation",
@@ -319,15 +339,6 @@ router.post("/login", async (req, res) => {
            <p>⚠️ Ce code est valable 15 minutes.</p>`
         );
         channel = "email";
-      }
-
-      if (!identifier.includes("@") && user.phone) {
-        await twilioClient.messages.create({
-          body: `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`,
-          from: process.env.TWILIO_PHONE,
-          to: user.phone.startsWith("+") ? user.phone : `+223${user.phone}`,
-        });
-        channel = "sms";
       }
 
       res.json({ message: "✅ Code envoyé", channel });

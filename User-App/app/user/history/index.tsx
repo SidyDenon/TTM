@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   FlatList,
   TouchableOpacity,
   Animated,
@@ -15,6 +14,7 @@ import { API_URL } from "../../../utils/api";
 import { formatCurrency } from "../../../utils/format";
 import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Loader from "../../../components/Loader";
 
 type Mission = {
   id: number;
@@ -97,7 +97,7 @@ export default function HistoryList() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 10 }}>Chargement de l'historique…</Text>
       </View>
     );

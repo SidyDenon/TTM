@@ -1,15 +1,15 @@
 // app/forgot-password.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { apiFetch } from "../utils/api";
-import OTPInput from "./OTPInput"; // ⚡ Mets bien dans /components
 import { useRouter } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
+
+const logo = require("../assets/images/logo1.png");
 
 export default function ForgotPasswordScreen() {
   const [identifier, setIdentifier] = useState("");
   const [error, setError] = useState("");
-  const [showOTP, setShowOTP] = useState(false);
-  const [otp, setOtp] = useState(""); // 6 chiffres
   const router = useRouter();
 
   const handleForgot = async () => {
@@ -24,7 +24,10 @@ export default function ForgotPasswordScreen() {
     // res.channel = "email" ou "sms"
     console.log("Code envoyé via :", res.channel);
 
-    setShowOTP(true); // 🔥 ouvre le popup OTP
+    router.push({
+      pathname: "/reset-password",
+      params: { identifier },
+    });
   } catch (err: unknown) {
     if (err instanceof Error) setError(err.message);
     else setError("Erreur inconnue");
@@ -32,79 +35,95 @@ export default function ForgotPasswordScreen() {
 };
 
 
-  const handleVerifyOTP = async () => {
-    try {
-      await apiFetch("/verify-code", {
-        method: "POST",
-        body: JSON.stringify({ identifier, code: otp }),
-      });
-
-      setShowOTP(false);
-
-      // ✅ Redirection avec params
-      router.push({
-        pathname: "/reset-password",
-        params: { identifier, code: otp },
-      });
-    } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mot de passe oublié</Text>
+      <View style={styles.header}>
+        <Image source={logo} style={styles.logo} resizeMode="contain" />
+      </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.card}>
+        <View style={styles.segment}>
+          <Text style={styles.segmentTitle}>Récupération du mot de passe</Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email ou Téléphone"
-        value={identifier}
-        onChangeText={setIdentifier}
-        autoCapitalize="none"
-      />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.btn} onPress={handleForgot}>
-        <Text style={styles.btnText}>Envoyer</Text>
-      </TouchableOpacity>
+        <Text style={styles.label}>Email ou Téléphone</Text>
+        <View style={[styles.inputWrap, styles.inputWrapActive]}>
+          <MaterialIcons name="phone" size={20} color="#000" />
+          <TextInput
+            style={styles.input}
+            placeholder="Email ou Téléphone"
+            value={identifier}
+            onChangeText={setIdentifier}
+            autoCapitalize="none"
+            placeholderTextColor="#8c8c8c"
+          />
+        </View>
 
-      {/* Popup OTP */}
-     <Modal visible={showOTP} animationType="slide" transparent>
-    <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <Text style={styles.title}>Entrez le code reçu</Text>
+        <TouchableOpacity style={styles.btn} onPress={handleForgot}>
+          <Text style={styles.btnText}>Envoyer</Text>
+        </TouchableOpacity>
 
-      <OTPInput code={otp} setCode={setOtp} length={6} />
-
-      <TouchableOpacity style={styles.btn} onPress={handleVerifyOTP}>
-        <Text style={styles.btnText}>Vérifier</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={handleForgot}>
-        <Text style={styles.link}>Pas reçu ? Renvoyer</Text>
-      </TouchableOpacity>
-
-      {/* 🔥 Nouveau bouton Fermer */}
-      <TouchableOpacity onPress={() => setShowOTP(false)}>
-        <Text style={[styles.link, { marginTop: 10, color: "gray" }]}>Fermer</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
-
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.link}>Retour en arrière</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "#fff" },
-  title: { fontSize: 22, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
-  input: { borderWidth: 1, borderColor: "#ccc", padding: 12, borderRadius: 8, marginBottom: 10, textAlign: "center", fontSize: 18 },
-  btn: { backgroundColor: "#E53935", padding: 15, borderRadius: 10, alignItems: "center", marginTop: 10 },
-  btnText: { color: "#fff", fontWeight: "bold" },
-  error: { color: "red", textAlign: "center", marginBottom: 10 },
-  link: { color: "#E53935", textAlign: "center", marginTop: 15 },
-  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)" },
-  modalContent: { backgroundColor: "#fff", padding: 20, borderRadius: 10, width: "80%" },
+  container: { flex: 1, backgroundColor: "#fff" },
+  header: {
+    backgroundColor: "#E53935",
+    height: 220,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: { width: 180, height: 120 },
+  card: {
+    marginTop: -40,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+  },
+  segment: {
+    backgroundColor: "#efefef",
+    borderRadius: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 20,
+  },
+  segmentTitle: { textAlign: "center", fontWeight: "700", color: "#222" },
+  label: { fontSize: 14, fontWeight: "700", marginBottom: 8 },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#dcdcdc",
+    paddingHorizontal: 12,
+    height: 48,
+    borderRadius: 24,
+    marginBottom: 18,
+  },
+  inputWrapActive: {
+    borderColor: "#E53935",
+  },
+  input: { flex: 1, fontSize: 14, color: "#222" },
+  btn: {
+    backgroundColor: "#E53935",
+    paddingVertical: 14,
+    borderRadius: 26,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  btnText: { color: "#fff", fontWeight: "700" },
+  error: { color: "#E53935", textAlign: "center", marginBottom: 10 },
+  link: { color: "#E53935", textAlign: "center", marginTop: 10 },
 });

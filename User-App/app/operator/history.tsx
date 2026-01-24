@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   FlatList,
   TouchableOpacity,
 } from "react-native";
@@ -12,6 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { formatCurrency } from "../../utils/format";
+import Loader from "../../components/Loader";
 
 const DEFAULT_COMMISSION = 12; // % aligné avec dashboard admin
 
@@ -153,7 +153,7 @@ export default function OperatorHistory() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text>Chargement historique...</Text>
       </View>
     );

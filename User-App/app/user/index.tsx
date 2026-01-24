@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   StyleSheet,
-  ActivityIndicator,
   Text,
   TouchableOpacity,
   Alert,
@@ -14,12 +13,14 @@ import MapView, { Marker, Callout, Region, PROVIDER_GOOGLE } from "react-native-
 import * as Location from "expo-location";
 import * as Animatable from "react-native-animatable";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import Protected from "../../context/protected";
 import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import { API_URL } from "../../utils/api";
+import Loader from "../../components/Loader";
 
 const FALLBACK_REGION: Region = {
   latitude: 12.6392,
@@ -27,6 +28,8 @@ const FALLBACK_REGION: Region = {
   latitudeDelta: 0.05,
   longitudeDelta: 0.05,
 };
+
+const logoutAnim = require("../../assets/animations/ttmload.json");
 
 function HomeContent() {
   const [region, setRegion] = useState<Region>(FALLBACK_REGION);
@@ -42,6 +45,7 @@ function HomeContent() {
   const [supportVisible, setSupportVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const openMenu = () => {
     setMenuVisible(true);
@@ -155,7 +159,7 @@ function HomeContent() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text style={{ marginTop: 10 }}>Chargement...</Text>
       </View>
     );
@@ -163,6 +167,11 @@ function HomeContent() {
 
   return (
     <View style={styles.container}>
+      {loggingOut && (
+        <View style={styles.logoutOverlay}>
+          <LottieView source={logoutAnim} autoPlay loop style={styles.logoutAnim} />
+        </View>
+      )}
       {/* 🗺️ Carte Google Maps */}
       <MapView
         ref={mapRef}
@@ -289,7 +298,10 @@ function HomeContent() {
               style={[styles.menuItem, { marginTop: 30 }]}
               onPress={() => {
                 closeMenu();
-                logout();
+                setLoggingOut(true);
+                setTimeout(() => {
+                  logout();
+                }, 1600);
                   }}
                 >
                   <MaterialIcons name="logout" size={22} color="#E53935" />
@@ -339,6 +351,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
+  logoutOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+    elevation: 50,
+  },
+  logoutAnim: { width: 300, height: 300 },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#222", marginBottom: 6 },
   emptySubtitle: { fontSize: 13, color: "#666", textAlign: "center", marginBottom: 16 },
   emptyActions: { flexDirection: "row", gap: 10 },

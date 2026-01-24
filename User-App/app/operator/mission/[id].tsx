@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Dimensions,
   Linking,
   BackHandler,
@@ -29,6 +28,7 @@ import { startBackgroundLocation, stopBackgroundLocation } from "../../../utils/
 import { syncOperatorLocation } from "../../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../../constants/operator";
 import { SupportModal } from "../../../components/SupportModal";
+import Loader from "../../../components/Loader";
 
 const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const toRad = (v: number) => (v * Math.PI) / 180;
@@ -646,7 +646,7 @@ export default function MissionSuivi() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text>Chargement mission...</Text>
       </View>
     );
@@ -705,7 +705,8 @@ export default function MissionSuivi() {
       <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff90" }}>
         <View style={styles.topBar}>
           <Text style={styles.logo}>
-            <Text style={{ color: "#E53935" }}>TT</Text>M
+            <Text style={{ color: "#E53935" }}>TT</Text>
+            <Text>M</Text>
           </Text>
           <TouchableOpacity onPress={openMenu} style={styles.profileBtn}>
             <MaterialIcons name="person-outline" size={26} color="#000" />
@@ -797,7 +798,7 @@ export default function MissionSuivi() {
 
               {/* Bouton type de vue */}
               <TouchableOpacity
-                style={styles.viewToggleBtn}
+                style={[styles.viewToggleBtn, isFullMap && styles.viewToggleBtnFull]}
                 onPress={toggleMapType}
               >
                 <MaterialIcons
@@ -808,7 +809,7 @@ export default function MissionSuivi() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.focusBtn}
+                style={[styles.focusBtn, isFullMap && styles.focusBtnFull]}
                 onPress={() => {
                   if (!operatorLocation || !mapRef.current) return;
                   setFollowOperator(true);
@@ -864,7 +865,10 @@ export default function MissionSuivi() {
               )}
 
               {/* Fullscreen toggle */}
-              <TouchableOpacity style={styles.fullscreenBtn} onPress={() => setIsFullMap(!isFullMap)}>
+              <TouchableOpacity
+                style={[styles.fullscreenBtn, isFullMap && styles.fullscreenBtnFull]}
+                onPress={() => setIsFullMap(!isFullMap)}
+              >
                 <MaterialIcons name={isFullMap ? "fullscreen-exit" : "fullscreen"} size={26} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -901,7 +905,7 @@ export default function MissionSuivi() {
                     </Text>
                   </View>
                 )}
-                {eta && distance && (
+                {typeof eta === "number" && typeof distance === "number" && (
                   <View style={styles.infoRow}>
                     <MaterialIcons name="schedule" size={18} color="#E53935" style={styles.rowIcon} />
                     <Text style={styles.rowText}>
@@ -1050,7 +1054,7 @@ export default function MissionSuivi() {
           <View style={styles.floatingBox}>
             <Text style={styles.floatingTitle}>En route</Text>
             <Text style={styles.floatingAddress}>{mission.adresse}</Text>
-            {eta && (
+            {typeof eta === "number" && (
               <>
                 <Text style={styles.floatingEta}>Arrivé dans {Math.round(eta)} min</Text>
                 {arrivalTime && (
@@ -1078,7 +1082,7 @@ export default function MissionSuivi() {
                 ? `${Number(mission.dest_lat).toFixed(4)}, ${Number(mission.dest_lng).toFixed(4)}`
                 : "Destination finale"}
             </Text>
-            {eta && (
+            {typeof eta === "number" && (
               <>
                 <Text style={styles.floatingEta}>Arrivée prévue dans {Math.round(eta)} min</Text>
                 {arrivalTime && (
@@ -1281,6 +1285,10 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     zIndex: 10,
   },
+  fullscreenBtnFull: {
+    top: undefined,
+    bottom: 210,
+  },
   focusBtn: {
     position: "absolute",
     top: 60,
@@ -1290,6 +1298,10 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     zIndex: 10,
   },
+  focusBtnFull: {
+    top: undefined,
+    bottom: 150,
+  },
   viewToggleBtn: {
     position: "absolute",
     top: 105,
@@ -1298,6 +1310,10 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 30,
     zIndex: 10,
+  },
+  viewToggleBtnFull: {
+    top: undefined,
+    bottom: 90,
   },
 
   card: {

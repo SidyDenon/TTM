@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Image,
   ScrollView,
   Modal,
@@ -19,6 +18,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useSocket } from "../../../context/SocketContext";
 import * as Haptics from "expo-haptics";
+import Loader from "../../../components/Loader";
 import {
   canUseNotifications as notificationsAvailable,
   showLocalNotification,
@@ -38,6 +38,8 @@ type Mission = {
   user_name?: string;
   user_phone?: string;
   estimated_price?: number;
+  preview_final_price?: number | null;
+  preview_total_km?: number | null;
   photos?: string[];
   status: string;
   destination?: string | null;
@@ -72,7 +74,9 @@ export default function MissionDetails() {
         const lat = parseFloat(m.lat);
         const lng = parseFloat(m.lng);
         const distance =
-          m.distance != null
+          m.preview_total_km != null
+            ? Number(m.preview_total_km)
+            : m.distance != null
             ? Number(m.distance)
             : m.totalKm != null
             ? Number(m.totalKm)
@@ -87,6 +91,10 @@ export default function MissionDetails() {
           type: m.service || "Service inconnu",
           description: m.description,
           estimated_price: m.estimated_price,
+          preview_final_price:
+            m.preview_final_price != null ? Number(m.preview_final_price) : null,
+          preview_total_km:
+            m.preview_total_km != null ? Number(m.preview_total_km) : null,
           status: m.status,
           photos: m.photos || [],
           user_name: m.client_name,
@@ -211,7 +219,7 @@ useEffect(() => {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#E53935" />
+        <Loader />
         <Text>Chargement mission...</Text>
       </View>
     );
@@ -241,6 +249,20 @@ useEffect(() => {
     !Number.isNaN(mission.dest_lat ?? NaN) &&
     typeof mission.dest_lng === "number" &&
     !Number.isNaN(mission.dest_lng ?? NaN);
+
+  const displayPrice =
+    mission.preview_final_price != null && Number.isFinite(mission.preview_final_price)
+      ? mission.preview_final_price
+      : mission.estimated_price != null && Number.isFinite(mission.estimated_price)
+      ? mission.estimated_price
+      : null;
+
+  const displayDistance =
+    mission.preview_total_km != null && Number.isFinite(mission.preview_total_km)
+      ? mission.preview_total_km
+      : mission.distance != null && Number.isFinite(mission.distance) && mission.distance > 0
+      ? mission.distance
+      : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -307,7 +329,7 @@ useEffect(() => {
             icon="attach-money"
             label="Prix estimé"
             value={
-              mission.estimated_price ? formatCurrency(mission.estimated_price) : "Non défini"
+              displayPrice != null ? formatCurrency(displayPrice) : "Non défini"
             }
           />
           <InfoLine
@@ -315,11 +337,11 @@ useEffect(() => {
             label="Description"
             value={mission.description || "Aucune description"}
           />
-          {mission.distance != null && (
+          {displayDistance != null && (
             <InfoLine
               icon="straighten"
               label="Distance estimée"
-              value={`${Number(mission.distance).toFixed(1)} km`}
+              value={`${Number(displayDistance).toFixed(1)} km`}
             />
           )}
         </View>

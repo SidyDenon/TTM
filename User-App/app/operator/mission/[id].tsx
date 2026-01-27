@@ -90,7 +90,7 @@ export default function MissionSuivi() {
   const [loading, setLoading] = useState(true);
   const [isViewerVisible, setIsViewerVisible] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [commissionPercent, setCommissionPercent] = useState<number>(12); // default aligné admin
+  const [commissionPercent, setCommissionPercent] = useState<number | null>(null);
   const [currency, setCurrency] = useState<string>("FCFA");
 
   const [operatorLocation, setOperatorLocation] = useState<OperatorLocation | null>(null);
@@ -134,7 +134,10 @@ export default function MissionSuivi() {
     hasDestinationCoords &&
     mission?.status === "remorquage";
 
-  const commissionRate = Number.isFinite(commissionPercent) ? commissionPercent : 0;
+  const commissionRate =
+    typeof commissionPercent === "number" && Number.isFinite(commissionPercent)
+      ? commissionPercent
+      : 0;
   const grossAmount =
     typeof mission?.estimated_price === "number"
       ? Math.max(
@@ -154,12 +157,32 @@ export default function MissionSuivi() {
         if (res.ok) {
           if (data.commission_percent != null) setCommissionPercent(Number(data.commission_percent));
           if (data.currency) setCurrency(String(data.currency));
+        } else if (token) {
+          const resWallet = await fetch(`${API_URL}/operator/wallet`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const dataWallet = await resWallet.json();
+          if (resWallet.ok && dataWallet?.commission_percent != null) {
+            setCommissionPercent(Number(dataWallet.commission_percent));
+          }
         }
       } catch {
-        // silent fail → valeurs par défaut
+        if (token) {
+          try {
+            const resWallet = await fetch(`${API_URL}/operator/wallet`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const dataWallet = await resWallet.json();
+            if (resWallet.ok && dataWallet?.commission_percent != null) {
+              setCommissionPercent(Number(dataWallet.commission_percent));
+            }
+          } catch {
+            // ignore
+          }
+        }
       }
     })();
-  }, []);
+  }, [token]);
 
   // Profil opérateur (origine) pour calcul total km
   useEffect(() => {
@@ -388,6 +411,45 @@ export default function MissionSuivi() {
       socket.off("connect", onConnect);
     };
   }, [socket, mission?.id, token]);
+
+  // 🚨 Annulation admin/client → retour accueil opérateur
+  useEffect(() => {
+    if (!socket || !mission?.id) return;
+
+    const handleStatusChange = (payload: any) => {
+      const missionId = Number(payload?.id);
+      const status = String(payload?.status || "").toLowerCase();
+      if (missionId !== Number(mission.id)) return;
+
+      if (status === "annulee_admin" || status === "annulee_client") {
+        Toast.show({
+          type: "error",
+          text1: "Mission annulée",
+          text2: "Cette mission a été annulée par l’administrateur.",
+        });
+        router.replace("/operator");
+      }
+    };
+
+    const handleMissionDeleted = (payload: any) => {
+      const missionId = Number(payload?.id ?? payload);
+      if (missionId !== Number(mission.id)) return;
+      Toast.show({
+        type: "error",
+        text1: "Mission supprimée",
+        text2: "Cette mission n’est plus disponible.",
+      });
+      router.replace("/operator");
+    };
+
+    socket.on("mission:status_changed", handleStatusChange);
+    socket.on("mission:deleted", handleMissionDeleted);
+
+    return () => {
+      socket.off("mission:status_changed", handleStatusChange);
+      socket.off("mission:deleted", handleMissionDeleted);
+    };
+  }, [socket, mission?.id, router]);
 
   // 🛰️ Suivi GPS opérateur (en foreground) quand "en_route"
   useEffect(() => {
@@ -855,9 +917,11 @@ export default function MissionSuivi() {
                             )
                           )}
                         </Text>
-                        <Text style={styles.fusedCommission}>
-                          Commission TTM : {commissionPercent}%
-                        </Text>
+                        {typeof commissionPercent === "number" && (
+                          <Text style={styles.fusedCommission}>
+                            Commission TTM : {commissionPercent}%
+                          </Text>
+                        )}
                       </View>
                     )}
                   </View>
@@ -1287,7 +1351,7 @@ const styles = StyleSheet.create({
   },
   fullscreenBtnFull: {
     top: undefined,
-    bottom: 210,
+    bottom: 300,
   },
   focusBtn: {
     position: "absolute",
@@ -1300,7 +1364,7 @@ const styles = StyleSheet.create({
   },
   focusBtnFull: {
     top: undefined,
-    bottom: 150,
+    bottom: 240,
   },
   viewToggleBtn: {
     position: "absolute",
@@ -1313,7 +1377,7 @@ const styles = StyleSheet.create({
   },
   viewToggleBtnFull: {
     top: undefined,
-    bottom: 90,
+    bottom: 180,
   },
 
   card: {

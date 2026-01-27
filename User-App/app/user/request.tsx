@@ -588,7 +588,7 @@ const renderServiceIcon = (
                 <View
                   style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
                 >
-                  <Loader />
+                  <Loader size={24} />
                   <Text style={[styles.cardSubtitle, { marginLeft: 8 }]}>
                     Localisation en cours...
                   </Text>
@@ -607,7 +607,7 @@ const renderServiceIcon = (
 
           {loadingServices ? (
             <View style={{ marginVertical: 20, alignItems: "center" }}>
-              <Loader />
+              <Loader size={120} />
             </View>
           ) : (
             <View style={styles.servicesGrid}>

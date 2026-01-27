@@ -129,6 +129,15 @@ export default function SearchingOperatorsScreen() {
     return () => clearTimeout(timer);
   }, [requestId, status]);
 
+  // ✅ Auto-redirect to tracking after acceptance
+  useEffect(() => {
+    if (status !== "accepted") return;
+    const t = setTimeout(() => {
+      goToTracking();
+    }, 3500);
+    return () => clearTimeout(t);
+  }, [status]);
+
   // 🔌 Socket : updates mission
   useEffect(() => {
     if (!socket || !token || !requestId) return;
@@ -184,9 +193,9 @@ export default function SearchingOperatorsScreen() {
             visibilityTime: 3000,
             position: "top",
             topOffset: 55,
-            onHide: () => router.replace("/user"),
           });
           setStatus("timeout");
+          router.replace("/user");
         }
       }
     };
@@ -298,6 +307,7 @@ export default function SearchingOperatorsScreen() {
 
       {/* Overlay sombre pour lisibilité */}
       <View style={styles.mapOverlay} />
+      {isAccepted && <View style={styles.acceptedFilter} />}
 
       {/* Header logo */}
       <View style={styles.header}>
@@ -308,192 +318,124 @@ export default function SearchingOperatorsScreen() {
 
       {/* Contenu principal */}
       <View style={styles.contentWrapper}>
-        {/* Radar */}
-        <View style={styles.radarWrapper}>
-          <Animated.View
-            style={[
-              styles.radarPulse,
-              { transform: [{ scale }], opacity },
-            ]}
-          />
-         <View style={styles.radarCenter}>
-  <Animated.Image
-    source={require("../../assets/animations/find.gif")}
-    style={{ width: 70, height: 70, borderRadius: 35 }}
-    resizeMode="contain"
-  />
-</View>
-
+        <View style={styles.topTextBlock}>
+          <Text style={styles.title}>
+            {isPending && "Nous cherchons un dépanneur"}
+            {isAccepted &&
+              (service && service.toLowerCase().includes("remorqu")
+                ? "Un remorqueur arrive"
+                : "Un dépanneur arrive")}
+            {isTimeout && "Aucun dépanneur disponible"}
+          </Text>
+          <Text style={styles.subtitle}>
+            {isPending &&
+              "Les dépanneurs les plus proches reçoivent ta demande. Merci de patienter…"}
+            {isAccepted &&
+              (operatorName
+                ? `${operatorName} a accepté ta mission. Redirection vers le suivi en direct.`
+                : "Un dépanneur a accepté ta mission. Redirection vers le suivi…")}
+            {isTimeout &&
+              "Personne n’a pu accepter ta demande. Réessaie dans quelques minutes."}
+          </Text>
         </View>
 
-        {/* Bottom sheet */}
-        <AnimatedRe.View
-          entering={FadeInUp.duration(400)}
-          style={styles.bottomSheet}
-        >
-          <View style={styles.sheetHandle} />
-
-          {/* Chip d’état + ref */}
-          <View style={styles.statusRow}>
-            <View style={styles.statusChip}>
-              <View
-                style={[
-                  styles.statusDot,
-                  isPending && { backgroundColor: "#FFC107" },
-                  isAccepted && { backgroundColor: "#4CAF50" },
-                  isTimeout && { backgroundColor: "#FF5252" },
-                ]}
-              />
-              <Text style={styles.statusText}>
-                {isPending && "Recherche en cours"}
-                {isAccepted && "Dépanneur trouvé"}
-                {isTimeout && "Aucun dépanneur disponible"}
-              </Text>
-            </View>
-
-            {numericId && (
-              <View style={styles.refBadge}>
-                <MaterialIcons
-                  name="confirmation-number"
-                  size={14}
-                  color="#aaa"
-                />
-                <Text style={styles.refText}>#{numericId}</Text>
-              </View>
-            )}
+        {/* Radar */}
+        <View style={styles.radarWrapper}>
+          <View style={styles.radarRingOuter} />
+          <View style={styles.radarRingMid} />
+          <View style={styles.radarRingInner} />
+          <Animated.View style={[styles.radarPulse, { transform: [{ scale }], opacity }]} />
+          <View style={styles.radarCenter}>
+            <Animated.Image
+              source={require("../../assets/animations/find.gif")}
+              style={{ width: 64, height: 64, borderRadius: 32 }}
+              resizeMode="contain"
+            />
           </View>
+        </View>
 
-          {/* Textes */}
-          {isPending && (
-            <>
-              <Text style={styles.title}>
-                Nous cherchons un dépanneur…
-              </Text>
-              <Text style={styles.subtitle}>
-                Les dépanneurs les plus proches reçoivent ta demande. Cela peut
-                prendre jusqu’à une minute.
-              </Text>
-            </>
-          )}
-
-          {isAccepted && (
-            <>
-              <Text style={styles.title}>
-                {service && service.toLowerCase().includes("remorqu")
-                  ? "Un remorqueur arrive 🚚"
-                  : "Un dépanneur arrive 🚚"}
-              </Text>
-              <Text style={styles.subtitle}>
-                {operatorName
-                  ? `${operatorName} a accepté ta mission. Tu vas être redirigé vers le suivi en direct.`
-                  : "Un dépanneur a accepté ta mission. Redirection vers le suivi…"}
-              </Text>
-              <View style={styles.quoteCard}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={styles.quoteLabel}>Prix final</Text>
-                  {quote?.currency && (
-                    <Text style={styles.quoteCurrency}>{quote.currency}</Text>
-                  )}
+        {/* Infos supplémentaires */}
+        {isAccepted && (
+          <AnimatedRe.View entering={FadeInUp.duration(300)} style={styles.infoCard}>
+            <View style={styles.statusRow}>
+              <View style={styles.statusChip}>
+                <View style={[styles.statusDot, { backgroundColor: "#4CAF50" }]} />
+                <Text style={styles.statusText}>Dépanneur trouvé</Text>
+              </View>
+              {numericId && (
+                <View style={styles.refBadge}>
+                  <MaterialIcons name="confirmation-number" size={14} color="#9CA3AF" />
+                  <Text style={styles.refText}>#{numericId}</Text>
                 </View>
-                <Text style={styles.quoteAmount}>
-                  {quote ? formatAmount(quote.amount, quote.currency) : "—"}
-                </Text>
+              )}
+            </View>
+            <View style={styles.quoteCard}>
+              <View style={styles.quoteHeaderRow}>
+                <Text style={styles.quoteLabel}>Prix final</Text>
+                {quote?.currency && <Text style={styles.quoteCurrency}>{quote.currency}</Text>}
+              </View>
+              <Text style={styles.quoteAmount}>
+                {quote ? formatAmount(quote.amount, quote.currency) : "—"}
+              </Text>
+              {service && service.toLowerCase().includes("remorqu") && (
                 <Text style={styles.quoteHint}>
                   Montant recalculé selon la distance réelle du remorquage.
                 </Text>
-                {typeof totalKm === "number" && (
+              )}
+              {service &&
+                service.toLowerCase().includes("remorqu") &&
+                typeof totalKm === "number" && (
                   <Text style={styles.quoteHint}>
                     Distance totale estimée : {totalKm.toFixed(1)} km
                   </Text>
                 )}
-              </View>
-            </>
+            </View>
+          </AnimatedRe.View>
+        )}
+
+        {/* Actions */}
+        <View style={styles.buttons}>
+          {isPending && (
+            <TouchableOpacity
+              style={[styles.primaryBtn, cancelling && { opacity: 0.6 }]}
+              onPress={handleCancel}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <Loader />
+              ) : (
+                <>
+                  <MaterialIcons name="cancel" size={20} color="#fff" />
+                  <Text style={styles.primaryText}>Annuler</Text>
+                </>
+              )}
+            </TouchableOpacity>
           )}
 
           {isTimeout && (
             <>
-              <Text style={styles.title}>
-                Pas de dépanneur pour le moment
-              </Text>
-              <Text style={styles.subtitle}>
-                Aucun dépanneur n’a pu accepter ta demande. Tu peux réessayer
-                dans quelques instants ou appeler le service client.
-              </Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => setStatus("pending")}>
+                <MaterialIcons name="refresh" size={20} color="#fff" />
+                <Text style={styles.primaryText}>Réessayer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace("/user")}>
+                <Text style={styles.linkBtnText}>Retour à l’accueil</Text>
+              </TouchableOpacity>
             </>
           )}
 
-          {/* Boutons */}
-          <View style={styles.buttons}>
-            {isPending && (
-              <TouchableOpacity
-                style={[styles.primaryBtn, cancelling && { opacity: 0.6 }]}
-                onPress={handleCancel}
-                disabled={cancelling}
-              >
-                {cancelling ? (
-                  <Loader />
-                ) : (
-                  <>
-                    <MaterialIcons
-                      name="cancel"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.primaryText}>
-                      Annuler la mission
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {isTimeout && (
-              <>
-                <TouchableOpacity
-                  style={styles.primaryBtn}
-                  onPress={() => setStatus("pending")}
-                >
-                  <MaterialIcons
-                    name="refresh"
-                    size={20}
-                    color="#fff"
-                  />
-                  <Text style={styles.primaryText}>Réessayer</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.linkBtn}
-                  onPress={() => router.replace("/user")}
-                >
-                  <Text style={styles.linkBtnText}>
-                    Retour à l’accueil
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {isAccepted && (
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: "#4CAF50" }]}
-                onPress={goToTracking}
-              >
-                <MaterialIcons name="navigation" size={20} color="#fff" />
-                <Text style={styles.primaryText}>Suivre la mission</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Service client */}
-            <TouchableOpacity
-              style={styles.outlineBtn}
-              onPress={callServiceClient}
-            >
-              <Ionicons name="call" size={18} color="#E53935" />
-              <Text style={styles.outlineText}>
-                Appeler le service client
-              </Text>
+          {isAccepted && (
+            <TouchableOpacity style={styles.primaryBtnGreen} onPress={goToTracking}>
+              <MaterialIcons name="navigation" size={20} color="#fff" />
+              <Text style={styles.primaryText}>Suivre la mission</Text>
             </TouchableOpacity>
-          </View>
-        </AnimatedRe.View>
+          )}
+
+          <TouchableOpacity style={styles.outlineBtn} onPress={callServiceClient}>
+            <Ionicons name="call" size={18} color="#E53935" />
+            <Text style={styles.outlineText}>Appeler le service client</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -506,83 +448,112 @@ const styles = StyleSheet.create({
 
   mapOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)", // assombrit la map
+    backgroundColor: "rgba(0,0,0,0.35)", // plus lisible sur map
+  },
+  acceptedFilter: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(229,57,53,0.08)",
   },
 
   header: {
     position: "absolute",
-    top: 50,
+    top: 20,
     left: 20,
     right: 20,
     zIndex: 5,
   },
   logo: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111",
+    letterSpacing: 0.6,
   },
 
   contentWrapper: {
     flex: 1,
-    justifyContent: "space-between",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+
+  topTextBlock: {
+    alignItems: "center",
+    marginBottom: 18,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
 
   // Radar
   radarWrapper: {
-    flex: 1,
+    width: 260,
+    height: 260,
     alignItems: "center",
     justifyContent: "center",
+  },
+  radarRingOuter: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "rgba(229,57,53,0.12)",
+  },
+  radarRingMid: {
+    position: "absolute",
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: "rgba(229,57,53,0.16)",
+  },
+  radarRingInner: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(229,57,53,0.22)",
   },
   radarPulse: {
     position: "absolute",
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: "red",
+    backgroundColor: "rgba(229,57,53,0.35)",
   },
   radarCenter: {
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: "#ffffff50",
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 0,
-    borderColor: "#fffff20",
-  },
-
-  // Bottom sheet
-  bottomSheet: {
-    width: "100%",
-    backgroundColor: "#101218",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 24,
-  },
-  sheetHandle: {
-    alignSelf: "center",
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#333",
-    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
 
   statusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   statusChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#181A20",
+    backgroundColor: "#fff",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#F1F1F1",
   },
   statusDot: {
     width: 8,
@@ -593,16 +564,18 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    color: "#eee",
-    fontWeight: "500",
+    color: "#111",
+    fontWeight: "700",
   },
   refBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#181A20",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#F1F1F1",
   },
   refText: {
     fontSize: 11,
@@ -612,59 +585,105 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
+    fontWeight: "800",
+    color: "#111",
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 13,
-    color: "#B0B3C0",
-    marginBottom: 16,
+    fontSize: 12,
+    color: "#111",
+    opacity: 0.7,
+    marginBottom: 14,
+    lineHeight: 17,
+    textAlign: "center",
+    maxWidth: 260,
+  },
+  infoCard: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#F1F1F1",
+    marginTop: 12,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  quoteHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   quoteCard: {
-    backgroundColor: "#181A20",
+    backgroundColor: "#F8F9FB",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#24262f",
-    marginBottom: 12,
+    borderColor: "#EEF0F3",
+    marginTop: 8,
   },
   quoteLabel: {
-    color: "#9fa4b6",
+    color: "#6B7280",
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
-  quoteCurrency: { color: "#9fa4b6", fontSize: 12, fontWeight: "600" },
+  quoteCurrency: { color: "#6B7280", fontSize: 12, fontWeight: "600" },
   quoteAmount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
-    color: "#fff",
+    color: "#111",
     marginTop: 4,
   },
   quoteHint: {
-    color: "#8c93a9",
+    color: "#6B7280",
     fontSize: 12,
     marginTop: 4,
   },
 
   buttons: {
-    marginTop: 4,
+    marginTop: 16,
+    width: "100%",
+    alignItems: "center",
   },
   primaryBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E53935",
-    paddingVertical: 13,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 20,
+    paddingHorizontal: 26,
     marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  primaryBtnGreen: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#16A34A",
+    paddingVertical: 12,
+    borderRadius: 20,
+    paddingHorizontal: 26,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   primaryText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 15,
+    fontSize: 14,
     marginLeft: 8,
   },
   linkBtn: {
@@ -673,7 +692,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   linkBtnText: {
-    color: "#B0B3C0",
+    color: "#6B7280",
     fontSize: 13,
     textDecorationLine: "underline",
   },
@@ -682,9 +701,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: "#E53935",
+    backgroundColor: "rgba(229,57,53,0.08)",
     marginTop: 4,
   },
   outlineText: {

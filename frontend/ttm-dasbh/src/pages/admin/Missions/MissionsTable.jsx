@@ -29,7 +29,7 @@ export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDe
   };
 
   return (
-    <div className="overflow-y-auto" style={{ maxHeight: "65vh" }}>
+    <div className="overflow-y-auto" style={{ height: "65vh" }}>
       <table className="w-full text-sm border-collapse font-roboto">
         <thead style={{ color: "var(--muted)", borderBottom: "1px solid var(--border-color)", position: "sticky", top: 0, background: "var(--bg-card)", zIndex: 1 }}>
           <tr>

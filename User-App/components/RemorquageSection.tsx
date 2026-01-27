@@ -286,7 +286,7 @@ export const RemorquageSection: React.FC<Props> = ({
         {/* Suggestions */}
         {loadingSuggestions && (
           <View style={styles.suggestionsLoading}>
-            <Loader />
+            <Loader size={28} />
           </View>
         )}
 
@@ -352,7 +352,7 @@ export const RemorquageSection: React.FC<Props> = ({
           disabled={mapPreparing}
         >
           {mapPreparing ? (
-            <Loader />
+            <Loader size={22} />
           ) : (
             <>
               <Ionicons name="map" size={18} color="#fff" />

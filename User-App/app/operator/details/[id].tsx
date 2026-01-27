@@ -151,6 +151,10 @@ useEffect(() => {
 
       triggerNotification("📡 Mise à jour de la mission", message || `Statut : ${status}`);
 
+      if (status === "annulee_admin" || status === "annulee_client") {
+        router.replace("/operator");
+        return;
+      }
       if (status === "terminee") {
         setTimeout(() => router.replace("/operator"), 1500);
       }
@@ -165,7 +169,7 @@ useEffect(() => {
       text1: "Mission retirée",
       text2: `La mission #${missionId} n'est plus disponible.`,
     });
-    setTimeout(() => router.back(), 1200);
+    router.replace("/operator");
   };
 
   socket.on("mission:updated", handleMissionUpdate);

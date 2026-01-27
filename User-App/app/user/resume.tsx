@@ -261,7 +261,7 @@ export default function Resume() {
             disabled={loading}
           >
             {loading ? (
-              <Loader />
+              <Loader size={22} />
             ) : (
               <Text style={styles.confirmText}>Confirmer</Text>
             )}

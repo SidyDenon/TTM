@@ -71,8 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn("⚠️ Impossible de rafraîchir la session (statut)", res.status);
           }
         }
-      } catch (err) {
-        console.error("❌ Erreur loadSession:", err);
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          console.error("❌ Erreur loadSession:", err);
+        }
         // ne pas forcer logout sur erreur réseau : on garde la session locale
       } finally {
         if (active) setLoading(false);

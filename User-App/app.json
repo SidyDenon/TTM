@@ -62,7 +62,7 @@
         {
           "image": "./assets/images/ttm-icon-app.png",
           "imageWidth": 200,
-          "resizeMode": "cover",
+          "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
       ],

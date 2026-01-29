@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { ADMIN_API } from "../../../config/urls";
 import { socket } from "../../../utils/socket";
 import { can, canAny } from "../../../utils/rbac";
-import { toast } from "react-toastify";
+import { toast } from "../../../utils/toast";
 
 import DashboardStats from "./DashboardStats";
 import DashboardMap from "./DashboardMap";

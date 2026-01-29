@@ -3,7 +3,7 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import usePushNotifications from "./hooks/usePushNotifications";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 
 import Dashboard from "./pages/admin/dashboard/Dashboard";
@@ -60,6 +60,7 @@ function PrivateRoute({ children }) {
 function Layout() {
   const { supported, permission, requestPermission, sendNotification } = usePushNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const welcomeNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (supported && permission === "default") requestPermission();
@@ -77,12 +78,19 @@ function Layout() {
   }, [sidebarOpen]);
 
   useEffect(() => {
-    if (permission === "granted") {
-      sendNotification("🚀 Tow Truck Mali", {
-        body: "Bienvenue, administrateur ! Votre tableau de bord est bien opérationnel.",
-        icon: "/logoApp.png",
-      });
+    if (permission !== "granted") return;
+    const flagKey = "ttm_welcome_notified";
+    try {
+      if (sessionStorage.getItem(flagKey)) return;
+      sessionStorage.setItem(flagKey, "1");
+    } catch {
+      if (welcomeNotifiedRef.current) return;
+      welcomeNotifiedRef.current = true;
     }
+    sendNotification("🚀 Tow Truck Mali", {
+      body: "Bienvenue, administrateur ! Votre tableau de bord est bien opérationnel.",
+      icon: "/logoApp.png",
+    });
   }, [permission, sendNotification]);
 
   return (

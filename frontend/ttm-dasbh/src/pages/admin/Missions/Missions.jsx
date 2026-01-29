@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
-import { toast } from "react-toastify";
+import { toast } from "../../../utils/toast";
 import { API_BASE } from "../../../config/urls";
 import "react-toastify/dist/ReactToastify.css";
 

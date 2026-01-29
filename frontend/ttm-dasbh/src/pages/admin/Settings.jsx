@@ -1,6 +1,6 @@
 // src/pages/admin/Settings.jsx
 import { useEffect, useMemo, useState, useRef } from "react";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toast";
 import * as FaIcons from "react-icons/fa";      // UI buttons (edit/save/…)
 import * as Fa6Icons from "react-icons/fa6";    // FontAwesome 6 Free (compat Expo)
 import * as IoIcons from "react-icons/io5";     // Ionicons 5

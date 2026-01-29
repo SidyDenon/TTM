@@ -4,7 +4,7 @@
     "slug": "User-App",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo1.png",
+    "icon": "./assets/images/ttm-icon-app.png",
     "scheme": "userapp",
     "userInterfaceStyle": "light",
     "ios": {
@@ -30,7 +30,7 @@
       "package": "com.towtruckmali.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo1.png",
+        "foregroundImage": "./assets/images/ttm-icon-app.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
@@ -60,7 +60,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo1.png",
+          "image": "./assets/images/ttm-icon-app.png",
           "imageWidth": 200,
           "resizeMode": "cover",
           "backgroundColor": "#000000"

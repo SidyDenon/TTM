@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toast";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
@@ -96,7 +96,9 @@ export default function Transactions() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur confirmation");
 
-      toast.success(`✅ Transaction #${id} validée et créditée avec succès`);
+      toast.success(`✅ Transaction #${id} validée et créditée avec succès`, {
+        toastId: `tx-confirm-${id}`,
+      });
       await loadTransactions();
     } catch (err) {
       toast.error(err.message);
@@ -126,7 +128,9 @@ export default function Transactions() {
     const handleTransactionConfirmed = (data) => {
       console.log("💰 Transaction confirmée :", data);
       showSystemNotification("💰 Transaction confirmée", `Transaction #${data.id} validée`);
-      toast.success(`✅ Transaction #${data.id} validée et créditée`);
+      toast.success(`✅ Transaction #${data.id} validée et créditée`, {
+        toastId: `tx-confirm-${data.id}`,
+      });
       if (canTxView) loadTransactions();
     };
 
@@ -161,6 +165,7 @@ export default function Transactions() {
           const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           return ym === monthFilter;
         });
+  const pendingCount = transactions.filter((t) => t.status === "en_attente").length;
 
   const currentMonthKey = (() => {
     const d = new Date();
@@ -231,17 +236,39 @@ export default function Transactions() {
 
   return (
     <div
-      className="p-4 rounded"
+      className="p-6 rounded-2xl border border-[var(--border-color)] shadow-sm"
       style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
     >
       {/* En-tête */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold"> Transactions </h2>
-        <div className="flex gap-3 items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg-main)] border border-[var(--border-color)]">
+            💰
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Transactions</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  background: "rgba(239,68,68,0.12)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                }}
+              >
+                {pendingCount} en attente
+              </span>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>
+                {pendingCount > 0 ? "Action requise" : "Rien à traiter"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
           <select
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
-            className="px-3 py-2 rounded border"
+            className="px-3 py-2 rounded-lg border"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
@@ -263,7 +290,7 @@ export default function Transactions() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded border"
+            className="px-3 py-2 rounded-lg border"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
@@ -276,7 +303,7 @@ export default function Transactions() {
           </select>
           <button
             onClick={loadTransactions}
-            className="px-4 py-2 rounded transition-all flex items-center gap-2"
+            className="px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm"
             style={{ background: "var(--accent)", color: "#fff" }}
           >
             <ArrowPathIcon className="w-5 h-5" />
@@ -284,7 +311,7 @@ export default function Transactions() {
           </button>
           <button
             onClick={printTable}
-            className="px-3 py-2 rounded transition-all flex items-center gap-2"
+            className="px-3 py-2 rounded-lg transition-all flex items-center gap-2 border shadow-sm"
             style={{ background: "var(--bg-card)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
             title="Imprimer le rapport"
           >
@@ -357,11 +384,12 @@ export default function Transactions() {
         <p style={{ color: "var(--muted)" }}>Aucune transaction trouvée.</p>
       ) : (
         <div
-          className="overflow-x-auto"
+          className="overflow-x-auto rounded-xl border border-[var(--border-color)] shadow-sm"
           style={{
             marginTop: "24px",
-            maxHeight: "calc(100vh - 420px)",
+            maxHeight: "calc(100vh - 380px)",
             overflowY: "auto",
+            background: "var(--bg-card)",
           }}
         >
           <table className="w-full text-sm border-collapse">

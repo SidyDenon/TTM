@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toast";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
@@ -29,6 +29,8 @@ export default function Withdrawals() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     });
+  const getStatusToastId = (id, status) =>
+    `withdrawal-${id}-${String(status || "").toLowerCase()}`;
 
   const showSystemNotification = (title, body) => {
     if (
@@ -85,7 +87,9 @@ export default function Withdrawals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l’approbation");
 
-      toast.success(`✅ Retrait #${id} approuvé`);
+      toast.success(`✅ Retrait #${id} approuvé`, {
+        toastId: getStatusToastId(id, "approuvée"),
+      });
       // 🔄 recharge la liste locale
       loadWithdrawals();
       // 👉 le sidebar mettra à jour son badge grâce au socket "withdrawal_updated_admin"
@@ -111,7 +115,9 @@ export default function Withdrawals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors du rejet");
 
-      toast.info(`⚠️ Retrait #${id} rejeté`);
+      toast.info(`⚠️ Retrait #${id} rejeté`, {
+        toastId: getStatusToastId(id, "rejetée"),
+      });
       loadWithdrawals();
     } catch (err) {
       toast.error(`❌ ${err.message}`);
@@ -160,7 +166,9 @@ export default function Withdrawals() {
     };
 
     const onUpdated = (data) => {
-      toast.info(`🔁 Retrait #${data.id} → ${data.status.toUpperCase()}`);
+      toast.info(`🔁 Retrait #${data.id} → ${data.status.toUpperCase()}`, {
+        toastId: getStatusToastId(data.id, data.status),
+      });
       showSystemNotification(
         "💸 Retrait mis à jour",
         `#${data.id} : ${data.status.toUpperCase()}`
@@ -261,27 +269,42 @@ export default function Withdrawals() {
 
   return (
     <div
-      className="p-6 rounded transition-all"
+      className="p-6 rounded-2xl border border-[var(--border-color)] shadow-sm transition-all"
       style={{
         background: "var(--bg-card)",
         color: "var(--text-color)",
       }}
     >
       {/* En-tête */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-xl font-bold">💸 Demandes de retrait</h2>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            {pendingCount > 0
-              ? `${pendingCount} retrait(s) en attente`
-              : "Aucun retrait en attente"}
-          </p>
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg-main)] border border-[var(--border-color)]">
+            💸
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Demandes de retrait</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  background: "rgba(239,68,68,0.12)",
+                  color: "var(--accent)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                }}
+              >
+                {pendingCount} en attente
+              </span>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>
+                {pendingCount > 0 ? "Action requise" : "Rien à traiter"}
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <select
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
-            className="px-3 py-2 rounded border"
+            className="px-3 py-2 rounded-lg border"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
@@ -303,7 +326,7 @@ export default function Withdrawals() {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 rounded border"
+            className="px-3 py-2 rounded-lg border"
             style={{
               background: "var(--bg-card)",
               color: "var(--text-color)",
@@ -317,7 +340,7 @@ export default function Withdrawals() {
           </select>
           <button
             onClick={loadWithdrawals}
-            className="px-4 py-2 rounded transition-all flex items-center gap-2"
+            className="px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm"
             style={{
               background: "var(--accent)",
               color: "#fff",
@@ -328,7 +351,7 @@ export default function Withdrawals() {
           </button>
           <button
             onClick={printTable}
-            className="px-3 py-2 rounded transition-all flex items-center gap-2"
+            className="px-3 py-2 rounded-lg transition-all flex items-center gap-2 border shadow-sm"
             style={{ background: "var(--bg-card)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
             title="Imprimer le rapport"
           >
@@ -338,7 +361,7 @@ export default function Withdrawals() {
       </div>
 
       {/* Statistiques */}
-      <div className="grid grid-cols-3 gap-4 mb-6 text-center">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 text-center">
         <Card title="En attente" value={stats.total_attente} color="#facc15" />
         <Card title="Approuvés" value={stats.total_approuve} color="#22c55e" />
         <Card title="Rejetés" value={stats.total_rejete} color="#e5372e" />
@@ -351,11 +374,12 @@ export default function Withdrawals() {
         <p style={{ color: "var(--muted)" }}>Aucune demande trouvée.</p>
       ) : (
         <div
-          className="overflow-x-auto"
+          className="overflow-x-auto rounded-xl border border-[var(--border-color)] shadow-sm"
           style={{
             marginTop: "12px",
-            maxHeight: "calc(100vh - 350px)",
+            maxHeight: "calc(100vh - 320px)",
             overflowY: "auto",
+            background: "var(--bg-card)",
           }}
         >
           <table className="w-full text-sm border-collapse">
@@ -531,17 +555,22 @@ export default function Withdrawals() {
 function Card({ title, value, color }) {
   return (
     <div
-      className="p-4 rounded"
+      className="p-4 rounded-xl border border-[var(--border-color)] shadow-sm text-left"
       style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-color)",
+        background: `linear-gradient(135deg, ${color}1A, transparent)`,
         color: "var(--text-color)",
       }}
     >
-      <p className="text-sm" style={{ color: "var(--muted)" }}>
-        {title}
-      </p>
-      <h2 className="text-2xl font-bold" style={{ color }}>
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-block w-2.5 h-2.5 rounded-full"
+          style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
+        ></span>
+        <p className="text-sm font-medium" style={{ color: "var(--muted)" }}>
+          {title}
+        </p>
+      </div>
+      <h2 className="text-2xl font-bold mt-2" style={{ color }}>
         {Number(value || 0).toLocaleString("fr-FR")} FCFA
       </h2>
     </div>

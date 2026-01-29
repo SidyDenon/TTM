@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { API_BASE } from "../../config/urls";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toast";
 import { can, isSuper } from "../../utils/rbac";
 import {
   FaPlus, FaTrash, FaUserShield, FaUserPlus, FaSave,

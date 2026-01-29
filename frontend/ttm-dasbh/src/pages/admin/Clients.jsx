@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toast";
 import { API_BASE } from "../../config/urls";
 import { ClipboardIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";

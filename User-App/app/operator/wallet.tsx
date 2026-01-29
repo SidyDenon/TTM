@@ -57,6 +57,7 @@ export default function WalletScreen() {
   const heroTranslate = React.useRef(new Animated.Value(-30)).current;
   const retraitTranslate = React.useRef(new Animated.Value(SCREEN_WIDTH)).current;
   const retraitHeaderTranslate = React.useRef(new Animated.Value(-20)).current;
+  const panelFromLeft = React.useRef(false);
   const todayAnim = React.useRef(new Animated.Value(0)).current;
   const monthAnim = React.useRef(new Animated.Value(0)).current;
   const [displayToday, setDisplayToday] = useState(0);
@@ -175,25 +176,7 @@ export default function WalletScreen() {
     }).start();
   }, [heroTranslate]);
 
-  useEffect(() => {
-    if (screenMode !== "wallet") {
-      const fromLeft = screenMode === "historique";
-      retraitTranslate.setValue(fromLeft ? -SCREEN_WIDTH : SCREEN_WIDTH);
-      retraitHeaderTranslate.setValue(-20);
-      Animated.parallel([
-        Animated.timing(retraitTranslate, {
-          toValue: 0,
-          duration: 320,
-          useNativeDriver: true,
-        }),
-        Animated.timing(retraitHeaderTranslate, {
-          toValue: 0,
-          duration: 260,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [screenMode, retraitTranslate, retraitHeaderTranslate]);
+  // Animation d’entrée déclenchée directement dans openPanel pour éviter un délai de rendu.
 
   useEffect(() => {
     if (showModal) {
@@ -418,18 +401,42 @@ export default function WalletScreen() {
   };
   const getAmountPrefix = (status: string) => (status === "approuvée" ? "- " : "");
   const getAmountPrefixGain = () => "+ ";
+  const openPanel = (mode: "retrait" | "historique") => {
+    retraitTranslate.stopAnimation();
+    retraitHeaderTranslate.stopAnimation();
+    panelFromLeft.current = mode === "historique";
+    retraitTranslate.setValue(panelFromLeft.current ? -SCREEN_WIDTH : SCREEN_WIDTH);
+    retraitHeaderTranslate.setValue(-20);
+    setScreenMode(mode);
+    Animated.parallel([
+      Animated.spring(retraitTranslate, {
+        toValue: 0,
+        speed: 20,
+        bounciness: 6,
+        useNativeDriver: true,
+      }),
+      Animated.spring(retraitHeaderTranslate, {
+        toValue: 0,
+        speed: 18,
+        bounciness: 6,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
   const goWallet = () => {
     if (screenMode === "wallet") return;
     const toLeft = screenMode === "historique";
     Animated.parallel([
-      Animated.timing(retraitTranslate, {
+      Animated.spring(retraitTranslate, {
         toValue: toLeft ? -SCREEN_WIDTH : SCREEN_WIDTH,
-        duration: 260,
+        speed: 20,
+        bounciness: 6,
         useNativeDriver: true,
       }),
-      Animated.timing(retraitHeaderTranslate, {
+      Animated.spring(retraitHeaderTranslate, {
         toValue: -20,
-        duration: 220,
+        speed: 18,
+        bounciness: 6,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -707,7 +714,7 @@ export default function WalletScreen() {
             <TouchableOpacity
               style={styles.item}
               activeOpacity={0.85}
-              onPress={() => (screenMode === "historique" ? goWallet() : setScreenMode("historique"))}
+              onPress={() => (screenMode === "historique" ? goWallet() : openPanel("historique"))}
             >
               <MaterialIcons name="history" size={26} color={screenMode === "historique" ? RED : "#111"} />
               <Text style={[styles.label, screenMode === "historique" && styles.labelOn]}>
@@ -732,7 +739,7 @@ export default function WalletScreen() {
             <TouchableOpacity
               style={styles.item}
               activeOpacity={0.85}
-              onPress={() => setScreenMode("retrait")}
+              onPress={() => openPanel("retrait")}
             >
               <MaterialIcons name="logout" size={26} color={screenMode === "retrait" ? RED : "#111"} />
               <Text style={[styles.label, screenMode === "retrait" && styles.labelOn]}>Retrait</Text>

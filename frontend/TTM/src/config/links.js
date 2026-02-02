@@ -38,9 +38,11 @@ export const buildServiceRequestMessage = (service) => {
 export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServiceRequestMessage(service));
 
 // Optionnel : récupérer la config support depuis l'API backend (si dispo)
+import { resolveApiBase } from "./api";
+
 export async function fetchSupportConfig(apiBase = "") {
   try {
-    const base = apiBase || (typeof import.meta !== "undefined" ? import.meta.env.VITE_API_BASE || "" : "");
+    const base = apiBase || resolveApiBase();
     if (!base) return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
     const normalized = base.replace(/\/+$/, "");
     const res = await fetch(`${normalized}/api/config/public`);

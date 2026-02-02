@@ -2,130 +2,8 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
+import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
 import "./App.css";
-
-/* ---------- Données enrichies ---------- */
-const TARIFS = [
-  {
-    title: "Remorquage",
-    amount: "20 000 FCFA",
-    img: "/assets/accueil.png",
-    description:
-      "Remorquage 24/7 avec dépanneuses équipées (sangles, treuil, cales). Prise en charge sécurisée vers garage partenaire ou adresse de votre choix.",
-    details: `Notre service de remorquage fonctionne 24h/24 et 7j/7 pour véhicules particuliers et utilitaires.
-
-Procédure :
-• Sécurisation de la zone et du véhicule
-• Chargement par treuil, calage, sanglage
-• Transport vers garage / domicile au choix
-
-Engagements :
-• Matériel homologué, photos à la demande
-• Tarifs clairs selon distance et complexité
-• Délai indicatif en ville : ~30 min (selon trafic/zone)`,
-    featured: true,
-  },
-  {
-    title: "Crevaison",
-    amount: "10 000 FCFA",
-    img: "/assets/crevaison.jpg",
-    description:
-      "Intervention sur place : roue de secours, mèche/réparation, vérification pression/valve. Objectif : vous remettre rapidement en sécurité.",
-    details: `Interventions typiques :
-• Changement de roue (avec/sans roue de secours)
-• Réparation mèche selon l’emplacement de la fuite
-• Contrôle pression, valve et témoin TPMS
-
-Conseils :
-• Évitez de rouler à plat (risque jante)
-• Vérifiez la roue de secours 1×/trimestre`,
-    featured: true,
-  },
-  {
-    title: "Batterie",
-    amount: "8 000 FCFA",
-    img: "/assets/batterie.png",
-    description:
-      "Test de charge, booster pro, remplacement sur place si nécessaire. Contrôle alternateur et conseils d’entretien.",
-    details: `Ce que nous faisons :
-• Test de santé de batterie + contrôle alternateur
-• Démarrage booster / pinces (sécurisé)
-• Remplacement (modèles compatibles) + reprise de l’ancienne
-
-Bonnes pratiques :
-• Durée de vie moyenne : 3–5 ans
-• Après remplacement : rouler 15–20 min pour stabiliser la charge`,
-    featured: true,
-  },
-  {
-    title: "Panne sèche",
-    amount: "5 000 FCFA",
-    img: "/assets/carburant2.jpeg",
-    description:
-      "Livraison de carburant (essence/gasoil) pour redémarrer rapidement et rejoindre la station la plus proche.",
-    details: `Fonctionnement :
-• Indiquez type de carburant et position
-• Livraison 5–10 L selon besoin
-• Conseils pour rejoindre la station la plus proche
-
-Précautions :
-• N’insistez pas sur le démarreur (risque pompe)
-• Donnez le modèle exact pour éviter erreur de carburant`,
-    featured: true,
-  },
-  {
-    title: "Ouverture de porte",
-    amount: "12 000 FCFA",
-    img: "/assets/Porte.jpg",
-    description:
-      "Ouverture fine et sans casse quand les clés sont à l’intérieur. Méthodes non destructives adaptées au modèle.",
-    details: `Méthodes :
-• Coussin d’air + barres d’accès
-• Crochets spécifiques par marque/modèle
-
-Documents :
-• Preuve de propriété (carte grise + pièce) peut être requise
-
-Cas particuliers :
-• Véhicules premium/anti-effraction : délai plus long`,
-  },
-  {
-    title: "Diagnostic rapide",
-    amount: "7 000 FCFA",
-    img: "/assets/diagnostic.jpg",
-    description:
-      "Lecture OBD/OBD2, inspection visuelle, tests simples (alimentation, fusibles). Explications claires + recommandation.",
-    details: `Outils et étapes :
-• Lecture codes défauts OBD/OBD2
-• Inspection visuelle (fuites, durites, courroies)
-• Tests simples (alimentation, fusibles)
-
-Livrable :
-• Diagnostic + risques + recommandation et estimation`,
-  },
-  {
-    title: "Recharge batterie",
-    amount: "9 000 FCFA",
-    img: "/assets/batterie2.jpg",
-    description:
-      "Recharge/boost sécurisé sur place. Vérification des consommateurs parasites et conseils pour éviter les pannes répétitives.",
-    details: `Prestation :
-• Démarrage + recharge sécurisée
-• Vérification consommateurs (lampes, alarme, etc.)
-• Conseils d’entretien et d’usage (trajets trop courts, etc.)`,
-  },
-  {
-    title: "Livraison carburant",
-    amount: "6 000 FCFA",
-    img: "/assets/carburant.png",
-    description:
-      "Ravitaillement d’urgence certifié (jerrican homologué) avec traçabilité de provenance. Intervention urbaine/périurbaine.",
-    details: `Sécurité & qualité :
-• Récipients conformes, manipulation sécurisée
-• Traçabilité station partenaire
-• Aide au redémarrage + consignes sécurité`,
-  },
-];
 
 /* ---------- Utils ---------- */
 const cx = (...c) => c.filter(Boolean).join(" ");
@@ -288,6 +166,7 @@ function Card({ item, onMore, onWhatsApp }) {
 export default function Tarifs() {
   const [showMore, setShowMore] = React.useState(false);
   const [selected, setSelected] = React.useState(null);
+  const [tarifs, setTarifs] = React.useState(DEFAULT_SERVICES);
   const { buildSupportServiceLink } = useSupportConfig();
   const openWhatsApp = React.useCallback(
     (service) => {
@@ -300,8 +179,22 @@ export default function Tarifs() {
     [buildSupportServiceLink]
   );
 
-  const featured = TARIFS.filter((t) => t.featured);
-  const extra = TARIFS.filter((t) => !t.featured);
+  React.useEffect(() => {
+    let active = true;
+    fetchPublicServices()
+      .then((data) => {
+        if (!active || !data?.length) return;
+        setTarifs(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const featured = tarifs.filter((t) => t.featured);
+  const visibleFeatured = featured.length ? featured : tarifs;
+  const extra = featured.length ? tarifs.filter((t) => !t.featured) : [];
 
   return (
     <section className="w-full min-h-screen flex">
@@ -344,7 +237,7 @@ export default function Tarifs() {
           className="w-full max-w-6xl grid gap-5"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
         >
-          {featured.map((item, i) => (
+          {visibleFeatured.map((item, i) => (
             <Card
               key={`f-${i}`}
               item={item}
@@ -382,24 +275,26 @@ export default function Tarifs() {
         </AnimatePresence>
 
         {/* Bouton bas */}
-        <button
-          onClick={() => setShowMore((v) => !v)}
-          className={cx(
-            "cursor-pointer mt-10 inline-flex items-center gap-2",
-            "border-2 border-[#800E08] px-6 rounded-3xl text-sm py-2",
-            "shadow-white/30 hover:bg-[#800E08] hover:text-white transition",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-          )}
-          aria-expanded={showMore}
-        >
-          {showMore ? "Voir moins" : "Voir plus"}
-          <i
+        {extra.length > 0 && (
+          <button
+            onClick={() => setShowMore((v) => !v)}
             className={cx(
-              "fa-solid fa-chevron-down transition-transform",
-              showMore ? "rotate-180" : "rotate-0"
+              "cursor-pointer mt-10 inline-flex items-center gap-2",
+              "border-2 border-[#800E08] px-6 rounded-3xl text-sm py-2",
+              "shadow-white/30 hover:bg-[#800E08] hover:text-white transition",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             )}
-          />
-        </button>
+            aria-expanded={showMore}
+          >
+            {showMore ? "Voir moins" : "Voir plus"}
+            <i
+              className={cx(
+                "fa-solid fa-chevron-down transition-transform",
+                showMore ? "rotate-180" : "rotate-0"
+              )}
+            />
+          </button>
+        )}
       </div>
 
       {/* Modal détail */}

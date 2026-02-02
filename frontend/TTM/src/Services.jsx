@@ -1,141 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
-
-/* ---------- Services : descriptions détaillées ---------- */
-const SERVICES = [
-  { 
-    icon: "fa-wrench",        
-    title: "Dépannage",         
-    desc: "Intervention rapide sur place.",
-    details: `Notre service de dépannage couvre la majorité des pannes courantes directement sur place, 24h/24 et 7j/7, pour limiter l’immobilisation de votre véhicule.
-
-Interventions typiques :
-- Remplacement ou réparation de roue (crevaison, valve, roue de secours).
-- Démarrage de secours (pinces, booster) et contrôle de l’alternateur.
-- Petites réparations mécaniques d’urgence (courroie déboîtée, durite desserrée, fusibles).
-- Sécurisation de la zone et vérification de sécurité avant reprise de route.
-
-Déroulé d’intervention :
-1) Vous nous contactez (WhatsApp/Appel) et précisez votre position.
-2) Nous envoyons le dépanneur le plus proche (temps moyen : 20–40 min en zone urbaine).
-3) Diagnostic rapide sur place + proposition d’action (dépannage immédiat ou remorquage).
-
-Avantages TTM :
-- Couverture étendue (ville, axes interurbains).
-- Prix transparents, devis annoncé avant intervention.
-- Techniciens formés, matériel conforme et assuré.
-`
-  },
-  {
-    icon: "fa-truck-monster",
-    title: "Remorquage",
-    desc: "Prise en charge sécurisée.",
-    iconImage: "/assets/depanneuse.png",
-    iconAlt: "Depanneuse TTM",
-    details: `Notre service de remorquage est disponible 24h/24 et 7j/7, aussi bien pour les véhicules particuliers que pour les utilitaires. Nos dépanneuses modernes sont équipées pour garantir un transport sans risque d’endommagement.
-
-Zones et délais :
-- Couverture urbaine et autoroutière : prise en charge rapide.
-- Délai indicatif en ville : 30 minutes selon trafic et disponibilité.
-
-Procédure :
-1) Identification du véhicule (modèle, poids, transmission).
-2) Sécurisation du chargement (sangles, cales, treuil).
-3) Acheminement vers le garage partenaire ou l’adresse de votre choix.
-
-Cas pris en charge :
-- Panne immobilisante, accident, véhicule non roulant.
-- Remorquage courte et longue distance, sortie de stationnement difficile.
-
-Engagements :
-- Sécurité maximale et traçabilité.
-- Assurance et photos à la demande.
-- Tarification claire selon distance et complexité.
-`
-  },
-  { 
-    icon: "fa-car-battery",   
-    title: "Batterie",          
-    desc: "Boost / remplacement.",
-    details: `Nous gérons toutes les problématiques de batterie, de la simple décharge au remplacement sur place, avec test du système de charge (alternateur).
-
-Ce que nous faisons :
-- Test de tension et de santé de la batterie.
-- Démarrage de secours via booster professionnel.
-- Remplacement de batterie (modèles compatibles) et reprise de l’ancienne.
-
-Bonnes pratiques :
-- Vérifier l’âge de la batterie (souvent 3–5 ans de durée de vie).
-- Contrôler les consommateurs parasites (lumières intérieures, alarme).
-- Après remplacement, rouler 15–20 minutes pour stabiliser la charge.
-
-Garantie :
-- Matériel certifié, pièces garanties selon le fabricant.
-- Conseil d’entretien pour éviter les pannes répétitives.
-`
-  },
-  { 
-    icon: "fa-gas-pump",      
-    title: "Carburant",         
-    desc: "Livraison panne sèche.",
-    details: `Livraison de carburant en cas de panne sèche, en zone urbaine et périurbaine. Intervention sécurisée avec jerrican homologué.
-
-Fonctionnement :
-1) Vous indiquez votre position et le type de carburant (Essence/Gasoil).
-2) Nous livrons la quantité minimale pour redémarrer en sécurité (généralement 5–10 L).
-3) Conseils pour rejoindre la station la plus proche.
-
-Sécurité & qualité :
-- Récipients conformes, manipulation sécurisée.
-- Traçabilité de la provenance (station partenaire).
-
-Précautions :
-- Ne pas insister sur le démarreur si le réservoir est à sec (risque pompe).
-- Indiquer clairement le modèle du véhicule (éviter erreur d’essence).
-`
-  },
-  { 
-    icon: "fa-key",           
-    title: "Ouverture de porte",
-    desc: "Sans endommager la serrure.",
-    details: `Ouverture fine et sécurisée de véhicule lorsque les clés sont à l’intérieur ou le verrouillage défectueux. Nous privilégions les méthodes non destructives.
-
-Méthodes :
-- Outils d’air (air wedge) et barres d’accès.
-- Crochets spécifiques selon marques/modèles.
-- Intervention très précautionneuse pour éviter rayures et dégâts.
-
-Documents :
-- Une preuve de propriété peut être demandée (carte grise, pièce d’identité).
-- Intervention refusée si doute sur la propriété.
-
-Cas particuliers :
-- Véhicules premium/anti-effraction : temps d’intervention plus long.
-- Clés perdues/cassées : orientation vers serrurier partenaire si nécessaire.
-`
-  },
-  { 
-    icon: "fa-screwdriver-wrench", 
-    title: "Diagnostic",   
-    desc: "Contrôle rapide des pannes.",
-    details: `Diagnostic rapide pour identifier l’origine d’une panne et orienter vers la meilleure solution (réparation sur place, remorquage, garage spécialisé).
-
-Outils et étapes :
-- Lecture OBD/OBD2 (codes défauts, capteurs).
-- Inspection visuelle (fuites, courroies, connectiques).
-- Tests simples (allumage, alimentation, fusibles).
-
-Livrable :
-- Explication claire du diagnostic et des risques.
-- Recommandation d’action prioritaire + estimation du coût/temps.
-
-Avantages :
-- Gain de temps : on évite les remorquages inutiles.
-- Transparence : vous décidez de la suite en connaissance de cause.
-`
-  },
-];
+import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
 /* ---------- Variants (Framer Motion) ---------- */
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -303,7 +169,21 @@ function ServiceCard({ icon, iconImage, iconAlt, title, desc, onMore, index }) {
 export default function Services() {
   const [selected, setSelected] = React.useState(null);
   const [open, setOpen] = React.useState(false);
+  const [services, setServices] = React.useState(DEFAULT_SERVICES);
   const { buildSupportServiceLink } = useSupportConfig();
+
+  React.useEffect(() => {
+    let active = true;
+    fetchPublicServices()
+      .then((data) => {
+        if (!active || !data?.length) return;
+        setServices(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const openModal = (service) => {
     setSelected(service);
@@ -333,7 +213,7 @@ export default function Services() {
         </motion.h2>
 
         <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {SERVICES.map((s, i) => (
+          {services.map((s, i) => (
             <ServiceCard
               key={i}
               index={i}

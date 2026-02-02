@@ -61,6 +61,10 @@ async function startServer(port) {
 }
 
 async function prerender() {
+  if ((process.env.NETLIFY && process.env.PRERENDER_FORCE !== "1") || process.env.PRERENDER_SKIP === "1") {
+    console.log("[prerender] skipped (NETLIFY or PRERENDER_SKIP)");
+    return;
+  }
   const server = await startServer(4173);
   let browser;
   try {

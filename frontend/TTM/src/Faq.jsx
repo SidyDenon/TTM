@@ -98,7 +98,7 @@ export default function Faq() {
               >
                 <div className="h-full overflow-hidden rounded-2xl bg-zinc-100 shadow-sm">
                   <img
-                    src="/assets/faq-screen.png"
+                    src="/assets/faq-screen.jpeg"
                     alt="Aperçu application TTM"
                     loading="lazy"
                     className="w-full h-full object-cover"
@@ -191,7 +191,6 @@ export default function Faq() {
             </div>
           </div>
         </motion.section>
-        {/* Footer (inchangé) */}
         <footer className="bg-zinc-900 text-zinc-200">
           <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-1 text-center md:grid-cols-3 gap-8">
             <div>

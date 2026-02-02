@@ -134,8 +134,8 @@ if (transporters.length) {
  * await sendMail("client@email.com", "Sujet", "texte", "<b>html</b>", "Nom")
  */
 export async function sendMail(to, subject, text = "", html = "", toName = "") {
-  // ✅ ZeptoMail API seulement en prod
-  if (IS_PROD && zeptoClient) {
+  // ✅ ZeptoMail API dès qu’un token est présent (plus robuste que NODE_ENV)
+  if (zeptoClient) {
     try {
       const resp = await sendMailViaZepto(to, subject, text, html, toName);
       console.log(`📧 Email envoyé à ${to} via ZeptoMail API`);

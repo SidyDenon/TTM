@@ -1,4 +1,3 @@
-// routes/admin/clients.js
 import express from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -9,12 +8,11 @@ import { loadAdminPermissions, checkPermission } from "../../middleware/checkPer
 
 const router = express.Router();
 
-// 🔑 Génération mot de passe aléatoire
 function genererMotDePasse(longueur = 12) {
   return crypto.randomBytes(longueur).toString("base64").slice(0, longueur);
 }
 
-// 🧾 Historiser actions admin
+// Historiser actions admin
 async function logAdminEvent(db, adminId, action, meta = {}) {
   try {
     await db.query(
@@ -27,16 +25,14 @@ async function logAdminEvent(db, adminId, action, meta = {}) {
 }
 
 export default (db) => {
-  // Injection DB
   router.use((req, _res, next) => {
     req.db = db;
     next();
   });
 
-  // Auth + chargement des permissions pour tout le module
   router.use(authMiddleware, loadAdminPermissions);
 
-  // 📋 Liste des clients (lecture)
+  //  Liste des clients
   router.get("/", checkPermission("clients_view"), async (req, res) => {
     try {
       const { clientAddress } = await getSchemaColumns(req.db);
@@ -58,7 +54,7 @@ export default (db) => {
     }
   });
 
-  // ➕ Créer un client (écriture)
+  //  Créer un client (écriture)
   router.post("/", checkPermission("clients_manage"), async (req, res) => {
     try {
       const { name, phone, email, adresse } = req.body;
@@ -66,7 +62,7 @@ export default (db) => {
         return res.status(400).json({ error: "Nom et téléphone requis" });
       }
 
-      // 🔎 unicité phone/email (gère email NULL comme pour les opérateurs)
+      //  unicité phone/email 
       const [exists] = await req.db.query(
         "SELECT id FROM users WHERE phone = ? OR (email IS NOT NULL AND email = ?)",
         [phone, email || null]
@@ -80,14 +76,12 @@ export default (db) => {
       const motDePasseClair = genererMotDePasse(10);
       const hash = await bcrypt.hash(motDePasseClair, 10);
 
-      // 1️⃣ Table users
       const [result] = await req.db.query(
         "INSERT INTO users (name, phone, email, password, role, must_change_password, created_at) VALUES (?, ?, ?, ?, 'client', 1, NOW())",
         [name, phone, email || null, hash]
       );
       const userId = result.insertId;
 
-      // 2️⃣ Table clients (colonne d'adresse dynamique)
       const { clientAddress } = await getSchemaColumns(req.db);
       if (clientAddress) {
         await req.db.query(
@@ -112,8 +106,29 @@ export default (db) => {
         try {
           await sendMail(
             email,
-            "Bienvenue sur TTM 🚗",
-            `Bonjour ${name},\n\nVotre compte client a été créé.\n\n📱 Téléphone: ${phone}\n🔑 Mot de passe provisoire: ${motDePasseClair}\n\n⚠️ Merci de le modifier lors de votre première connexion.\n\n🚀 L'équipe TTM`
+            "Bienvenue sur Tow Truck Mali – Dépannage express 🚨",
+            `Bonjour ${name},
+
+Bienvenue sur TOW TRUCK MALI 🚗💨  
+Votre compte client a été créé avec succès.
+
+📞 Téléphone : ${phone}
+🔑 Mot de passe provisoire : ${motDePasseClair}
+
+⚠️ Pour votre sécurité, merci de modifier ce mot de passe lors de votre première connexion.
+
+📍 Grâce à l’application TOW TRUCK MALI, vous pouvez :
+✅ Demander un dépannage rapidement
+📍 Être localisé automatiquement
+🕒 Suivre l’arrivée de la dépanneuse en temps réel
+
+En cas de besoin, notre équipe est prête à intervenir.
+
+🌐 Visitez notre site : https://towtruckmali.com/
+
+🚨 TOW TRUCK MALI  
+Dépannage express – 24h/24
+`
           );
         } catch (mailErr) {
           console.warn("⚠️ Erreur envoi mail:", mailErr.message);

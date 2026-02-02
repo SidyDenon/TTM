@@ -36,7 +36,6 @@ export default (db) => {
     return r;
   };
 
-  // ⚡ Injecter db
   router.use((req, res, next) => {
     req.db = db;
     next();
@@ -52,7 +51,7 @@ export default (db) => {
 
   const twilioClient = twilio(twilioSid, twilioToken);
 
-  // 🔑 Enregistrement utilisateur
+  // Enregistrement utilisateur
   router.post("/register", async (req, res) => {
     try {
       const { name, phone, password, email } = req.body;
@@ -89,8 +88,7 @@ export default (db) => {
     }
   });
 
-// 🔑 Connexion
-// routes/auth.js (ou fichier équivalent)
+// Connexion
 router.post("/login", async (req, res) => {
   try {
     const { identifier, password } = req.body || {};

@@ -12,7 +12,7 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useSuiviMissionLogic } from "./SuiviMissionLogic";
+import { useSuiviMissionLogic } from "../../lib/SuiviMissionLogic";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
 import { MissionStepper } from "../../components/MissionStepper";

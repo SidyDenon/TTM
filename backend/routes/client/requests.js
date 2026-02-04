@@ -3,6 +3,8 @@ import authMiddleware from "../../middleware/auth.js";
 import { upload } from "../../middleware/upload.js";
 import { buildPublicUrl } from "../../config/links.js";
 import { getCommissionPercent } from "../../utils/commission.js";
+import { getSchemaColumns } from "../../utils/schema.js";
+import { calculateDistance } from "../../utils/distance.js";
 
 const router = express.Router();
 
@@ -39,6 +41,94 @@ const getIo = (req) => {
     return null;
   }
 };
+
+const getOnlineOperators = (req) => {
+  try {
+    const online = req.app?.get?.("onlineUsers") || null;
+    return online?.operators instanceof Map ? online.operators : null;
+  } catch {
+    return null;
+  }
+};
+
+async function selectNearbyOperatorIds(db, req, mission, radiusKm) {
+  const operatorsMap = getOnlineOperators(req);
+  if (!operatorsMap || operatorsMap.size === 0) return [];
+
+  const lat = Number(mission?.lat);
+  const lng = Number(mission?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+
+  const operatorIds = Array.from(operatorsMap.keys()).map((id) => Number(id));
+  const placeholders = operatorIds.map(() => "?").join(",");
+
+  const { operatorInternal, operatorDispo } = await getSchemaColumns(db);
+  const internalSelect = operatorInternal ? `, ${operatorInternal} AS is_internal` : "";
+  const dispoSelect = operatorDispo ? `, ${operatorDispo} AS dispo` : "";
+
+  const [rows] = await db.query(
+    `SELECT user_id, lat, lng${internalSelect}${dispoSelect}
+     FROM operators
+     WHERE user_id IN (${placeholders})
+       AND lat IS NOT NULL
+       AND lng IS NOT NULL`,
+    operatorIds
+  );
+
+  const matches = [];
+  for (const row of rows || []) {
+    const isInternal = row.is_internal != null && Number(row.is_internal) === 1;
+    if (isInternal) continue;
+    if (row.dispo != null && Number(row.dispo) === 0) continue;
+
+    const dist = calculateDistance(
+      lat,
+      lng,
+      Number(row.lat),
+      Number(row.lng)
+    );
+    if (Number.isFinite(dist) && dist <= radiusKm) {
+      matches.push(Number(row.user_id));
+    }
+  }
+
+  return matches;
+}
+
+function emitToOperators(io, operatorIds, event, payload) {
+  if (!io || !operatorIds?.length) return;
+  for (const opId of operatorIds) {
+    io.to(`operator:${Number(opId)}`).emit(event, payload);
+  }
+}
+
+async function getOperatorMissionRadiusKm(db, fallbackValue) {
+  try {
+    const [[row]] = await db.query(
+      "SELECT operator_mission_radius_km FROM configurations LIMIT 1"
+    );
+    const fromDb = Number(row?.operator_mission_radius_km);
+    if (Number.isFinite(fromDb) && fromDb > 0) return fromDb;
+  } catch {
+    // ignore
+  }
+  const fromEnv = Number(process.env.OPERATOR_MISSION_RADIUS_KM || fallbackValue || 5);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 5;
+}
+
+async function getOperatorTowingRadiusKm(db) {
+  try {
+    const [[row]] = await db.query(
+      "SELECT operator_towing_radius_km FROM configurations LIMIT 1"
+    );
+    const fromDb = Number(row?.operator_towing_radius_km);
+    if (Number.isFinite(fromDb) && fromDb > 0) return fromDb;
+  } catch {
+    // ignore
+  }
+  const fromEnv = Number(process.env.TOWING_RADIUS_KM || 100);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 100;
+}
 
 const normalizeMissionPayload = (mission = {}, photos = []) => {
   const toNumber = (value) =>
@@ -501,19 +591,38 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
       data: newRequest,
     });
 
-    // Notify opérateurs externes uniquement
-    notifyOperators("nouvelle_demande", newRequest, { targetInternal: false });
-
     const missionEmitter = req.emitMissionEvent || emitMissionEvent;
     if (missionEmitter) {
-      missionEmitter("mission:created", newRequest, { clientId: req.user.id });
+      // Broadcast admins + client, mais pas tous les opérateurs
+      missionEmitter("mission:created", newRequest, {
+        clientId: req.user.id,
+        operators: false,
+      });
       missionEmitter(
         "mission:status_changed",
         { id: newRequest.id, status: newRequest.status },
-        { clientId: req.user.id }
+        { clientId: req.user.id, operators: false }
       );
-      missionEmitter("mission:updated", newRequest, { clientId: req.user.id });
+      missionEmitter("mission:updated", newRequest, {
+        clientId: req.user.id,
+        operators: false,
+      });
     }
+
+    // Notifier uniquement les opérateurs proches
+    const io = getIo(req);
+    const isTow = String(srv?.name || "").toLowerCase().includes("remorqu");
+    const radiusKm = isTow
+      ? await getOperatorTowingRadiusKm(req.db)
+      : await getOperatorMissionRadiusKm(req.db, 5);
+    const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
+
+    emitToOperators(io, nearbyOperators, "mission:created", newRequest);
+    emitToOperators(io, nearbyOperators, "mission:status_changed", {
+      id: newRequest.id,
+      status: newRequest.status,
+    });
+    emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
   } catch (err) {
     console.error("❌ Erreur POST /requests:", err);
     res.status(500).json({ error: "Erreur serveur" });

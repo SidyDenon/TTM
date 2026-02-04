@@ -8,7 +8,7 @@ const DEFAULT_PORT = 5000;
 const LOCAL_ANDROID = `http://10.0.2.2:${DEFAULT_PORT}`;
 const LOCAL_LOCALHOST = `http://localhost:${DEFAULT_PORT}`;
 const LOCAL_LOOPBACK = `http://127.0.0.1:${DEFAULT_PORT}`;
-const LAN_IPS = ["192.168.11.178", "192.168.11.241"]; // ajoute ici tes IP LAN possibles
+const LAN_IPS = ["192.168.11.103", "192.168.11.178", "192.168.11.241"]; // ajoute ici tes IP LAN possibles
 
 export let API_BASE = PROD_BASE; // host sans /api
 export let API_URL = `${API_BASE}/api`;
@@ -37,12 +37,6 @@ export async function initApiBase() {
     (process.env.REACT_NATIVE_API_BASE as string) ||
     (process.env.API_BASE as string) ||
     "";
-  if (envBase) {
-    API_BASE = envBase.replace(/\/+$/, "");
-    API_URL = `${API_BASE}/api`;
-    if (__DEV__) console.log("📡 API via env :", API_BASE);
-    return;
-  }
 
   // 2) Liste des candidats locaux (priorité émulateur Android puis localhost, loopback, LAN)
   const lanCandidates = LAN_IPS.map((ip) => `http://${ip}:${DEFAULT_PORT}`);
@@ -62,7 +56,7 @@ export async function initApiBase() {
     ...lanCandidates.filter((v, idx, arr) => v && arr.indexOf(v) === idx),
   ].filter(Boolean);
 
-  let resolved = PROD_BASE;
+  let resolved = null as string | null;
   for (const candidate of candidates) {
     const ok = await testBackend(candidate);
     if (ok) {
@@ -71,7 +65,8 @@ export async function initApiBase() {
     }
   }
 
-  API_BASE = resolved;
+  const fallbackBase = envBase ? envBase.replace(/\/+$/, "") : PROD_BASE;
+  API_BASE = resolved || fallbackBase;
   API_URL = `${API_BASE}/api`;
   if (__DEV__) console.log("📡 API sélectionnée :", API_BASE);
 }
@@ -85,10 +80,13 @@ export function getApiUrl() {
 }
 
 // ============================================================
-// 🌍 GOOGLE MAPS KEY
+// 🌍 GOOGLE MAPS KEY (from env)
 // ============================================================
 export const GOOGLE_MAPS_API_KEY =
-  "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
+  (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string) ||
+  (process.env.REACT_NATIVE_GOOGLE_MAPS_API_KEY as string) ||
+  (process.env.GOOGLE_MAPS_API_KEY as string) ||
+  "";
 
 // ============================================================
 // Helpers de build

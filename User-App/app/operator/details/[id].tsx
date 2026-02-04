@@ -22,7 +22,7 @@ import Loader from "../../../components/Loader";
 import {
   canUseNotifications as notificationsAvailable,
   showLocalNotification,
-} from "../../lib/notifications";
+} from "../../../lib/notifications";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../../constants/operator";
 
 const canUseNotifications = notificationsAvailable;

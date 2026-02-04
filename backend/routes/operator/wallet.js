@@ -1,6 +1,6 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { io } from "../../server.js";
+import { io } from "../../socket/index.js";
 import { getCommissionPercent } from "../../utils/commission.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 

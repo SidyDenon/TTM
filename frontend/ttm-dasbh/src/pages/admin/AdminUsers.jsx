@@ -67,6 +67,24 @@ const PERM_LABELS = {
   pricing_calculate: "Calculer les prix estimés"
 };
 
+const LEGACY_TO_CANON = {
+  can_view_dashboard: "dashboard_view",
+  can_view_services: "services_view",
+  can_manage_services: "services_manage",
+  can_view_config: "config_view",
+  can_manage_config: "config_manage",
+  demandes_view: "requests_view",
+  demandes_manage: "requests_manage",
+  stats_view: "chart_view",
+  requests_publish: "requests_manage",
+  requests_assign: "requests_manage",
+  requests_cancel: "requests_manage",
+  requests_complete: "requests_manage",
+  requests_delete: "requests_manage",
+};
+
+const canonPerm = (p) => LEGACY_TO_CANON[p] || p;
+const canonList = (arr = []) => Array.from(new Set(arr.map(canonPerm)));
 
 function safeJson(x, fallback = []) {
   if (Array.isArray(x)) return x;
@@ -173,7 +191,7 @@ export default function AdminUsers() {
 
         const union = Array.from(new Set(rs.flatMap(r => Array.isArray(r.permissions) ? r.permissions : []))).sort();
         const catalog = Array.isArray(rolesJson.catalog) && rolesJson.catalog.length ? rolesJson.catalog : union;
-        setAllPerms(catalog);
+        setAllPerms(canonList(catalog).sort());
       } else {
         setRoles([]);
         setAllPerms([]);
@@ -308,7 +326,7 @@ export default function AdminUsers() {
   useEffect(() => {
     if (!roleId) { setCheckedPerms([]); setCheckAll(false); return; }
     const r = roles.find(x => String(x.id) === String(roleId));
-    const perms = r?.permissions || [];
+    const perms = canonList(r?.permissions || []);
     setCheckedPerms(perms);
     setCheckAll(perms.length > 0 && perms.length === allPerms.length);
   }, [roleId, roles, allPerms.length]);
@@ -336,10 +354,12 @@ export default function AdminUsers() {
   useEffect(() => {
     if (!editRoleId) { setEditCheckedPerms([]); setEditCheckAll(false); return; }
     const r = roles.find(x => String(x.id) === String(editRoleId));
-    const perms = r?.permissions || [];
-    setEditCheckedPerms(perms);
-    setEditCheckAll(perms.length > 0 && perms.length === allPerms.length);
-  }, [editRoleId, roles, allPerms.length]);
+    const perms = canonList(r?.permissions || []);
+    const extraPerms = canonList(Array.isArray(detailAdmin?.extra_permissions) ? detailAdmin.extra_permissions : []);
+    const merged = Array.from(new Set([...(perms || []), ...extraPerms]));
+    setEditCheckedPerms(merged);
+    setEditCheckAll(merged.length > 0 && merged.length === allPerms.length);
+  }, [editRoleId, roles, allPerms.length, detailAdmin]);
 
   useEffect(() => {
     setEditCheckAll(
@@ -385,22 +405,24 @@ export default function AdminUsers() {
   };
 
   const filteredPerms = useMemo(() => {
+    const merged = Array.from(new Set([...(allPerms || []), ...(checkedPerms || [])]));
     const s = permFilter.trim().toLowerCase();
-    if (!s) return allPerms;
-    return allPerms.filter(p => p.toLowerCase().includes(s));
-  }, [allPerms, permFilter]);
+    if (!s) return merged;
+    return merged.filter(p => p.toLowerCase().includes(s));
+  }, [allPerms, checkedPerms, permFilter]);
 
   const filteredEditPerms = useMemo(() => {
+    const merged = Array.from(new Set([...(allPerms || []), ...(editCheckedPerms || [])]));
     const s = editPermFilter.trim().toLowerCase();
-    if (!s) return allPerms;
-    return allPerms.filter(p => p.toLowerCase().includes(s));
-  }, [allPerms, editPermFilter]);
+    if (!s) return merged;
+    return merged.filter(p => p.toLowerCase().includes(s));
+  }, [allPerms, editCheckedPerms, editPermFilter]);
 
   const open = () => {
     setForm({ name: "", email: "", phone: "" });
     const first = roles[0];
     setRoleId(first?.id ?? null);
-    setCheckedPerms(first?.permissions ?? []);
+    setCheckedPerms(canonList(first?.permissions ?? []));
     setPermFilter("");
     setShow(true);
   };
@@ -484,10 +506,12 @@ export default function AdminUsers() {
     const initialPerms = roleFromAdmin?.permissions?.length
       ? roleFromAdmin.permissions
       : (roles.find(x => String(x.id) === String(initialRoleId))?.permissions || []);
+    const extraPerms = Array.isArray(detailAdmin.extra_permissions) ? detailAdmin.extra_permissions : [];
+    const mergedPerms = Array.from(new Set([...(canonList(initialPerms) || []), ...canonList(extraPerms)]));
     setEditRoleId(initialRoleId);
-    setEditCheckedPerms(initialPerms);
+    setEditCheckedPerms(mergedPerms);
     setEditPermFilter("");
-    setEditCheckAll(initialPerms.length > 0 && initialPerms.length === allPerms.length);
+    setEditCheckAll(mergedPerms.length > 0 && mergedPerms.length === allPerms.length);
     setClosingEditPerms(false);
     setShowEditPerms(true);
   };
@@ -504,7 +528,7 @@ export default function AdminUsers() {
       setSavingEditPerms(true);
       const payload = {
         role_id: editRoleId || null,
-        permissions: editCheckedPerms || [],
+        permissions: canonList(editCheckedPerms || []),
       };
       const res = await fetch(`${API_BASE}/api/admin/rbac/users/${detailAdmin.id}/permissions`, {
         method: "PATCH",
@@ -517,6 +541,12 @@ export default function AdminUsers() {
       const updated = data?.data;
       if (updated?.id) {
         setDetailAdmin((prev) => prev ? ({ ...prev, ...updated }) : prev);
+        const roleFromAdmin = Array.isArray(updated.roles) && updated.roles.length ? updated.roles[0] : null;
+        const rolePerms = canonList(roleFromAdmin?.permissions || []);
+        const extraPerms = canonList(Array.isArray(updated.extra_permissions) ? updated.extra_permissions : []);
+        const merged = Array.from(new Set([...(rolePerms || []), ...extraPerms]));
+        setEditCheckedPerms(merged);
+        setEditCheckAll(merged.length > 0 && merged.length === allPerms.length);
       }
       await loadAll();
       setClosingEditPerms(true);
@@ -1654,7 +1684,27 @@ const ADMIN_ACTION_LABELS = {
   transaction_confirmee: "Transaction confirmée",
   retrait_approuve: "Retrait approuvé",
   retrait_rejete: "Retrait rejeté",
+  role_cree: "Création d’un rôle",
+  role_modifie: "Modification d’un rôle",
+  role_supprime: "Suppression d’un rôle",
+  service_cree: "Création d’un service",
+  service_modifie: "Modification d’un service",
+  service_supprime: "Suppression d’un service",
+  config_update: "Mise à jour configuration",
+  config_test_sms: "Test SMS configuration",
+  tow_pricing_update: "Mise à jour tarifs remorquage",
   admin_connexion: "Connexion admin",
+  admin_deconnexion: "Déconnexion admin",
+  admin_cree: "Création d’un admin",
+  admin_modifie: "Modification d’un admin",
+  admin_supprime: "Suppression d’un admin",
+  admin_reset_mdp: "Réinitialisation MDP admin",
+  admin_role_change: "Changement de rôle admin",
+  admin_permissions_change: "Changement de permissions",
+  admin_bloque: "Admin bloqué",
+  admin_debloque: "Admin débloqué",
+  admin_super_on: "Superadmin activé",
+  admin_super_off: "Superadmin désactivé",
 };
 
 function formatAdminAction(action) {
@@ -1675,9 +1725,17 @@ function renderAdminEventMeta(ev) {
 function formatAdminEventMetaLines(meta) {
   if (!meta) return [];
   const lines = [];
+  if (meta.actor_admin_id != null) lines.push(`Par admin #${meta.actor_admin_id}`);
+  if (meta.target_admin_id != null) lines.push(`Admin cible #${meta.target_admin_id}`);
   if (meta.operator_id != null) lines.push(`Opérateur #${meta.operator_id}`);
   if (meta.client_id != null) lines.push(`Client #${meta.client_id}`);
   if (meta.admin_id != null) lines.push(`Admin #${meta.admin_id}`);
+  if (meta.role_id != null) lines.push(`Rôle #${meta.role_id}`);
+  if (meta.service_id != null) lines.push(`Service #${meta.service_id}`);
+  if (meta.permissions_count != null) lines.push(`Permissions ${meta.permissions_count}`);
+  if (meta.name) lines.push(`Nom ${meta.name}`);
+  if (meta.email) lines.push(`Email ${meta.email}`);
+  if (meta.phone) lines.push(`Téléphone ${meta.phone}`);
   if (meta.request_id != null) lines.push(`Mission #${meta.request_id}`);
   if (meta.transaction_id != null) lines.push(`Transaction #${meta.transaction_id}`);
   if (meta.withdrawal_id != null) lines.push(`Retrait #${meta.withdrawal_id}`);
@@ -1688,6 +1746,15 @@ function formatAdminEventMetaLines(meta) {
   if (meta.net_amount != null) lines.push(`Net ${meta.net_amount}`);
   if (meta.commission != null) lines.push(`Commission ${meta.commission}`);
   if (meta.status != null) lines.push(`Statut ${meta.status}`);
+  if (meta.commission_percent != null) lines.push(`Commission ${meta.commission_percent}`);
+  if (meta.currency) lines.push(`Devise ${meta.currency}`);
+  if (meta.towing_base_price != null) lines.push(`Base ${meta.towing_base_price}`);
+  if (meta.towing_price_per_km != null) lines.push(`Prix/km ${meta.towing_price_per_km}`);
+  if (meta.tow_base_price != null) lines.push(`Base remorquage ${meta.tow_base_price}`);
+  if (meta.tow_price_per_km != null) lines.push(`Km remorquage ${meta.tow_price_per_km}`);
+  if (meta.support_phone) lines.push(`Support tel ${meta.support_phone}`);
+  if (meta.support_whatsapp) lines.push(`WhatsApp ${meta.support_whatsapp}`);
+  if (meta.support_email) lines.push(`Support email ${meta.support_email}`);
   if (meta.ip) lines.push(`IP ${meta.ip}`);
   if (meta.user_agent) lines.push(`Appareil ${meta.user_agent}`);
   return lines;

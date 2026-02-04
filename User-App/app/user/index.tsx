@@ -13,7 +13,7 @@ import MapView, { Marker, Callout, Region, PROVIDER_GOOGLE } from "react-native-
 import * as Location from "expo-location";
 import * as Animatable from "react-native-animatable";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import Protected from "../../context/protected";

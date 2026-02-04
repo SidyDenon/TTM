@@ -17,14 +17,26 @@ const superOnly = (req, res, next) => {
 };
 
 // parse JSON safely to array
-const safeJson = (str, fallback = []) => {
+const safeJson = (raw, fallback = []) => {
   try {
-    if (!str || typeof str !== "string") return fallback;
-    const parsed = JSON.parse(str);
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
+    if (!raw) return fallback;
+    if (Array.isArray(raw)) return raw;
+    if (raw instanceof Buffer) {
+      const str = raw.toString("utf8").trim();
+      if (!str) return fallback;
+      return safeJson(JSON.parse(str), fallback);
+    }
+    if (typeof raw === "string") {
+      const str = raw.trim();
+      if (!str) return fallback;
+      const parsed = JSON.parse(str);
+      return Array.isArray(parsed) ? parsed : fallback;
+    }
+    if (typeof raw === "object") {
+      return Object.keys(raw).filter((k) => !!raw[k]);
+    }
+  } catch {}
+  return fallback;
 };
 
 const columnExists = async (db, table, column) => {
@@ -45,21 +57,44 @@ const resolveAdminBlockColumn = async (db) => {
   return null;
 };
 
-const uniqueRoleName = async (conn, baseName) => {
-  const trimmed = (baseName || "Personnalisé").trim();
-  let name = trimmed;
-  let i = 1;
-  // Try base, then add suffix if needed
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const [[row]] = await conn.query(
-      "SELECT COUNT(*) AS cnt FROM admin_roles WHERE name = ?",
-      [name]
+const samePerms = (a, b) => {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const setA = new Set(a);
+  for (const p of b) if (!setA.has(p)) return false;
+  return true;
+};
+
+const ensureExtraPermsColumn = async (db) => {
+  const has = await columnExists(db, "admin_users", "extra_permissions");
+  if (has) return true;
+  try {
+    await db.query(
+      "ALTER TABLE admin_users ADD COLUMN extra_permissions JSON NULL"
     );
-    if (Number(row?.cnt || 0) === 0) return name;
-    i += 1;
-    name = `${trimmed} (${i})`;
+    columnCache.set("admin_users:extra_permissions", true);
+    return true;
+  } catch (e) {
+    console.warn("⚠️ extra_permissions column missing and cannot be created:", e?.message || e);
+    return false;
   }
+};
+
+const logAdminEvent = async (db, adminId, action, meta = {}) => {
+  try {
+    if (!db || !adminId) return;
+    await db.query(
+      "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+      [adminId, action, JSON.stringify(meta)]
+    );
+  } catch (e) {
+    console.warn("⚠️ log admin_events (rbac.users):", e?.message || e);
+  }
+};
+
+const logAdminEventForActor = async (db, actorId, action, meta = {}) => {
+  if (!actorId) return;
+  await logAdminEvent(db, actorId, action, meta);
 };
 
 const normalizeRoleLabel = (row) => {
@@ -95,6 +130,10 @@ export default (db) => {
         "r.name AS role_name",
         "r.permissions"
       ];
+      const hasExtraPerms = await columnExists(req.db, "admin_users", "extra_permissions");
+      if (hasExtraPerms) {
+        selectCols.push("u.extra_permissions");
+      }
       if (blockCol) {
         selectCols.push(`u.${blockCol} AS is_blocked`);
       }
@@ -122,6 +161,7 @@ export default (db) => {
         role_id: u.role_id || null,
         role_name: u.role_name || null,
         is_blocked: blockCol ? !!u.is_blocked : null,
+        extra_permissions: hasExtraPerms ? safeJson(u.extra_permissions, []) : [],
         // pour compat front si tu veux aussi "roles: [...]"
         roles: u.role_id
           ? [{ id: u.role_id, name: u.role_name, permissions: safeJson(u.permissions, []) }]
@@ -149,46 +189,28 @@ router.post("/", superOnly, checkPermission("rbac_users_manage"), async (req, re
     const perms = Array.isArray(permissions) ? permissions : [];
     await conn.beginTransaction();
 
-    // Rôle cible : soit role_id, soit on fabrique un rôle custom si des perms sont fournies
+    // Rôle cible : rôle existant obligatoire (pas de rôle personnalisé)
     let targetRoleId = role_id || null;
+    let extraPerms = [];
 
     if (perms.length) {
-      if (targetRoleId) {
-        // Si un rôle est fourni mais ne correspond pas exactement aux perms cochées → créer un rôle custom
-        const [[baseRole]] = await conn.query("SELECT id, name, slug, permissions FROM admin_roles WHERE id = ?", [targetRoleId]);
-        if (!baseRole) {
-          await conn.rollback();
-          return res.status(404).json({ error: "Rôle introuvable" });
-        }
-        if (isSuperRole(baseRole)) {
-          // Superadmin : on garde le rôle et on ignore les perms personnalisées
-        } else {
-        const basePerms = (() => { try { const p = JSON.parse(baseRole.permissions); return Array.isArray(p) ? p : []; } catch { return []; }})();
-        const same = basePerms.length === perms.length && basePerms.every(p => perms.includes(p));
-        if (!same) {
-          const customName = await uniqueRoleName(conn, `Personnalisé - ${name}`);
-          const customSlug = `personnalise_${Date.now()}`;
-          const [insRole] = await conn.query(
-  "INSERT INTO admin_roles (name, slug, `system`, permissions, created_at) VALUES (?, ?, 0, ?, NOW())",
-  [customName, customSlug, JSON.stringify(perms)]
-);
-
-          targetRoleId = insRole.insertId;
-        }
-        }
-      } else {
-        // Pas de role_id → on crée un rôle custom directement
-        const customName = await uniqueRoleName(conn, `Personnalisé - ${name}`);
-        const customSlug = `personnalise_${Date.now()}`;
-        const [insRole] = await conn.query(
-  "INSERT INTO admin_roles (name, slug, `system`, permissions, created_at) VALUES (?, ?, 0, ?, NOW())",
-  [customName, customSlug, JSON.stringify(perms)]
-);
-
-        targetRoleId = insRole.insertId;
+      if (!targetRoleId) {
+        await conn.rollback();
+        return res.status(400).json({ error: "role_id requis (pas de rôle personnalisé)" });
+      }
+      const [[baseRole]] = await conn.query(
+        "SELECT id, name, slug, permissions FROM admin_roles WHERE id = ?",
+        [targetRoleId]
+      );
+      if (!baseRole) {
+        await conn.rollback();
+        return res.status(404).json({ error: "Rôle introuvable" });
+      }
+      if (!isSuperRole(baseRole)) {
+        const basePerms = safeJson(baseRole.permissions, []);
+        extraPerms = perms.filter((p) => !basePerms.includes(p));
       }
     } else if (targetRoleId) {
-      // Rien à faire : on assignera ce rôle
       const [[role]] = await conn.query("SELECT id FROM admin_roles WHERE id = ?", [targetRoleId]);
       if (!role) {
         await conn.rollback();
@@ -204,20 +226,54 @@ router.post("/", superOnly, checkPermission("rbac_users_manage"), async (req, re
     const passwordHash = await bcrypt.hash(tempPassword, 10);
 
     // Créer l’admin
-    const [r] = await conn.query(
-      `INSERT INTO admin_users (name, email, phone, password_hash, is_super, role_id, must_change_password, created_at)
-       VALUES (?, ?, ?, ?, 0, ?, 1, NOW())`,
-      [name, email, phone || null, passwordHash, targetRoleId]
-    );
+    const hasExtra = extraPerms.length ? await ensureExtraPermsColumn(conn) : await columnExists(conn, "admin_users", "extra_permissions");
+    if (extraPerms.length && !hasExtra) {
+      await conn.rollback();
+      return res.status(400).json({ error: "extra_permissions non disponible" });
+    }
+
+    let r;
+    if (hasExtra) {
+      [r] = await conn.query(
+        `INSERT INTO admin_users (name, email, phone, password_hash, is_super, role_id, must_change_password, extra_permissions, created_at)
+         VALUES (?, ?, ?, ?, 0, ?, 1, ?, NOW())`,
+        [name, email, phone || null, passwordHash, targetRoleId, JSON.stringify(extraPerms)]
+      );
+    } else {
+      [r] = await conn.query(
+        `INSERT INTO admin_users (name, email, phone, password_hash, is_super, role_id, must_change_password, created_at)
+         VALUES (?, ?, ?, ?, 0, ?, 1, NOW())`,
+        [name, email, phone || null, passwordHash, targetRoleId]
+      );
+    }
 
     if (targetRoleId) {
-      const [[roleRow]] = await conn.query("SELECT id, name, slug FROM admin_roles WHERE id = ?", [targetRoleId]);
+      const [[roleRow]] = await conn.query(
+        "SELECT id, name, slug FROM admin_roles WHERE id = ?",
+        [targetRoleId]
+      );
       if (roleRow && isSuperRole(roleRow)) {
         await conn.query("UPDATE admin_users SET is_super = 1 WHERE id = ?", [r.insertId]);
       }
     }
 
     await conn.commit();
+    await logAdminEvent(req.db, r.insertId, "admin_cree", {
+      actor_admin_id: req.user?.id,
+      name,
+      email,
+      phone: phone || null,
+      role_id: targetRoleId || null,
+      permissions_count: perms.length,
+    });
+    await logAdminEventForActor(req.db, req.user?.id, "admin_cree", {
+      target_admin_id: r.insertId,
+      name,
+      email,
+      phone: phone || null,
+      role_id: targetRoleId || null,
+      permissions_count: perms.length,
+    });
 
     // Envoyer l’email (on ne fait pas échouer si ça plante)
     try {
@@ -272,12 +328,28 @@ Important : changez votre mot de passe à la première connexion.`,
       const [[role]] = await req.db.query("SELECT id, name, slug FROM admin_roles WHERE id = ?", [role_id]);
       if (!role) return res.status(404).json({ error: "Rôle introuvable" });
 
-      // pas d'updated_at si la colonne n'existe pas
-      await req.db.query("UPDATE admin_users SET role_id = ? WHERE id = ?", [role_id, id]);
+      const hasExtra = await columnExists(req.db, "admin_users", "extra_permissions");
+      // Reset extra permissions on role change to avoid stale grants
+      if (hasExtra) {
+        await req.db.query(
+          "UPDATE admin_users SET role_id = ?, extra_permissions = ? WHERE id = ?",
+          [role_id, JSON.stringify([]), id]
+        );
+      } else {
+        await req.db.query("UPDATE admin_users SET role_id = ? WHERE id = ?", [role_id, id]);
+      }
       if (isSuperRole(role)) {
         await req.db.query("UPDATE admin_users SET is_super = 1 WHERE id = ?", [id]);
       }
 
+      await logAdminEvent(req.db, Number(id), "admin_role_change", {
+        actor_admin_id: req.user?.id,
+        role_id,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, "admin_role_change", {
+        target_admin_id: Number(id),
+        role_id,
+      });
       res.json({ message: "Rôle assigné ✅" });
     } catch (e) {
       console.error("❌ PUT /rbac/users/:id/role:", e);
@@ -324,6 +396,18 @@ Important : changez votre mot de passe à la première connexion.`,
         [nextName, nextEmail, nextPhone, id]
       );
 
+      await logAdminEvent(req.db, Number(id), "admin_modifie", {
+        actor_admin_id: req.user?.id,
+        name: nextName,
+        email: nextEmail,
+        phone: nextPhone,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, "admin_modifie", {
+        target_admin_id: Number(id),
+        name: nextName,
+        email: nextEmail,
+        phone: nextPhone,
+      });
       const [[row]] = await req.db.query(
         `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super, u.role_id,
                 r.name AS role_name, r.permissions
@@ -371,6 +455,12 @@ Important : changez votre mot de passe à la première connexion.`,
         `UPDATE admin_users SET ${blockCol} = ? WHERE id = ?`,
         [blocked ? 1 : 0, id]
       );
+      await logAdminEvent(req.db, Number(id), blocked ? "admin_bloque" : "admin_debloque", {
+        actor_admin_id: req.user?.id,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, blocked ? "admin_bloque" : "admin_debloque", {
+        target_admin_id: Number(id),
+      });
       res.json({
         message: blocked ? "Admin bloqué ✅" : "Admin débloqué ✅",
         data: { id: Number(id), is_blocked: !!blocked },
@@ -411,6 +501,12 @@ Important : changez votre mot de passe à la première connexion.`,
         }
       }
 
+      await logAdminEvent(req.db, Number(id), "admin_reset_mdp", {
+        actor_admin_id: req.user?.id,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, "admin_reset_mdp", {
+        target_admin_id: Number(id),
+      });
       res.json({
         message: admin.email
           ? "Mot de passe réinitialisé et envoyé par email ✅"
@@ -430,45 +526,44 @@ Important : changez votre mot de passe à la première connexion.`,
       const { id } = req.params;
       const { role_id, permissions = [] } = req.body || {};
       const perms = Array.isArray(permissions) ? permissions : [];
+      console.log("🧩 RBAC update permissions (in):", {
+        target_admin_id: Number(id),
+        actor_admin_id: req.user?.id,
+        role_id,
+        permissions_count: perms.length,
+      });
 
       const [[admin]] = await conn.query("SELECT id, name, role_id FROM admin_users WHERE id = ?", [id]);
       if (!admin) return res.status(404).json({ error: "Admin introuvable" });
 
       await conn.beginTransaction();
 
-      // Rôle cible : soit role_id, soit on fabrique un rôle custom si des perms sont fournies
+      // Rôle cible : rôle existant obligatoire (pas de rôle personnalisé)
       let targetRoleId = role_id || null;
+      let extraPerms = [];
 
       if (perms.length) {
-        if (targetRoleId) {
-          const [[baseRole]] = await conn.query("SELECT id, name, slug, permissions FROM admin_roles WHERE id = ?", [targetRoleId]);
-          if (!baseRole) {
-            await conn.rollback();
-            return res.status(404).json({ error: "Rôle introuvable" });
-          }
-          if (isSuperRole(baseRole)) {
-            // Superadmin : on garde le rôle et on ignore les perms personnalisées
-          } else {
+        if (!targetRoleId) {
+          await conn.rollback();
+          return res.status(400).json({ error: "role_id requis (pas de rôle personnalisé)" });
+        }
+        const [[baseRole]] = await conn.query(
+          "SELECT id, name, slug, permissions FROM admin_roles WHERE id = ?",
+          [targetRoleId]
+        );
+        if (!baseRole) {
+          await conn.rollback();
+          return res.status(404).json({ error: "Rôle introuvable" });
+        }
+        if (!isSuperRole(baseRole)) {
           const basePerms = safeJson(baseRole.permissions, []);
-          const same = basePerms.length === perms.length && basePerms.every(p => perms.includes(p));
-          if (!same) {
-            const customName = await uniqueRoleName(conn, `Personnalisé - ${admin.name || "Admin"}`);
-            const customSlug = `personnalise_${Date.now()}`;
-            const [insRole] = await conn.query(
-              "INSERT INTO admin_roles (name, slug, `system`, permissions, created_at) VALUES (?, ?, 0, ?, NOW())",
-              [customName, customSlug, JSON.stringify(perms)]
-            );
-            targetRoleId = insRole.insertId;
-          }
-          }
-        } else {
-          const customName = await uniqueRoleName(conn, `Personnalisé - ${admin.name || "Admin"}`);
-          const customSlug = `personnalise_${Date.now()}`;
-          const [insRole] = await conn.query(
-            "INSERT INTO admin_roles (name, slug, `system`, permissions, created_at) VALUES (?, ?, 0, ?, NOW())",
-            [customName, customSlug, JSON.stringify(perms)]
-          );
-          targetRoleId = insRole.insertId;
+          extraPerms = perms.filter((p) => !basePerms.includes(p));
+          console.log("🧩 RBAC base perms / extra perms:", {
+            target_admin_id: Number(id),
+            role_id: targetRoleId,
+            base_permissions_count: basePerms.length,
+            extra_permissions_count: extraPerms.length,
+          });
         }
       } else if (targetRoleId) {
         const [[role]] = await conn.query("SELECT id FROM admin_roles WHERE id = ?", [targetRoleId]);
@@ -481,7 +576,20 @@ Important : changez votre mot de passe à la première connexion.`,
         return res.status(400).json({ error: "role_id ou permissions requis" });
       }
 
-      await conn.query("UPDATE admin_users SET role_id = ? WHERE id = ?", [targetRoleId, id]);
+      const hasExtra = extraPerms.length ? await ensureExtraPermsColumn(conn) : await columnExists(conn, "admin_users", "extra_permissions");
+      if (extraPerms.length && !hasExtra) {
+        await conn.rollback();
+        return res.status(400).json({ error: "extra_permissions non disponible" });
+      }
+
+      if (hasExtra) {
+        await conn.query(
+          "UPDATE admin_users SET role_id = ?, extra_permissions = ? WHERE id = ?",
+          [targetRoleId, JSON.stringify(extraPerms), id]
+        );
+      } else {
+        await conn.query("UPDATE admin_users SET role_id = ? WHERE id = ?", [targetRoleId, id]);
+      }
       if (targetRoleId) {
         const [[roleRow]] = await conn.query("SELECT id, name, slug FROM admin_roles WHERE id = ?", [targetRoleId]);
         if (roleRow && isSuperRole(roleRow)) {
@@ -489,21 +597,38 @@ Important : changez votre mot de passe à la première connexion.`,
         }
       }
       await conn.commit();
+      await logAdminEvent(req.db, Number(id), "admin_permissions_change", {
+        actor_admin_id: req.user?.id,
+        role_id: targetRoleId || null,
+        permissions_count: perms.length,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, "admin_permissions_change", {
+        target_admin_id: Number(id),
+        role_id: targetRoleId || null,
+        permissions_count: perms.length,
+      });
 
       const [[row]] = await conn.query(
-        `SELECT u.id, u.role_id, r.name AS role_name, r.permissions
+        `SELECT u.id, u.role_id, r.name AS role_name, r.permissions, u.extra_permissions
          FROM admin_users u
          LEFT JOIN admin_roles r ON r.id = u.role_id
          WHERE u.id = ?`,
         [id]
       );
       const rolePerms = safeJson(row?.permissions, []);
+      console.log("🧩 RBAC update permissions (out):", {
+        target_admin_id: Number(id),
+        role_id: row?.role_id || null,
+        role_permissions_count: rolePerms.length,
+        extra_permissions_count: safeJson(row?.extra_permissions, []).length,
+      });
       res.json({
         message: "Permissions mises à jour ✅",
         data: {
           id: row.id,
           role_id: row.role_id || null,
           role_name: row.role_name || null,
+          extra_permissions: safeJson(row?.extra_permissions, []),
           roles: row.role_id ? [{ id: row.role_id, name: row.role_name, permissions: rolePerms }] : [],
         },
       });
@@ -527,6 +652,12 @@ Important : changez votre mot de passe à la première connexion.`,
       const newStatus = admin.is_super ? 0 : 1;
       await req.db.query("UPDATE admin_users SET is_super = ? WHERE id = ?", [newStatus, id]);
 
+      await logAdminEvent(req.db, Number(id), newStatus ? "admin_super_on" : "admin_super_off", {
+        actor_admin_id: req.user?.id,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, newStatus ? "admin_super_on" : "admin_super_off", {
+        target_admin_id: Number(id),
+      });
       res.json({ message: newStatus ? "Superadmin attribué ✅" : "Superadmin retiré ✅" });
     } catch (e) {
       console.error("❌ PATCH /rbac/users/:id/super:", e);
@@ -545,6 +676,12 @@ Important : changez votre mot de passe à la première connexion.`,
         return res.status(400).json({ error: "Impossible de supprimer son propre compte" });
       }
 
+      await logAdminEvent(req.db, Number(id), "admin_supprime", {
+        actor_admin_id: req.user?.id,
+      });
+      await logAdminEventForActor(req.db, req.user?.id, "admin_supprime", {
+        target_admin_id: Number(id),
+      });
       await req.db.query("DELETE FROM admin_users WHERE id = ?", [id]);
       res.json({ message: "Administrateur supprimé ✅" });
     } catch (e) {

@@ -3,13 +3,13 @@ import * as Haptics from "expo-haptics";
 import { API_URL } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
-import Notifications, { getExpoPushTokenSafe } from "../app/lib/expoNotifications";
+import Notifications, { getExpoPushTokenSafe } from "../lib/expoNotifications";
 import {
   canUseNotifications as notificationsAvailable,
   requestNotificationPermission,
   setupNotificationChannel,
   showLocalNotification,
-} from "../app/lib/notifications";
+} from "../lib/notifications";
 
 /**
  * Hook de notifications temps réel pour l'opérateur

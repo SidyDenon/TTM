@@ -7,9 +7,19 @@ export function isSuper(me) {
 
 // Alias tolérants pour aligner front/back
 const PERM_ALIASES = {
-  dashboard_view: "can_view_dashboard",
+  can_view_dashboard: "dashboard_view",
   demandes_view: "requests_view",
   demandes_manage: "requests_manage",
+  can_view_services: "services_view",
+  can_manage_services: "services_manage",
+  can_view_config: "config_view",
+  can_manage_config: "config_manage",
+  stats_view: "chart_view",
+  requests_publish: "requests_manage",
+  requests_assign: "requests_manage",
+  requests_cancel: "requests_manage",
+  requests_complete: "requests_manage",
+  requests_delete: "requests_manage",
   // harmonisation transactions/retraits
   transactions_confirm: "transactions_manage",
   withdrawals_approve: "withdrawals_manage",

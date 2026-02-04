@@ -11,6 +11,18 @@ import {
 
 const router = express.Router();
 
+const logAdminEvent = async (db, adminId, action, meta = {}) => {
+  try {
+    if (!db || !adminId) return;
+    await db.query(
+      "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+      [adminId, action, JSON.stringify(meta)]
+    );
+  } catch (e) {
+    console.warn("⚠️ log admin_events (services):", e?.message || e);
+  }
+};
+
 // 📁 Dossier d’upload des icônes
 const uploadDir = "uploads/services";
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -311,6 +323,12 @@ export default (db) => {
           icon: hasIconNameColumn ? iconName : null,
         };
 
+        await logAdminEvent(req.db, req.user?.id, "service_cree", {
+          service_id: result.insertId,
+          name,
+          price: Number(price),
+        });
+
         res.json({ message: "Service ajouté ✅", data: newService });
       } catch (err) {
         console.error("❌ Erreur POST /services:", err);
@@ -387,6 +405,12 @@ export default (db) => {
         [req.params.id]
       );
 
+      await logAdminEvent(req.db, req.user?.id, "service_modifie", {
+        service_id: Number(req.params.id),
+        name: updated?.name ?? null,
+        price: updated?.price != null ? Number(updated.price) : null,
+      });
+
       res.json({
         message: "Service mis à jour ✅",
         data: {
@@ -430,6 +454,11 @@ export default (db) => {
         await req.db.query("DELETE FROM services WHERE id = ?", [
           req.params.id,
         ]);
+        await logAdminEvent(req.db, req.user?.id, "service_supprime", {
+          service_id: Number(req.params.id),
+          name: service?.name ?? null,
+          price: service?.price != null ? Number(service.price) : null,
+        });
         res.json({ message: "Service supprimé ✅" });
       } catch (err) {
         console.error("❌ Erreur DELETE /services:", err);

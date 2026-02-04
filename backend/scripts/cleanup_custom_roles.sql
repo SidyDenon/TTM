@@ -1,0 +1,24 @@
+-- Cleanup orphaned custom roles created by old logic.
+-- Review the SELECT before running DELETE.
+
+-- 1) Preview candidates
+-- SELECT r.id, r.name, r.slug
+-- FROM admin_roles r
+-- LEFT JOIN admin_users u ON u.role_id = r.id
+-- WHERE u.id IS NULL
+--   AND r.`system` = 0
+--   AND (
+--     r.slug LIKE 'personnalise_%'
+--     OR r.slug LIKE 'custom_admin_%'
+--   );
+
+-- 2) Delete orphaned custom roles (uncomment to execute)
+-- DELETE r
+-- FROM admin_roles r
+-- LEFT JOIN admin_users u ON u.role_id = r.id
+-- WHERE u.id IS NULL
+--   AND r.`system` = 0
+--   AND (
+--     r.slug LIKE 'personnalise_%'
+--     OR r.slug LIKE 'custom_admin_%'
+--   );

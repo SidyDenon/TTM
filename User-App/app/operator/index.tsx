@@ -28,7 +28,7 @@ import { API_URL } from "../../utils/api";
 import { formatCurrency } from "../../utils/format";
 import { useAuth } from "../../context/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import Loader from "../../components/Loader";
@@ -37,6 +37,7 @@ import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
 import { blue } from "react-native-reanimated/lib/typescript/Colors";
 import { API_BASE } from "../../utils/api";
+import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
 
 const logoutAnim = require("../../assets/animations/ttmload.json");
 
@@ -339,6 +340,21 @@ useEffect(() => {
     });
   };
 
+  const onMissionsPending = (payload: any) => {
+    const count = Number(payload?.count || 0);
+    if (!Number.isFinite(count) || count <= 0) return;
+    const title = "Missions en attente";
+    const message =
+      count === 1
+        ? "1 mission disponible dans votre zone."
+        : `${count} missions disponibles dans votre zone.`;
+
+    notify(title, message, "info");
+    if (canUseNotifications && Platform.OS !== "web") {
+      showLocalNotification(title, message).catch(() => {});
+    }
+  };
+
   // -------------------------------
   // 🔄 Fonction commune pour ADD/UPDATE
   // -------------------------------
@@ -430,6 +446,7 @@ useEffect(() => {
   socket.on("mission:updated", onMissionUpdated);
   socket.on("mission:status_changed", onMissionStatus);
   socket.on("mission:deleted", onMissionDeleted);
+  socket.on("missions_pending", onMissionsPending);
 
   // -------------------------------
   // 🧹 CLEAN-UP
@@ -439,6 +456,7 @@ useEffect(() => {
     socket.off("mission:updated", onMissionUpdated);
     socket.off("mission:status_changed", onMissionStatus);
     socket.off("mission:deleted", onMissionDeleted);
+    socket.off("missions_pending", onMissionsPending);
   };
 }, [socket]);
 

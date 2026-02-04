@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 
 const logoutAnim = require("../../assets/animations/ttmload.json");
 

@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../utils/api";
 import { MaterialIcons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 import Loader from "../../components/Loader";
 
 type MissionPayment = {

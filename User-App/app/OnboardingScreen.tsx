@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, StatusBar } from "r
 import Onboarding from "react-native-onboarding-swiper";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import LottieView from "lottie-react-native";
+import LottieView from "../components/Lottie";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";

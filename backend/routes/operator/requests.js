@@ -1,7 +1,7 @@
 //routes/operator/requests.js
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { io, emitMissionEvent } from "../../server.js";
+import { io, emitMissionEvent } from "../../socket/index.js";
 import { sendPushNotification } from "../../utils/sendPush.js";
 import { buildPublicUrl } from "../../config/links.js";
 import { getSchemaColumns } from "../../utils/schema.js";
@@ -15,6 +15,57 @@ const isOperatorRole = (role = "") =>
 
 const TOWING_PRICE_PER_KM = 500;
 const TOWING_RADIUS_KM = Number(process.env.TOWING_RADIUS_KM || 100);
+
+let alertsColumnCache = null;
+async function ensureOperatorAlertsColumn(db) {
+  if (alertsColumnCache !== null) return alertsColumnCache;
+  try {
+    const [[row]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'operators' AND COLUMN_NAME = 'pending_alerts_enabled'"
+    );
+    if (Number(row?.cnt || 0) > 0) {
+      alertsColumnCache = "pending_alerts_enabled";
+      return alertsColumnCache;
+    }
+    await db.query(
+      "ALTER TABLE operators ADD COLUMN pending_alerts_enabled TINYINT(1) NOT NULL DEFAULT 1"
+    );
+    alertsColumnCache = "pending_alerts_enabled";
+    return alertsColumnCache;
+  } catch (err) {
+    console.warn("⚠️ pending_alerts_enabled column missing and cannot be created:", err?.message || err);
+    alertsColumnCache = null;
+    return null;
+  }
+}
+
+async function getOperatorMissionRadiusKm(db) {
+  try {
+    const [[row]] = await db.query(
+      "SELECT operator_mission_radius_km FROM configurations LIMIT 1"
+    );
+    const fromDb = Number(row?.operator_mission_radius_km);
+    if (Number.isFinite(fromDb) && fromDb > 0) return fromDb;
+  } catch {
+    // ignore
+  }
+  const fromEnv = Number(process.env.OPERATOR_MISSION_RADIUS_KM || 5);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 5;
+}
+
+async function getOperatorTowingRadiusKm(db) {
+  try {
+    const [[row]] = await db.query(
+      "SELECT operator_towing_radius_km FROM configurations LIMIT 1"
+    );
+    const fromDb = Number(row?.operator_towing_radius_km);
+    if (Number.isFinite(fromDb) && fromDb > 0) return fromDb;
+  } catch {
+    // ignore
+  }
+  const fromEnv = Number(process.env.TOWING_RADIUS_KM || 100);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 100;
+}
 
 async function loadTowingConfig(db) {
   try {
@@ -359,8 +410,12 @@ export default (db) => {
       return res.status(403).json({ error: "Accès refusé" });
     }
     try {
+      const { operatorAlerts } = await getSchemaColumns(req.db);
+      const alertSelect = operatorAlerts
+        ? `, ${operatorAlerts} AS pending_alerts_enabled`
+        : "";
       const [[profile]] = await req.db.query(
-        "SELECT user_id, ville, quartier, lat, lng FROM operators WHERE user_id = ?",
+        `SELECT user_id, ville, quartier, lat, lng${alertSelect} FROM operators WHERE user_id = ?`,
         [req.user.id]
       );
       if (!profile) {
@@ -371,11 +426,48 @@ export default (db) => {
         data: {
           name: req.user.name || null,
           phone: req.user.phone || null,
+          pending_alerts_enabled:
+            profile.pending_alerts_enabled == null
+              ? 1
+              : Number(profile.pending_alerts_enabled),
           ...profile,
         },
       });
     } catch (err) {
       console.error("❌ Erreur GET /operator/profile:", err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+  router.put("/profile/alerts", authMiddleware, async (req, res) => {
+    if (!isOperatorRole(req.user.role)) {
+      return res.status(403).json({ error: "Accès refusé" });
+    }
+    try {
+      const { pending_alerts_enabled } = req.body || {};
+      const enabled =
+        pending_alerts_enabled === undefined
+          ? null
+          : pending_alerts_enabled
+          ? 1
+          : 0;
+
+      const col = await ensureOperatorAlertsColumn(req.db);
+      if (!col) {
+        return res.status(500).json({ error: "Colonne pending_alerts_enabled indisponible" });
+      }
+
+      await req.db.query(
+        `UPDATE operators SET ${col} = ? WHERE user_id = ?`,
+        [enabled == null ? 1 : enabled, req.user.id]
+      );
+
+      res.json({
+        message: "Préférence d’alertes mise à jour ✅",
+        data: { pending_alerts_enabled: enabled == null ? 1 : enabled },
+      });
+    } catch (err) {
+      console.error("❌ Erreur PUT /operator/profile/alerts:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -451,8 +543,9 @@ export default (db) => {
           .json({ error: "Profil opérateur introuvable ou sans coordonnées" });
       }
 
-      const radiusKm = Math.max(1, Math.min(30, Number(req.query.radius) || 5));
-      const towingRadiusKm = TOWING_RADIUS_KM;
+      const baseRadius = await getOperatorMissionRadiusKm(req.db);
+      const radiusKm = Math.max(1, Math.min(30, Number(baseRadius)));
+      const towingRadiusKm = await getOperatorTowingRadiusKm(req.db);
       let rows;
       const towingConfig = await loadTowingConfig(req.db);
 
@@ -560,9 +653,10 @@ export default (db) => {
           .json({ error: "Profil opérateur introuvable ou sans coordonnées" });
       }
 
-      const radiusKm = Math.max(1, Math.min(30, Number(req.query.radius) || 5));
+      const baseRadius = await getOperatorMissionRadiusKm(req.db);
+      const radiusKm = Math.max(1, Math.min(30, Number(baseRadius)));
 
-      const towingRadiusKm = TOWING_RADIUS_KM;
+      const towingRadiusKm = await getOperatorTowingRadiusKm(req.db);
 
       const [rows] = await req.db.query(
         `SELECT * FROM (

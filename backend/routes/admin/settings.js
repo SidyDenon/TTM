@@ -4,6 +4,18 @@ import { loadAdminPermissions, checkPermission } from "../../middleware/checkPer
 
 const router = express.Router();
 
+const logAdminEvent = async (db, adminId, action, meta = {}) => {
+  try {
+    if (!db || !adminId) return;
+    await db.query(
+      "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+      [adminId, action, JSON.stringify(meta)]
+    );
+  } catch (e) {
+    console.warn("⚠️ log admin_events (settings):", e?.message || e);
+  }
+};
+
 export default (db) => {
   // 🔗 Injection de la DB
   router.use((req, _res, next) => {
@@ -33,6 +45,12 @@ export default (db) => {
         "INSERT INTO services (name, description, price, icon_url) VALUES (?, ?, ?, ?)",
         [name, description || null, numPrice, icon_url || null]
       );
+
+      await logAdminEvent(req.db, req.user?.id, "service_cree", {
+        service_id: result.insertId,
+        name,
+        price: numPrice,
+      });
 
       res.json({ message: "Service ajouté ✅", id: result.insertId });
     } catch (err) {
@@ -81,6 +99,12 @@ export default (db) => {
         ]
       );
 
+      await logAdminEvent(req.db, req.user?.id, "service_modifie", {
+        service_id: Number(id),
+        name: name || current.name,
+        price: numPrice,
+      });
+
       res.json({ message: "Service mis à jour ✅" });
     } catch (err) {
       console.error("❌ Erreur update service:", err);
@@ -96,6 +120,11 @@ export default (db) => {
       if (rows.length === 0) return res.status(404).json({ error: "Service introuvable" });
 
       await req.db.query("DELETE FROM services WHERE id = ?", [id]);
+      await logAdminEvent(req.db, req.user?.id, "service_supprime", {
+        service_id: Number(id),
+        name: rows[0]?.name ?? null,
+        price: rows[0]?.price != null ? Number(rows[0].price) : null,
+      });
       res.json({ message: "Service supprimé ✅" });
     } catch (err) {
       console.error("❌ Erreur delete service:", err);
@@ -183,6 +212,11 @@ export default (db) => {
         [newCommission, newCurrency, id]
       );
 
+      await logAdminEvent(req.db, req.user?.id, "config_update", {
+        commission_percent: newCommission,
+        currency: newCurrency,
+      });
+
       res.json({ message: "Configuration mise à jour ✅" });
     } catch (err) {
       console.error("❌ Erreur update config:", err);
@@ -249,6 +283,11 @@ router.put("/tow-pricing", checkPermission("config_manage"), async (req, res) =>
        ON DUPLICATE KEY UPDATE value = VALUES(value)`,
       [String(perKm)]
     );
+
+    await logAdminEvent(req.db, req.user?.id, "tow_pricing_update", {
+      tow_base_price: base,
+      tow_price_per_km: perKm,
+    });
 
     res.json({
       message: "Tarifs remorquage mis à jour ✅",

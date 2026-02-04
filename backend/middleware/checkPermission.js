@@ -3,9 +3,19 @@ import globalDb from "../config/db.js";
 
 // Alias de permissions pour aligner les slugs front/back
 const PERM_ALIASES = {
-  dashboard_view: "can_view_dashboard",
+  can_view_dashboard: "dashboard_view",
   demandes_view: "requests_view",
   demandes_manage: "requests_manage",
+  can_view_services: "services_view",
+  can_manage_services: "services_manage",
+  can_view_config: "config_view",
+  can_manage_config: "config_manage",
+  stats_view: "chart_view",
+  requests_publish: "requests_manage",
+  requests_assign: "requests_manage",
+  requests_cancel: "requests_manage",
+  requests_complete: "requests_manage",
+  requests_delete: "requests_manage",
   // Alignement finance
   transactions_confirm: "transactions_manage",
   withdrawals_approve: "withdrawals_manage",
@@ -22,6 +32,23 @@ const PERM_ALIASES = {
   operators_reset_password: "operators_manage",
 };
 const canon = (p) => PERM_ALIASES[p] || p;
+
+let extraPermsChecked = false;
+let hasExtraPermsColumn = false;
+
+const resolveExtraPermsColumn = async (db) => {
+  if (extraPermsChecked) return hasExtraPermsColumn;
+  try {
+    const [[row]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'extra_permissions'"
+    );
+    hasExtraPermsColumn = Number(row?.cnt || 0) > 0;
+  } catch {
+    hasExtraPermsColumn = false;
+  }
+  extraPermsChecked = true;
+  return hasExtraPermsColumn;
+};
 
 /** Parse permissif & normalisation → renvoie toujours un tableau de strings */
 function parsePermissions(raw) {
@@ -77,10 +104,11 @@ export async function loadAdminPermissions(req, res, next) {
       return next();
     }
 
-    // NOTE: on NE sélectionne PAS u.extra_permissions (colonne absente chez toi)
+    const hasExtra = await resolveExtraPermsColumn(req.db);
+    const extraSelect = hasExtra ? ", u.extra_permissions" : "";
     const [[row]] = await req.db.query(
       `
-      SELECT u.id, u.is_super, u.role_id,
+      SELECT u.id, u.is_super, u.role_id${extraSelect},
              r.name AS role_name,
              r.slug AS role_slug,
              r.permissions AS role_permissions
@@ -122,11 +150,12 @@ export async function loadAdminPermissions(req, res, next) {
     };
 
     const rolePerms = toArray(row.role_permissions).map(canon);
+    const extraPerms = hasExtra ? toArray(row.extra_permissions).map(canon) : [];
     const roleLabelRaw = String(row.role_slug || row.role_name || "").toLowerCase().trim();
     const roleLabel = roleLabelRaw.replace(/[^a-z0-9]/g, "");
     const roleIsSuper = roleLabel === "superadmin";
     // pas d'extraPerms → []
-    req.adminPermissions = Array.from(new Set(rolePerms));
+    req.adminPermissions = Array.from(new Set([...rolePerms, ...extraPerms]));
     req.adminPerms = new Set(req.adminPermissions);
     req.isSuperAdmin = !!row.is_super || roleIsSuper;
 

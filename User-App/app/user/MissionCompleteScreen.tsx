@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 
 export default function MissionCompleteScreen() {
   const router = useRouter();

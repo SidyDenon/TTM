@@ -81,6 +81,8 @@ export default function Settings() {
   const [commission, setCommission] = useState("");              // %
   const [towingPricePerKm, setTowingPricePerKm] = useState("");  // prix / km
   const [towingBasePrice, setTowingBasePrice] = useState("");    // prix de base
+  const [operatorMissionRadius, setOperatorMissionRadius] = useState(""); // rayon standard
+  const [operatorTowingRadius, setOperatorTowingRadius] = useState(""); // rayon remorquage
   const [currency, setCurrency] = useState("FCFA");               // devise
   const [supportPhone, setSupportPhone] = useState("");
   const [supportWhatsApp, setSupportWhatsApp] = useState("");
@@ -98,6 +100,8 @@ export default function Settings() {
     commission_percent: Number(commission),
     towing_price_per_km: Number(towingPricePerKm),
     towing_base_price: Number(towingBasePrice),
+    operator_mission_radius_km: Number(operatorMissionRadius),
+    operator_towing_radius_km: Number(operatorTowingRadius),
     currency: currValue,
     support_phone: supportPhone.trim(),
     support_whatsapp: supportWhatsApp.trim(),
@@ -242,6 +246,8 @@ export default function Settings() {
       setCommission(String(data.commission_percent ?? "0"));
       setTowingPricePerKm(String(data.towing_price_per_km ?? "0"));
       setTowingBasePrice(String(data.towing_base_price ?? "0"));
+      setOperatorMissionRadius(String(data.operator_mission_radius_km ?? "5"));
+      setOperatorTowingRadius(String(data.operator_towing_radius_km ?? "100"));
       setCurrency(data.currency || "FCFA");
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
@@ -467,6 +473,8 @@ export default function Settings() {
     const pct = Number(commission);
     const priceKm = Number(towingPricePerKm);
     const basePrice = Number(towingBasePrice);
+    const missionRadius = Number(operatorMissionRadius);
+    const towingRadius = Number(operatorTowingRadius);
 
     if (isNaN(pct) || pct < 0 || pct > 100) {
       return toast.error("Pourcentage invalide (0–100)");
@@ -476,6 +484,12 @@ export default function Settings() {
     }
     if (isNaN(basePrice) || basePrice < 0) {
       return toast.error("Prix de base invalide");
+    }
+    if (isNaN(missionRadius) || missionRadius <= 0 || missionRadius > 200) {
+      return toast.error("Rayon missions standard invalide (1–200 km)");
+    }
+    if (isNaN(towingRadius) || towingRadius <= 0 || towingRadius > 200) {
+      return toast.error("Rayon remorquage invalide (1–200 km)");
     }
 
     const curr =
@@ -1118,6 +1132,44 @@ export default function Settings() {
                       borderColor: "var(--border-color)",
                     }}
                     placeholder="Ex: FCFA"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Rayon missions standard (km)
+                  </label>
+                  <input
+                    type="number"
+                    value={operatorMissionRadius}
+                    onChange={(e) => setOperatorMissionRadius(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Ex: 5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm opacity-70 mb-1">
+                    Rayon remorquage (km)
+                  </label>
+                  <input
+                    type="number"
+                    value={operatorTowingRadius}
+                    onChange={(e) => setOperatorTowingRadius(e.target.value)}
+                    disabled={!canManageConfig}
+                    className="w-full p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Ex: 100"
                   />
                 </div>
               </div>

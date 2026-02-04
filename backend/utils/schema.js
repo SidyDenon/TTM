@@ -29,7 +29,12 @@ export async function getSchemaColumns(db) {
   const operatorDispo = await resolveColumn(db, "operators", ["dispo", "available", "is_available"]);
   const operatorCreatedAt = await resolveColumn(db, "operators", ["created_at"]);
   const operatorInternal = await resolveColumn(db, "operators", ["is_internal", "ttm_internal"]);
-  return { clientAddress, operatorDispo, operatorCreatedAt, operatorInternal };
+  const operatorAlerts = await resolveColumn(db, "operators", [
+    "pending_alerts_enabled",
+    "alerts_enabled",
+    "mission_alerts_enabled",
+  ]);
+  return { clientAddress, operatorDispo, operatorCreatedAt, operatorInternal, operatorAlerts };
 }
 
 export default { getSchemaColumns };

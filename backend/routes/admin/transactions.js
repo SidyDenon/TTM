@@ -1,6 +1,6 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { io, notifyUser } from "../../server.js";
+import { io, notifyUser } from "../../socket/index.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import { getCommissionPercent } from "../../utils/commission.js";
 

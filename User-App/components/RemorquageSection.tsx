@@ -12,6 +12,7 @@ import MapView, { Marker, MapPressEvent } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import Loader from "./Loader";
+import { GOOGLE_MAPS_API_KEY } from "../config/urls";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -32,9 +33,6 @@ type Props = {
     border: string;
   };
 };
-
-// ⚠️ Mets ici ta vraie clé API (ou via env si tu préfères)
-const GOOGLE_PLACES_API_KEY = "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
 
 type PlacePrediction = {
   place_id: string;
@@ -84,8 +82,8 @@ export const RemorquageSection: React.FC<Props> = ({
 
   // 🔍 Autocomplete Google Places
   useEffect(() => {
-    if (!GOOGLE_PLACES_API_KEY) {
-      console.warn("❌ GOOGLE_PLACES_API_KEY manquante");
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn("❌ GOOGLE_MAPS_API_KEY manquante");
       return;
     }
 
@@ -102,7 +100,7 @@ export const RemorquageSection: React.FC<Props> = ({
 
         const params = new URLSearchParams({
           input: query.trim(),
-          key: GOOGLE_PLACES_API_KEY,
+          key: GOOGLE_MAPS_API_KEY,
           language: "fr",
         });
 
@@ -188,7 +186,7 @@ export const RemorquageSection: React.FC<Props> = ({
       setLoadingSuggestions(true);
       setSuggestError(null);
 
-      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}&key=${GOOGLE_PLACES_API_KEY}&language=fr`;
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
       const res = await fetch(url);
       const json = await res.json();
 
@@ -228,10 +226,10 @@ export const RemorquageSection: React.FC<Props> = ({
       setMapPreparing(true);
 
       // Si on n’a pas encore de coords mais qu’il y a un texte → géocodage
-      if (!destinationCoords && query.trim().length >= 3 && GOOGLE_PLACES_API_KEY) {
+      if (!destinationCoords && query.trim().length >= 3 && GOOGLE_MAPS_API_KEY) {
         const params = new URLSearchParams({
           address: query.trim(),
-          key: GOOGLE_PLACES_API_KEY,
+          key: GOOGLE_MAPS_API_KEY,
         });
         if (countryCode) {
           params.append("components", `country:${countryCode}`);

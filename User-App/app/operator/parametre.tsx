@@ -1,17 +1,42 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
-import LottieView from "lottie-react-native";
+import LottieView from "../../components/Lottie";
 
 const logoutAnim = require("../../assets/animations/ttmload.json");
 
 export default function ParametreScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, apiFetch } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsSaving, setAlertsSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadAlerts = async () => {
+      try {
+        const data = await apiFetch("/operator/profile");
+        const enabled =
+          data?.data?.pending_alerts_enabled == null
+            ? 1
+            : Number(data.data.pending_alerts_enabled);
+        if (active) setAlertsEnabled(enabled !== 0);
+      } catch (err) {
+        // On garde true par défaut en cas d'échec réseau
+      } finally {
+        if (active) setAlertsLoading(false);
+      }
+    };
+    loadAlerts();
+    return () => {
+      active = false;
+    };
+  }, [apiFetch]);
 
   const handleLogout = () => {
     Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
@@ -63,6 +88,43 @@ export default function ParametreScreen() {
       </View>
 
       <View style={styles.list}>
+        <View style={styles.option}>
+          <View style={styles.optionLeft}>
+            <MaterialIcons name="notifications-active" size={22} color="#E53935" />
+            <View>
+              <Text style={styles.optionText}>Alertes missions en attente</Text>
+              <Text style={styles.optionSub}>
+                {alertsLoading
+                  ? "Chargement…"
+                  : alertsEnabled
+                  ? "Activées"
+                  : "Désactivées"}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={alertsEnabled}
+            disabled={alertsLoading || alertsSaving}
+            onValueChange={async (next) => {
+              setAlertsEnabled(next);
+              setAlertsSaving(true);
+              try {
+                await apiFetch("/operator/profile/alerts", {
+                  method: "PUT",
+                  body: JSON.stringify({ pending_alerts_enabled: next }),
+                });
+              } catch (err: any) {
+                setAlertsEnabled(!next);
+                Alert.alert("Erreur", err?.message || "Impossible de mettre à jour l’alerte");
+              } finally {
+                setAlertsSaving(false);
+              }
+            }}
+            trackColor={{ true: "#E53935", false: "#ddd" }}
+            thumbColor="#fff"
+          />
+        </View>
+
         <TouchableOpacity style={styles.option} onPress={() => router.push("/operator/profile")}>
           <View style={styles.optionLeft}>
             <MaterialIcons name="badge" size={22} color="#E53935" />
@@ -141,6 +203,7 @@ const styles = StyleSheet.create({
   },
   optionLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   optionText: { fontSize: 15, color: "#333" },
+  optionSub: { fontSize: 12, color: "#777", marginTop: 2 },
   logoutBtn: {
     backgroundColor: "#E53935",
     padding: 15,

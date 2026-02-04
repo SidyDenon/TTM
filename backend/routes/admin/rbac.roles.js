@@ -60,6 +60,18 @@ const CATALOG = [
   "pricing_calculate" // optionnel : pour la route /prix si tu veux un droit séparé
 ];
 
+const logAdminEvent = async (db, adminId, action, meta = {}) => {
+  try {
+    if (!db || !adminId) return;
+    await db.query(
+      "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",
+      [adminId, action, JSON.stringify(meta)]
+    );
+  } catch (e) {
+    console.warn("⚠️ log admin_events (rbac.roles):", e?.message || e);
+  }
+};
+
 
 export default (db) => {
   router.use((req, _res, next) => { req.db = db; next(); });
@@ -109,6 +121,14 @@ export default (db) => {
         [name, finalSlug, Number(system) ? 1 : 0, permsJson]
       );
 
+      await logAdminEvent(req.db, req.user?.id, "role_cree", {
+        role_id: r.insertId,
+        name,
+        slug: finalSlug,
+        system: Number(system) ? 1 : 0,
+        permissions_count: Array.isArray(permissions) ? permissions.length : normalizePerms(permissions).length,
+      });
+
       res.status(201).json({ message: "Rôle créé ✅", id: r.insertId });
     } catch (e) {
       console.error("❌ POST /rbac/roles:", e);
@@ -147,6 +167,14 @@ export default (db) => {
         [newName, newSlug, newSys, newPerms, id]
       );
 
+      await logAdminEvent(req.db, req.user?.id, "role_modifie", {
+        role_id: Number(id),
+        name: newName,
+        slug: newSlug,
+        system: Number(newSys) ? 1 : 0,
+        permissions_count: normalizePerms(permissions ?? role.permissions).length,
+      });
+
       res.json({ message: "Rôle mis à jour ✅" });
     } catch (e) {
       console.error("❌ PUT /rbac/roles/:id:", e);
@@ -166,6 +194,11 @@ export default (db) => {
       if (used.n > 0) return res.status(400).json({ error: "Rôle assigné à des utilisateurs" });
 
       await req.db.query("DELETE FROM admin_roles WHERE id = ?", [id]);
+      await logAdminEvent(req.db, req.user?.id, "role_supprime", {
+        role_id: Number(id),
+        name: role.name,
+        slug: role.slug,
+      });
       res.json({ message: "Rôle supprimé ✅" });
     } catch (e) {
       console.error("❌ DELETE /rbac/roles/:id:", e);

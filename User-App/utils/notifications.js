@@ -1,7 +1,7 @@
-export { default as Notifications, isExpoGo, getExpoPushTokenSafe } from "../app/lib/expoNotifications";
+export { default as Notifications, isExpoGo, getExpoPushTokenSafe } from "../lib/expoNotifications";
 export {
   requestNotificationPermission,
   setupNotificationChannel,
   showLocalNotification,
   canUseNotifications,
-} from "../app/lib/notifications";
+} from "../lib/notifications";

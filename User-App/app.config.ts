@@ -9,6 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/images/logo1.png",
   scheme: "userapp",
   userInterfaceStyle: "light",
+  newArchEnabled: false,
   experiments: {
     typedRoutes: true,
   },
@@ -60,7 +61,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // ❌ on retire googleServicesFile pour le moment
     config: {
       googleMaps: {
-        apiKey: "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI",
+        apiKey:
+          process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+          process.env.GOOGLE_MAPS_API_KEY ||
+          "",
       },
     },
   },

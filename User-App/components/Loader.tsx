@@ -1,5 +1,5 @@
 import React from "react";
-import LottieView from "lottie-react-native";
+import LottieView from "./Lottie";
 
 const loaderAnim = require("../assets/animations/ttmload.json");
 

@@ -1,2 +1,2 @@
-export { default } from "../app/lib/expoNotifications";
-export * from "../app/lib/expoNotifications";
+export { default } from "../lib/expoNotifications";
+export * from "../lib/expoNotifications";

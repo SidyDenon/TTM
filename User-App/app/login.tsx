@@ -17,7 +17,7 @@ import { useRouter, usePathname } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import Toast from "react-native-toast-message";
 import { MaterialIcons } from "@expo/vector-icons";
-import LottieView from "lottie-react-native";
+import LottieView from "../components/Lottie";
 
 const logo = require("../assets/images/logo1.png");
 const loginAnim = require("../assets/animations/ttmload.json");

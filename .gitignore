@@ -22,11 +22,20 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Runtime uploads (keep out of git)
+backend/uploads/
+
 # Expo / React Native caches
 android/.gradle/
 android/app/build/
 ios/build/
 ios/DerivedData/
+User-App/android/.gradle/
+User-App/android/.cxx/
+User-App/android/app/.cxx/
+User-App/android/app/build/
+User-App/ios/build/
+User-App/ios/DerivedData/
 
 # Misc
 npm-debug.log*

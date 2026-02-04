@@ -116,7 +116,17 @@ export function AuthProvider({ children }) {
     return { ok: true, must_change_password: !!data?.user?.must_change_password };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (token) {
+      try {
+        await fetchWithTimeout(`${API_BASE}/api/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }, 8000);
+      } catch {
+        // ignore logout errors
+      }
+    }
     disconnectSocket();
     localStorage.removeItem("token");
     setToken("");

@@ -10,6 +10,8 @@ export default (db) => {
   const router = express.Router();
   let adminBlockColumn = null;
   let adminBlockChecked = false;
+  let extraPermsChecked = false;
+  let hasExtraPermsColumn = false;
 
   const resolveAdminBlockColumn = async () => {
     if (adminBlockChecked) return adminBlockColumn;
@@ -27,6 +29,16 @@ export default (db) => {
     adminBlockChecked = true;
     adminBlockColumn = Number(cnt2) > 0 ? "blocked" : null;
     return adminBlockColumn;
+  };
+
+  const resolveExtraPermsColumn = async () => {
+    if (extraPermsChecked) return hasExtraPermsColumn;
+    const [[{ cnt }]] = await db.query(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'extra_permissions'"
+    );
+    hasExtraPermsColumn = Number(cnt) > 0;
+    extraPermsChecked = true;
+    return hasExtraPermsColumn;
   };
 
   const canonicalRole = (role) => {
@@ -231,6 +243,33 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Erreur login:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// 🔓 Déconnexion (admin)
+router.post("/logout", authMiddleware, async (req, res) => {
+  try {
+    const { id, role } = req.user || {};
+    if (canonicalRole(role) === "admin" && id) {
+      try {
+        await req.db.query(
+          "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, 'admin_deconnexion', ?, NOW())",
+          [
+            id,
+            JSON.stringify({
+              ip: req.ip,
+              user_agent: req.headers["user-agent"] || "",
+            }),
+          ]
+        );
+      } catch (e) {
+        console.warn("⚠️ log admin_events (logout):", e?.message || e);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("❌ POST /logout:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -461,8 +500,10 @@ router.get("/me", authMiddleware, async (req, res) => {
     const { id, role } = req.user;
 
     if (canonicalRole(role) === "admin") {
+      const hasExtra = await resolveExtraPermsColumn();
+      const extraSelect = hasExtra ? ", u.extra_permissions" : "";
       const [[adm]] = await req.db.query(
-        `SELECT u.id, u.name, u.email, u.phone, u.is_super, u.role_id, u.must_change_password,
+        `SELECT u.id, u.name, u.email, u.phone, u.is_super, u.role_id, u.must_change_password${extraSelect},
                 r.name AS role_name, r.permissions
          FROM admin_users u
          LEFT JOIN admin_roles r ON r.id = u.role_id
@@ -471,12 +512,38 @@ router.get("/me", authMiddleware, async (req, res) => {
       );
       if (!adm) return res.status(404).json({ error: "Admin introuvable" });
 
+      const toArray = (raw) => {
+        try {
+          if (!raw) return [];
+          if (Array.isArray(raw)) return raw;
+          if (raw instanceof Buffer) {
+            const str = raw.toString("utf8").trim();
+            if (!str) return [];
+            return toArray(JSON.parse(str));
+          }
+          if (typeof raw === "string") {
+            const str = raw.trim();
+            if (!str) return [];
+            return toArray(JSON.parse(str));
+          }
+          if (typeof raw === "object") {
+            return Object.keys(raw).filter((k) => !!raw[k]);
+          }
+        } catch {}
+        return [];
+      };
+
       // normaliser permissions (array)
-      let perms = [];
-      try {
-        const parsed = JSON.parse(adm.permissions || "[]");
-        perms = Array.isArray(parsed) ? parsed : [];
-      } catch {}
+      const perms = toArray(adm.permissions);
+      const extraPerms = hasExtra ? toArray(adm.extra_permissions) : [];
+      const mergedPerms = Array.from(new Set([...(perms || []), ...(extraPerms || [])]));
+      console.log("🧩 /api/me admin perms:", {
+        id: adm.id,
+        role_id: adm.role_id,
+        has_extra: hasExtra,
+        role_permissions_count: perms.length,
+        extra_permissions_count: extraPerms.length,
+      });
 
       return res.json({
         id: adm.id,
@@ -485,7 +552,8 @@ router.get("/me", authMiddleware, async (req, res) => {
         phone: adm.phone,
         role: "admin",
         is_super: !!adm.is_super,
-        permissions: perms,
+        permissions: mergedPerms,
+        extra_permissions: extraPerms,
         must_change_password: adm.must_change_password ?? 0, // si tu ajoutes la colonne plus tard
       });
     }

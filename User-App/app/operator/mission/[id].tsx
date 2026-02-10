@@ -21,7 +21,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import ImageViewing from "react-native-image-viewing";
+import ImageViewing from "../../../components/ImageViewing";
 import { useSocket } from "../../../context/SocketContext";
 import polyline from "@mapbox/polyline";
 import { startBackgroundLocation, stopBackgroundLocation } from "../../../utils/backgroundLocation";
@@ -109,6 +109,7 @@ export default function MissionSuivi() {
   const [supportVisible, setSupportVisible] = useState(false);
   const menuSlideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current;
   const menuFadeAnim = useRef(new Animated.Value(0)).current;
+  const allowLeaveRef = useRef(false);
 
   const mapRef = useRef<MapView>(null);
   const [arrivalTime, setArrivalTime] = useState<Date | null>(null);
@@ -235,10 +236,15 @@ export default function MissionSuivi() {
     ]).start(() => setMenuVisible(false));
   };
 
-  // ⛔ Bloquer le retour tant que mission non terminée
+  const isTerminalStatus =
+    mission?.status === "terminee" ||
+    mission?.status === "annulee_admin" ||
+    mission?.status === "annulee_client";
+
+  // ⛔ Bloquer le retour tant que mission non terminée/annulée
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (mission && mission.status !== "terminee") {
+      if (mission && !isTerminalStatus && !allowLeaveRef.current) {
         Toast.show({
           type: "info",
           text1: "⛔ Action bloquée",
@@ -253,7 +259,7 @@ export default function MissionSuivi() {
     });
 
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      if (mission && mission.status !== "terminee") {
+      if (mission && !isTerminalStatus && !allowLeaveRef.current) {
         e.preventDefault();
         Toast.show({
           type: "info",
@@ -269,10 +275,11 @@ export default function MissionSuivi() {
       backHandler.remove();
       unsubscribe();
     };
-  }, [navigation, mission]);
+  }, [navigation, mission, isTerminalStatus]);
 
   // 🔄 Charger mission + events
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
     const fetchMission = async () => {
       setFetchError(null);
       try {
@@ -299,8 +306,23 @@ export default function MissionSuivi() {
           throw new Error(String(message));
         }
         const m = data?.data;
+        console.log("📦 mission status (operator):", m?.status, "id:", m?.id);
         if (!m) {
           throw new Error("Mission introuvable dans la réponse API");
+        }
+        const status = String(m.status || "").toLowerCase();
+        if (status === "annulee_admin" || status === "annulee_client") {
+          Toast.show({
+            type: "error",
+            text1: "Mission annulée",
+            text2: "Cette mission a été annulée.",
+          });
+          setMission((prev) =>
+            prev ? { ...prev, status: status as any } : prev
+          );
+          allowLeaveRef.current = true;
+          router.replace("/operator");
+          return;
         }
         setMission({
           id: m.id,
@@ -334,6 +356,7 @@ export default function MissionSuivi() {
           text2: message.slice(0, 120),
         });
         setMission(null);
+        router.replace("/operator");
       } finally {
         setLoading(false);
       }
@@ -353,7 +376,14 @@ export default function MissionSuivi() {
 
     fetchMission();
     fetchEvents();
-  }, [id, token]);
+    // 🔁 Re-check statut (sécurité si socket manqué)
+    interval = setInterval(() => {
+      fetchMission();
+    }, 2000);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [id, token, router]);
 
   // Calcul kilométrage total (opérateur -> client -> destination)
   useEffect(() => {
@@ -427,6 +457,7 @@ export default function MissionSuivi() {
           text1: "Mission annulée",
           text2: "Cette mission a été annulée par l’administrateur.",
         });
+        allowLeaveRef.current = true;
         router.replace("/operator");
       }
     };

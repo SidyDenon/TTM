@@ -2,7 +2,7 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
-import { sendSMS } from "../../config/twilo.js";
+import { sendSMS } from "../../utils/sms.js";
 
 const router = express.Router();
 

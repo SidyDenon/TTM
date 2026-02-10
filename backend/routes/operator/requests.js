@@ -926,7 +926,12 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       await sendPushNotification(
         userNotif.notification_token,
         "Mission acceptée",
-        `Votre mission #${id} a été acceptée par ${req.user.name} pour ${finalPrice} FCFA`
+        `Votre mission #${id} a été acceptée par ${req.user.name} pour ${finalPrice} FCFA`,
+        {
+          type: "mission_accepted",
+          request_id: Number(id),
+          status: "acceptee",
+        }
       );
     }
 

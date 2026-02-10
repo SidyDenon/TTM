@@ -65,7 +65,9 @@ export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
       auth: { token },
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 2000,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 8000,
     });
 
     socketRef.current = socket;
@@ -83,6 +85,10 @@ export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
 
     socket.on("connect_error", (err) => {
       console.warn("❌ [SOCKET] Erreur connexion :", err.message);
+    });
+
+    socket.on("reconnect_attempt", (attempt) => {
+      console.log("🔄 [SOCKET] Reconnect attempt:", attempt);
     });
 
     // Cleanup

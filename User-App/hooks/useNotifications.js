@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import Toast from "react-native-toast-message";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { API_URL } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -20,6 +22,7 @@ import {
 export default function useNotifications(options = {}) {
   const { token, user } = useAuth();
   const { socket } = useSocket();
+  const router = useRouter();
 
   useEffect(() => {
     if (!token || !socket) return;
@@ -79,6 +82,32 @@ export default function useNotifications(options = {}) {
           if (type === "withdrawal_update") {
             options.onOpenWithdrawals?.();
           }
+          if (type === "mission_accepted" && user?.role !== "operator") {
+            Toast.show({
+              type: "success",
+              text1: "Mission acceptée",
+              text2: "Un opérateur a accepté votre demande.",
+            });
+            router.replace("/user/SuiviMissionScreen");
+          }
+          if (type === "mission_timeout" && user?.role !== "operator") {
+            const requestId =
+              resp.notification.request.content.data?.request_id ??
+              resp.notification.request.content.data?.requestId;
+            Toast.show({
+              type: "error",
+              text1: "Mission expirée",
+              text2: "Aucun opérateur n’a accepté votre demande.",
+            });
+            if (requestId) {
+              router.replace({
+                pathname: "/user/SearchingOperatorsScreen",
+                params: { requestId: String(requestId), initialStatus: "timeout" },
+              });
+            } else {
+              router.replace("/user");
+            }
+          }
         })
       : null;
 
@@ -88,7 +117,7 @@ export default function useNotifications(options = {}) {
       socket.off("mission:updated", handleMissionUpdated);
       tapSub?.remove();
     };
-  }, [token, socket, user?.id, options]);
+  }, [token, socket, user?.id, user?.role, options, router]);
 }
 
 // 🔔 Notification locale + vibration

@@ -1,10 +1,10 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import twilio from "twilio";
 import authMiddleware from "../middleware/auth.js";
 import { getSchemaColumns } from "../utils/schema.js";
 import { sendMail } from "../utils/mailer.js";
+import { sendSMS } from "../utils/sms.js";
 
 export default (db) => {
   const router = express.Router();
@@ -53,15 +53,7 @@ export default (db) => {
     next();
   });
 
-  // ⚡ Config Twilio
-  const twilioSid =
-    process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || "";
-  const twilioToken =
-    process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_AUTH || "";
-  const twilioPhone =
-    process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_PHONE || "";
-
-  const twilioClient = twilio(twilioSid, twilioToken);
+  // ⚡ SMS (Africa's Talking)
 
   // Enregistrement utilisateur
   router.post("/register", async (req, res) => {
@@ -354,11 +346,10 @@ router.post("/logout", authMiddleware, async (req, res) => {
 
       if (user.phone) {
         try {
-          await twilioClient.messages.create({
-            body: `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`,
-          from: twilioPhone,
-            to: user.phone.startsWith("+") ? user.phone : `+223${user.phone}`,
-          });
+          await sendSMS(
+            user.phone,
+            `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`
+          );
           channel = "sms";
         } catch (smsError) {
           console.warn("⚠️ Envoi SMS reset échoué:", smsError?.message || smsError);

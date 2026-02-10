@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 // ============================================================
 
 // 👉 ton IP locale (valide pour iPhone + Android réel)
-const LOCAL_IP = "192.168.11.178";
+const LOCAL_IP = "192.168.11.164";
 const LOCAL_PORT = 5000;
 
 // Android Emulator → utilise obligatoirement 10.0.2.2

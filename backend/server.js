@@ -65,7 +65,7 @@ app.set("io", io);
 app.set("onlineUsers", onlineUsers);
 
 startOperatorAlerts(db);
-startCron(db);
+startCron({ db, emitMissionEvent });
 
 // ---------------- ROUTES API ----------------
 app.use(

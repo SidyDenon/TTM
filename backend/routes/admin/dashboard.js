@@ -258,6 +258,7 @@ export default (db, io, emitMissionEvent) => {
         await req.db.query("UPDATE requests SET status = 'annulee_admin' WHERE id = ?", [
           id,
         ]);
+        console.log("🛑 annulee_admin ->", id);
         await req.db.query(
           "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'annulee_admin', ?, NOW())",
           [id, JSON.stringify({ admin_id: req.user.id })]

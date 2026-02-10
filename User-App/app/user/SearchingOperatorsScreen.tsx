@@ -43,20 +43,25 @@ const DEFAULT_REGION: Region = {
 };
 
 export default function SearchingOperatorsScreen() {
-  const { requestId } = useLocalSearchParams<{ requestId: string }>();
+  const { requestId, initialStatus } = useLocalSearchParams<{
+    requestId: string;
+    initialStatus?: string;
+  }>();
   const { token } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
 
   const [status, setStatus] = useState<"pending" | "accepted" | "timeout">(
-    "pending"
+    initialStatus === "timeout" ? "timeout" : "pending"
   );
   const [operatorName, setOperatorName] = useState<string | null>(null);
   const [quote, setQuote] = useState<{ amount: number; currency?: string | null } | null>(null);
   const [service, setService] = useState<string | null>(null);
   const [totalKm, setTotalKm] = useState<number | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const cancellationNotifiedRef = useRef(false);
+  const timeoutTriggeredRef = useRef(false);
 
   const [region, setRegion] = useState<Region | null>(null);
 
@@ -119,15 +124,30 @@ export default function SearchingOperatorsScreen() {
   }, [pulseAnim]);
 
   // ⏱️ Timeout soft UI
+  const UI_TIMEOUT_MS = 5 * 60 * 1000;
+
   useEffect(() => {
     if (!requestId) return;
 
-    const timer = setTimeout(() => {
-      if (status === "pending") setStatus("timeout");
-    }, 60000); // 60s
+    const timer = setTimeout(async () => {
+      if (status !== "pending") return;
+      if (timeoutTriggeredRef.current) return;
+      timeoutTriggeredRef.current = true;
+      setStatus("timeout");
+
+      // Aligne backend : annule la mission pour retirer côté opérateur
+      try {
+        await fetch(`${API_URL}/requests/${requestId}/cancel`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // silencieux : si déjà acceptée/terminée, le socket mettra à jour
+      }
+    }, UI_TIMEOUT_MS); // 5 min
 
     return () => clearTimeout(timer);
-  }, [requestId, status]);
+  }, [requestId, status, token]);
 
   // ✅ Auto-redirect to tracking after acceptance
   useEffect(() => {
@@ -195,7 +215,6 @@ export default function SearchingOperatorsScreen() {
             topOffset: 55,
           });
           setStatus("timeout");
-          router.replace("/user");
         }
       }
     };
@@ -211,7 +230,6 @@ export default function SearchingOperatorsScreen() {
           visibilityTime: 3000,
           position: "top",
           topOffset: 55,
-          onHide: () => router.replace("/user"),
         });
         setStatus("timeout");
       }
@@ -274,6 +292,56 @@ export default function SearchingOperatorsScreen() {
         },
       ]
     );
+  };
+
+  const handleRetry = async () => {
+    if (!requestId) return;
+    try {
+      setRetrying(true);
+      const res = await fetch(`${API_URL}/requests/${requestId}/retry`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Toast.show({
+          type: "error",
+          text1: "Impossible de réessayer",
+          text2: data.error || "Réessaie dans quelques secondes.",
+        });
+        return;
+      }
+
+      const newId = data?.data?.id;
+      if (!newId) {
+        Toast.show({
+          type: "error",
+          text1: "Réessai échoué",
+          text2: "Aucun identifiant retourné.",
+        });
+        return;
+      }
+
+      cancellationNotifiedRef.current = false;
+      setStatus("pending");
+      setOperatorName(null);
+      setQuote(null);
+      setService(null);
+      setTotalKm(null);
+
+      router.replace({
+        pathname: "/user/SearchingOperatorsScreen",
+        params: { requestId: String(newId) },
+      });
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Erreur réseau",
+        text2: "Impossible de relancer la mission.",
+      });
+    } finally {
+      setRetrying(false);
+    }
   };
 
   const scale = pulseAnim.interpolate({
@@ -414,7 +482,11 @@ export default function SearchingOperatorsScreen() {
 
           {isTimeout && (
             <>
-              <TouchableOpacity style={styles.primaryBtn} onPress={() => setStatus("pending")}>
+              <TouchableOpacity
+                style={[styles.primaryBtn, retrying && { opacity: 0.6 }]}
+                onPress={handleRetry}
+                disabled={retrying}
+              >
                 <MaterialIcons name="refresh" size={20} color="#fff" />
                 <Text style={styles.primaryText}>Réessayer</Text>
               </TouchableOpacity>

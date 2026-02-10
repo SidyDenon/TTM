@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { useRouter } from "expo-router";
 import { API_URL } from "../utils/api";
+import { startMissionBackgroundTracking, stopMissionBackgroundTracking } from "../utils/missionBackground";
 import {
   canUseNotifications as notificationsAvailable,
   requestNotificationPermission,
@@ -156,6 +157,11 @@ export function useSuiviMissionLogic() {
   const mapRef = useRef<MapView | null>(null);
   const lastRouteUpdateRef = useRef(0);
 
+  const terminalStatuses = useMemo(
+    () => new Set<MissionStatus>(["terminee", "annulee_admin", "annulee_client"]),
+    []
+  );
+
   /* ------ Notifications : permission + channel ------ */
   useEffect(() => {
     if (!notificationsReady || Platform.OS === "web") return;
@@ -177,6 +183,7 @@ export function useSuiviMissionLogic() {
   /* ------ Fetch mission active ------ */
   useEffect(() => {
     let cancelled = false;
+    let interval: NodeJS.Timeout | null = null;
     (async () => {
       try {
         const res = await fetch(`${API_URL}/requests/active`, {
@@ -226,10 +233,64 @@ export function useSuiviMissionLogic() {
         if (!cancelled) setLoading(false);
       }
     })();
+    // 🔄 Re-check régulièrement (sécurité si socket manqué)
+    interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/requests/active`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        const m = json?.data;
+        if (!m || (Array.isArray(m) && m.length === 0)) {
+          setMission(null);
+          router.replace("/user");
+          return;
+        }
+        setMission((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: (m.status as MissionStatus) ?? prev.status,
+                operatorName: m.operator_name ?? prev.operatorName,
+                operator_phone: m.operator_phone ?? prev.operator_phone,
+              }
+            : prev
+        );
+      } catch {
+        // silencieux
+      }
+    }, 2000);
     return () => {
       cancelled = true;
+      if (interval) clearInterval(interval);
     };
   }, [token, router]);
+
+  /* ------ Background tracking (client) ------ */
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!mission) {
+      stopMissionBackgroundTracking();
+      return;
+    }
+    const status = mission.status ?? null;
+    if (status && terminalStatuses.has(status)) {
+      stopMissionBackgroundTracking();
+      return;
+    }
+    startMissionBackgroundTracking();
+  }, [mission?.id, mission?.status, terminalStatuses]);
+
+  // 🧭 Redirect immédiat si mission annulée (sécurité)
+  useEffect(() => {
+    const status = mission?.status;
+    if (status !== "annulee_admin" && status !== "annulee_client") return;
+    showNotificationInApp("Mission annulée. Retour à l’accueil.");
+    const t = setTimeout(() => {
+      router.replace("/user");
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [mission?.status, router]);
 
   /* ------ Notifications locales (toast + notif système) ------ */
   const showNotificationInApp = async (message: string) => {
@@ -478,9 +539,8 @@ export function useSuiviMissionLogic() {
           }, 500);
         }
       } else if (data.status === "annulee_admin" || data.status === "annulee_client") {
-        setTimeout(() => {
-          router.replace("/user");
-        }, 2000);
+        showNotificationInApp("Mission annulée. Retour à l’accueil.");
+        router.replace("/user");
       }
     };
 

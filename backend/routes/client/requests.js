@@ -423,6 +423,133 @@ export default (db, notifyOperators, emitMissionEvent) => {
   router.patch("/:id/cancel", authMiddleware, cancelRequest);
   router.post("/:id/cancel", authMiddleware, cancelRequest);
 
+  // 🔁 Réessayer une mission expirée (clone)
+  router.post("/:id/retry", authMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [[existing]] = await req.db.query(
+        "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
+        [id, req.user.id]
+      );
+
+      if (!existing) {
+        return res.status(404).json({ error: "Demande introuvable" });
+      }
+
+      const activeStatuses = [
+        "publiee",
+        "assignee",
+        "acceptee",
+        "en_route",
+        "sur_place",
+        "remorquage",
+      ];
+      if (activeStatuses.includes(existing.status)) {
+        return res.status(409).json({ error: "Demande déjà active" });
+      }
+
+      const [active] = await req.db.query(
+        "SELECT id FROM requests WHERE user_id = ? AND status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage')",
+        [req.user.id]
+      );
+      if (active.length > 0) {
+        return res.status(409).json({ error: "Vous avez déjà une mission en cours." });
+      }
+
+      const currency = existing.currency || "FCFA";
+      const [result] = await req.db.query(
+        `INSERT INTO requests
+         (user_id, service, description, lat, lng, address, zone,
+          destination, dest_lat, dest_lng, estimated_price,
+          currency, status, published_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'publiee', NOW(), NOW())`,
+        [
+          req.user.id,
+          existing.service,
+          existing.description || "",
+          existing.lat,
+          existing.lng,
+          existing.address || "",
+          existing.zone || "",
+          existing.destination || "",
+          existing.dest_lat,
+          existing.dest_lng,
+          existing.estimated_price || 0,
+          currency,
+        ]
+      );
+
+      const newId = result.insertId;
+
+      const [photosRows] = await req.db.query(
+        "SELECT url FROM request_photos WHERE request_id = ? ORDER BY id ASC",
+        [existing.id]
+      );
+      for (const p of photosRows) {
+        await req.db.query(
+          "INSERT INTO request_photos (request_id, url) VALUES (?, ?)",
+          [newId, p.url]
+        );
+      }
+
+      await req.db.query(
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
+        [newId, JSON.stringify({ user_id: req.user.id, retry_from: Number(existing.id) })]
+      );
+
+      const [[newRow]] = await req.db.query("SELECT * FROM requests WHERE id = ?", [
+        newId,
+      ]);
+
+      const newRequest = {
+        ...newRow,
+        lat: Number(newRow.lat),
+        lng: Number(newRow.lng),
+        dest_lat: newRow.dest_lat ? Number(newRow.dest_lat) : null,
+        dest_lng: newRow.dest_lng ? Number(newRow.dest_lng) : null,
+        estimated_price: Number(newRow.estimated_price || 0),
+      };
+
+      res.status(201).json({
+        message: "Demande republiée ✅",
+        data: newRequest,
+      });
+
+      const missionEmitter = req.emitMissionEvent || emitMissionEvent;
+      if (missionEmitter) {
+        missionEmitter("mission:created", newRequest, {
+          clientId: req.user.id,
+          operators: false,
+        });
+        missionEmitter(
+          "mission:status_changed",
+          { id: newRequest.id, status: newRequest.status },
+          { clientId: req.user.id, operators: false }
+        );
+        missionEmitter("mission:updated", newRequest, {
+          clientId: req.user.id,
+          operators: false,
+        });
+      }
+
+      const io = getIo(req);
+      const isTow = String(existing.service || "").toLowerCase().includes("remorqu");
+      const radiusKm = isTow
+        ? await getOperatorTowingRadiusKm(req.db)
+        : await getOperatorMissionRadiusKm(req.db, 5);
+      const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
+      emitToOperators(io, nearbyOperators, "mission:created", newRequest);
+      emitToOperators(io, nearbyOperators, "mission:status_changed", {
+        id: newRequest.id,
+        status: newRequest.status,
+      });
+      emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
+    } catch (err) {
+      console.error("❌ Erreur POST /requests/:id/retry:", err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   // 📌 Créer une demande
   // 📌 Créer une demande (avec calcul automatique remorquage)
 router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => {

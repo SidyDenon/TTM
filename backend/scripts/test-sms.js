@@ -1,4 +1,4 @@
-import { sendSMS } from "../config/twilo.js";
+import { sendSMS } from "../utils/sms.js";
 
 const to = process.env.SMS_TEST_TO || "+212600640052";
 const message = "TTM test SMS OK";

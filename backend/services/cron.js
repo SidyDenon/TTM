@@ -41,7 +41,7 @@ export function startCron({ db, emitMissionEvent }) {
 
       await db.query(
         `UPDATE requests
-         SET status = 'annulee_admin', updated_at = NOW()
+         SET status = 'annulee_admin'
          WHERE id IN (${placeholders})`,
         ids
       );

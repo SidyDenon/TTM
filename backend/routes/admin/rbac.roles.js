@@ -49,6 +49,7 @@ const CATALOG = [
   "operators_view", "operators_manage",
   "services_view", "services_manage",
   "config_view", "config_manage",
+  "site_view", "site_manage",
   "transactions_view", "transactions_manage",
   "withdrawals_view", "withdrawals_manage",
   "requests_view", "requests_manage",

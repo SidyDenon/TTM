@@ -42,6 +42,10 @@ const PERM_LABELS = {
   config_view: "Voir la configuration",
   config_manage: "Gérer la configuration",
 
+  // 🌐 Site vitrine
+  site_view: "Voir le site vitrine",
+  site_manage: "Gérer le site vitrine",
+
   // 💰 Transactions & retraits
   transactions_view: "Voir les transactions",
   transactions_manage: "Gérer les transactions",

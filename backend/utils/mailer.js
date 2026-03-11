@@ -30,6 +30,7 @@ async function sendMailViaZepto(to, subject, text = "", html = "", toName = "") 
   });
 }
 
+
 function escapeHtml(str) {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -41,25 +42,41 @@ function escapeHtml(str) {
 
 
 
-export async function sendMail(to, subject, text = "", html = "", toName = "") {
+export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = "", toNameArg = "") {
+  const isObjectPayload =
+    toOrOptions && typeof toOrOptions === "object" && !Array.isArray(toOrOptions);
+
+  const to = isObjectPayload ? toOrOptions.to : toOrOptions;
+  const subject = isObjectPayload ? toOrOptions.subject : subjectArg;
+  const text = isObjectPayload ? (toOrOptions.text ?? "") : textArg;
+  const html = isObjectPayload ? (toOrOptions.html ?? "") : htmlArg;
+  const toName = isObjectPayload ? (toOrOptions.toName ?? "") : toNameArg;
+
+  if (!to) throw new Error("Email destinataire manquant");
+  if (!subject) throw new Error("Subject cannot be empty.");
+
   if (!zeptoClient) {
-    console.warn("⚠️ ZEPTO_TOKEN manquant: envoi email ignoré");
+    console.warn("⚠️ ZEPTO_TOKEN manquant: envoi email ignore");
     return;
   }
 
   try {
     const resp = await sendMailViaZepto(to, subject, text, html, toName);
-    console.log(`📧 Email envoyé à ${to} via ZeptoMail API`);
+    console.log(`📧 Email envoye a ${to} via ZeptoMail API`);
     return resp;
   } catch (err) {
+    const zeptoErr = err?.error || err?.response?.data?.error;
     const message =
       err?.message ||
+      zeptoErr?.message ||
       err?.response?.data?.message ||
       err?.response?.data?.error ||
       (typeof err === "string" ? err : "") ||
       "Erreur ZeptoMail inconnue";
-    console.error("❌ Envoi via ZeptoMail API échoué", {
+    console.error("❌ Envoi via ZeptoMail API echoue", {
       message,
+      zepto_code: zeptoErr?.code,
+      zepto_details: zeptoErr?.details,
       code: err?.code,
       status: err?.response?.status,
       data: err?.response?.data,

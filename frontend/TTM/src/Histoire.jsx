@@ -3,6 +3,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DEFAULT_MESSAGES } from "./config/links";
 import { useSupportConfig } from "./context/SupportConfigContext";
+import { fetchSiteContent } from "./config/siteContent";
 
 const fadeLeft  = { hidden: {opacity: 0, x: -24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
 const fadeRight = { hidden: {opacity: 0, x:  24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
@@ -22,6 +23,7 @@ const modalVariants = {
 
 export default function Histoire() {
   const [open, setOpen] = React.useState(false);
+  const [content, setContent] = React.useState({});
   const { buildSupportWhatsAppLink } = useSupportConfig();
   const histoireContactLink = React.useMemo(
     () => buildSupportWhatsAppLink(DEFAULT_MESSAGES.generalInquiry),
@@ -41,6 +43,52 @@ export default function Histoire() {
     };
   }, [open]);
 
+  React.useEffect(() => {
+    let active = true;
+    fetchSiteContent()
+      .then((data) => {
+        if (!active) return;
+        setContent(data?.histoire || {});
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const title = content?.title || "Notre Histoire";
+  const bodyParagraphs = String(content?.modalBody || "")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const intro1 =
+    content?.intro1 ||
+    bodyParagraphs[0] ||
+    "Tow Truck Mali (TTM) est né d’un besoin simple : rendre le dépannage automobile rapide, fiable et accessible partout. Des routes de Bamako aux trajets interurbains, nous avons bâti un réseau d’opérateurs formés et une application pensée pour intervenir en quelques minutes.";
+  const intro2 =
+    content?.intro2 ||
+    bodyParagraphs[1] ||
+    "Nous avons d’abord cartographié les zones d’intervention, puis conçu un parcours clair pour le client, l’opérateur et l’administrateur. Aujourd’hui, TTM évolue avec des fonctionnalités financières intégrées et un suivi de mission transparent.";
+  const image =
+    content?.image && String(content.image).trim()
+      ? String(content.image).trim()
+      : "/assets/histoire.png";
+  const modalTitle = content?.modalTitle || "L’histoire de TTM";
+  const modalSubtitle =
+    content?.modalSubtitle ||
+    "Depuis les premiers dépannages jusqu’au réseau actuel";
+  const modalBody =
+    content?.modalBody ||
+    `TTM est né sur le terrain, au contact des automobilistes en difficulté : batterie à plat, pneu crevé, panne sèche au milieu d’un trajet.
+
+Nous avons commencé avec un petit groupe d’opérateurs motivés, des outils fiables et une promesse simple : arriver vite et bien.
+
+Très vite, nous avons cartographié les zones d’intervention, mesuré les temps de parcours et standardisé nos protocoles.
+
+Côté technologique, l’application TTM s’est construite autour de trois profils : client, opérateur et administrateur.
+
+Notre objectif reste le même : réduire l’immobilisation et garantir la sécurité.`;
+
   return (
     <section className="w-full relative">
       <div className="bg-white/80 backdrop-blur-sm">
@@ -54,19 +102,14 @@ export default function Histoire() {
             viewport={{ once: true, amount: 0.4 }}
             className="text-zinc-900"
           >
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Notre Histoire</h2>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight">{title}</h2>
 
             <p className="mt-5 text-[15px] md:text-base leading-7 md:leading-8">
-              <strong>Tow Truck Mali (TTM)</strong> est né d’un besoin simple : rendre le
-              dépannage automobile rapide, fiable et accessible partout. Des routes de Bamako
-              aux trajets interurbains, nous avons bâti un réseau d’opérateurs formés et une
-              application pensée pour intervenir en quelques minutes.
+              {intro1}
             </p>
 
             <p className="mt-4 text-[15px] md:text-base leading-7 md:leading-8">
-              Nous avons d’abord cartographié les zones d’intervention, puis conçu un parcours
-              clair pour le client, l’opérateur et l’administrateur. Aujourd’hui, TTM évolue
-              avec des fonctionnalités financières intégrées et un suivi de mission transparent.
+              {intro2}
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -91,7 +134,7 @@ export default function Histoire() {
           >
             <div className="relative left-5 -top-5 h-[400px] w-[300px] rounded-2xl bg-[#800E08] opacity-95 hidden sm:block" />
             <img
-              src="/assets/histoire.png"
+              src={image}
               alt="Technicien TTM au travail"
               loading="lazy"
               className="absolute h-full z-10 w-[300px] max-w-[420px] aspect-[3/4] object-cover rounded-2xl shadow-xl"
@@ -127,9 +170,9 @@ export default function Histoire() {
               <div className="flex items-start justify-between gap-4 p-5">
                 <div>
                   <h3 id="histoire-title" className="text-xl font-semibold text-zinc-900">
-                    L’histoire de TTM
+                    {modalTitle}
                   </h3>
-                  <p className="text-sm text-zinc-500">Depuis les premiers dépannages jusqu’au réseau actuel</p>
+                  <p className="text-sm text-zinc-500">{modalSubtitle}</p>
                 </div>
                 <button
                   onClick={() => setOpen(false)}
@@ -142,48 +185,8 @@ export default function Histoire() {
 
               {/* Contenu long */}
               <div className="px-5 pb-6">
-                <div className="rounded-lg bg-zinc-50 p-4 text-[15px] leading-7 text-zinc-800 space-y-4 max-h-[65vh] overflow-y-auto">
-                  <p>
-                    TTM est né sur le terrain, au contact des automobilistes en difficulté : batterie à plat,
-                    pneu crevé, panne sèche au milieu d’un trajet. Nous avons commencé avec un petit groupe
-                    d’opérateurs motivés, des outils fiables et une promesse simple : <strong>arriver vite et bien</strong>.
-                  </p>
-
-                  <p>
-                    Très vite, nous avons cartographié les zones d’intervention, mesuré les temps de parcours et
-                    standardisé nos protocoles : prise d’appel, géolocalisation, estimation, affectation, suivi et
-                    compte-rendu. Cette rigueur nous a permis de garantir un niveau de service constant, de jour comme de nuit.
-                  </p>
-
-                  <p>
-                    Côté technologique, l’application TTM s’est construite autour de trois profils : client, opérateur
-                    et administrateur. Le client suit sa demande en temps réel, l’opérateur reçoit un guidage
-                    optimisé et l’équipe centrale garde une vision globale pour coordonner les missions et la sécurité.
-                  </p>
-
-                  <p>
-                    Nous avons ensuite intégré des briques financières (devis, paiement sécurisé, justificatifs),
-                    des check-lists de qualité, un historique véhicule et un moteur de recommandations pour
-                    orienter vers le bon service (dépannage sur place, remorquage, diagnostic).
-                  </p>
-
-                  <p>
-                    Notre objectif reste le même : <strong>réduire l’immobilisation</strong> et garantir la sécurité.
-                    Cela passe par la formation continue des opérateurs, des partenariats garages/assureurs et
-                    des indicateurs transparents (délais d’arrivée, taux de satisfaction).
-                  </p>
-
-                  <ul className="list-disc pl-5 space-y-2">
-                    <li>Couverture urbaine & interurbaine, 24/7, avec délais moyens optimisés.</li>
-                    <li>Équipement homologué, procédures sécurité et photos à la demande.</li>
-                    <li>Suivi en temps réel et service client réactif sur WhatsApp & téléphone.</li>
-                    <li>Vision : prévention (diagnostic rapide), partenaires stratégiques, extension régionale.</li>
-                  </ul>
-
-                  <p>
-                    Demain, TTM poursuivra son expansion et renforcera la prévention pour éviter les pannes évitables.
-                    Parce que le meilleur dépannage, c’est celui dont on n’a pas besoin 😉
-                  </p>
+                <div className="rounded-lg bg-zinc-50 p-4 text-[15px] leading-7 text-zinc-800 max-h-[65vh] overflow-y-auto whitespace-pre-line">
+                  {modalBody}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-3">

@@ -13,6 +13,7 @@ import Clients from "./pages/admin/Clients";
 import Transactions from "./pages/admin/Transactions";
 import Withdrawals from "./pages/admin/Withdrawals";
 import Settings from "./pages/admin/Settings";
+import SiteVitrine from "./pages/admin/SiteVitrine";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
@@ -153,6 +154,7 @@ export default function App() {
             <Route path="transactions" element={<Transactions />} />
             <Route path="withdrawals" element={<Withdrawals />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="site-vitrine" element={<SiteVitrine />} />
           </Route>
 
           {/* Par défaut */}

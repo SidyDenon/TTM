@@ -226,6 +226,18 @@ const formatPrice = (value) => {
   return `${formatted} FCFA`;
 };
 
+const toFaIconClass = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if (/^fa[srlbd]?\s+fa-/.test(raw) || /^fa-/.test(raw)) return raw;
+  if (!/^[a-z0-9]+:/i.test(raw)) return null;
+  const [pack, icon] = raw.split(":");
+  if (!pack || !icon) return null;
+  if (!pack.toLowerCase().startsWith("fa")) return null;
+  const clean = icon.replace(/[^a-z0-9-]/gi, "").toLowerCase();
+  return clean ? `fa-${clean}` : null;
+};
+
 export const DEFAULT_SERVICES = BASE_SERVICES;
 
 export function mergeServices(apiServices = []) {
@@ -238,18 +250,27 @@ export function mergeServices(apiServices = []) {
     const meta = META_BY_KEY.get(key) || {};
     const priceLabel = formatPrice(svc?.price);
     const description = svc?.description || meta.description || meta.desc || "";
-    const desc = svc?.description || meta.desc || meta.description || "";
-    const iconImage = meta.iconImage || (svc?.icon_url && !String(svc.icon_url).startsWith("fa:") ? svc.icon_url : null);
+    const subtitle = svc?.subtitle || "";
+    const desc = subtitle || meta.desc || svc?.description || meta.description || "";
+    const rawIcon = svc?.icon || svc?.icon_url || "";
+    const iconImage =
+      meta.iconImage ||
+      (svc?.icon_url && !/^[a-z0-9]+:/i.test(String(svc.icon_url))
+        ? svc.icon_url
+        : null);
+    const serviceImage = svc?.image_url || meta.img || DEFAULT_IMAGE;
+    const dynamicFaIcon = toFaIconClass(rawIcon);
 
     return {
       title: svc?.name || meta.title || "Service",
       desc,
       description,
+      subtitle,
       details: meta.details || svc?.description || "",
-      icon: meta.icon || "fa-wrench",
+      icon: meta.icon || dynamicFaIcon || "fa-wrench",
       iconImage,
       iconAlt: meta.iconAlt,
-      img: meta.img || DEFAULT_IMAGE,
+      img: serviceImage,
       featured: meta.featured || false,
       amount: priceLabel || meta.amount || "Sur devis",
     };
@@ -260,11 +281,16 @@ export async function fetchPublicServices(apiBase = "") {
   const base = apiBase || resolveApiBase();
   if (!base) return DEFAULT_SERVICES;
   const normalized = base.replace(/\/+$/, "");
-  const res = await fetch(`${normalized}/api/services/public`);
-  if (!res.ok) {
-    throw new Error(`SERVICES_FETCH_${res.status}`);
+  const urls = [
+    `${normalized}/api/vitrine/services/public`,
+    `${normalized}/api/services/public`,
+  ];
+  for (const url of urls) {
+    const res = await fetch(url);
+    if (!res.ok) continue;
+    const json = await res.json();
+    const data = json?.data || [];
+    if (Array.isArray(data) && data.length) return mergeServices(data);
   }
-  const json = await res.json();
-  const data = json?.data || [];
-  return mergeServices(data);
+  return DEFAULT_SERVICES;
 }

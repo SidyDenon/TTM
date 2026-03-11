@@ -4,6 +4,8 @@ import { DEFAULT_MESSAGES } from "./config/links";
 import { motion, AnimatePresence } from "framer-motion";
 import { FAQS } from "./config/faq";
 import { useSupportConfig } from "./context/SupportConfigContext";
+import { fetchSiteContent } from "./config/siteContent";
+import { resolveApiBase } from "./config/api";
 
 /* --------- Variants Motion --------- */
 const sectionVariants = {
@@ -69,12 +71,41 @@ function FaqItem({ i, q, a, isOpen, onToggle }) {
 /* --------- Composant principal --------- */
 export default function Faq() {
   const [open, setOpen] = React.useState(0);
-  const { support, buildSupportWhatsAppLink } = useSupportConfig();
+  const [contactModalOpen, setContactModalOpen] = React.useState(false);
+  const [contactForm, setContactForm] = React.useState({
+    name: "",
+    email: "",
+    message: "",
+  });
+  const [contactSending, setContactSending] = React.useState(false);
+  const [contactFeedback, setContactFeedback] = React.useState("");
+  const [sectionContent, setSectionContent] = React.useState({});
+  const { buildSupportWhatsAppLink } = useSupportConfig();
   const contactLink = React.useMemo(
     () => buildSupportWhatsAppLink(DEFAULT_MESSAGES.faqQuestion),
     [buildSupportWhatsAppLink]
   );
   const toggle = (i) => setOpen((prev) => (prev === i ? null : i));
+  const apiBase = React.useMemo(() => resolveApiBase(), []);
+
+  React.useEffect(() => {
+    let active = true;
+    fetchSiteContent()
+      .then((data) => {
+        if (!active) return;
+        setSectionContent(data?.faq || {});
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const faqTitle = sectionContent?.title || "Questions fréquentes";
+  const faqSubtitle =
+    sectionContent?.subtitle ||
+    "Tout savoir sur l’intervention, les tarifs et le fonctionnement.";
+  const faqImage = sectionContent?.image || "/assets/faq-screen.jpeg";
 
   return (
     <div className="w-full flex" id="faq">
@@ -98,7 +129,7 @@ export default function Faq() {
               >
                 <div className="h-full overflow-hidden rounded-2xl bg-zinc-100 shadow-sm">
                   <img
-                    src="/assets/faq-screen.jpeg"
+                    src={faqImage}
                     alt="Aperçu application TTM"
                     loading="lazy"
                     className="w-full h-full object-cover"
@@ -134,7 +165,7 @@ export default function Faq() {
                   whileInView="show"
                   viewport={{ once: true, amount: 0.6 }}
                 >
-                  Questions fréquentes
+                  {faqTitle}
                 </motion.h2>
                 <motion.p
                   className="mt-2 text-zinc-600"
@@ -143,7 +174,7 @@ export default function Faq() {
                   whileInView="show"
                   viewport={{ once: true, amount: 0.6 }}
                 >
-                  Tout savoir sur l’intervention, les tarifs et le fonctionnement.
+                  {faqSubtitle}
                 </motion.p>
 
                 <motion.div
@@ -213,11 +244,19 @@ export default function Faq() {
 
             <div className="flex flex-col items-center justify-center">
               <h3 className="text-lg font-semibold text-white">Contactez-nous</h3>
-              <img src="/assets/logo1.png" alt="TTM marque" className="h-[70px]" />
-              <div className="mt-4 flex gap-3">
-                <a href={`mailto:${support.email}`} className="hover:text-[#800E08]">
+                <img src="/assets/logo1.png" alt="TTM marque" className="h-[70px]" />
+                <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactFeedback("");
+                    setContactModalOpen(true);
+                  }}
+                  className="hover:text-[#800E08]"
+                  aria-label="Ouvrir le contact"
+                >
                   <i className="fa-solid fa-envelope" />
-                </a>
+                </button>
                 <a
                   href={contactLink}
                   target="_blank"
@@ -236,6 +275,115 @@ export default function Faq() {
             © 2025 Tow Truck Mali – Tous droits réservés | Produit par @DenonTech
           </div>
         </footer>
+
+        <AnimatePresence>
+          {contactModalOpen && (
+            <motion.div
+              className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setContactModalOpen(false)}
+            >
+              <div className="absolute inset-0 bg-black/60" />
+              <motion.div
+                initial={{ y: 16, opacity: 0, scale: 0.98 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 16, opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className="relative z-10 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold text-zinc-900">Contact TTM</h3>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Envoie-nous un message par email.
+                </p>
+                <div className="mt-4 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Votre nom"
+                    value={contactForm.name}
+                    onChange={(e) =>
+                      setContactForm((p) => ({ ...p, name: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-zinc-800"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Votre email"
+                    value={contactForm.email}
+                    onChange={(e) =>
+                      setContactForm((p) => ({ ...p, email: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-zinc-800"
+                  />
+                  <textarea
+                    rows={5}
+                    placeholder="Votre message"
+                    value={contactForm.message}
+                    onChange={(e) =>
+                      setContactForm((p) => ({ ...p, message: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-zinc-800"
+                  />
+                  {contactFeedback ? (
+                    <p className="text-sm text-zinc-600">{contactFeedback}</p>
+                  ) : null}
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={contactSending}
+                    onClick={async () => {
+                      if (!contactForm.name || !contactForm.email || !contactForm.message) {
+                        setContactFeedback("Tous les champs sont requis.");
+                        return;
+                      }
+                      try {
+                        setContactSending(true);
+                        setContactFeedback("");
+                        const endpoint = `${apiBase}/api/contact/public`;
+                        const res = await fetch(endpoint, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(contactForm),
+                        });
+                        const raw = await res.text();
+                        let data = {};
+                        if (raw) {
+                          try {
+                            data = JSON.parse(raw);
+                          } catch {
+                            data = { error: raw };
+                          }
+                        }
+                        if (!res.ok) {
+                          throw new Error(data?.error || "Erreur envoi");
+                        }
+                        setContactFeedback("Message envoyé ✅");
+                        setContactForm({ name: "", email: "", message: "" });
+                      } catch (err) {
+                        setContactFeedback(err.message || "Erreur envoi");
+                      } finally {
+                        setContactSending(false);
+                      }
+                    }}
+                    className="rounded-lg border border-[#800E08] px-4 py-2 text-[#800E08] hover:bg-[#800E08] hover:text-white disabled:opacity-60"
+                  >
+                    {contactSending ? "Envoi..." : "Envoyer"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setContactModalOpen(false)}
+                    className="rounded-lg border px-4 py-2 text-zinc-700 hover:bg-zinc-100"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

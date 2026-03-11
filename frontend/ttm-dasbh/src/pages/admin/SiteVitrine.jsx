@@ -1,4 +1,4 @@
-// src/pages/admin/Settings.jsx
+// src/pages/admin/SiteVitrine.jsx
 import { useEffect, useMemo, useState, useRef } from "react";
 import { toast } from "../../utils/toast";
 import * as FaIcons from "react-icons/fa";      // UI buttons (edit/save/…)
@@ -17,21 +17,31 @@ import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
-export default function Settings() {
+export default function SiteVitrine() {
   const { user, token } = useAuth();
 
   // ─────────── Permissions (RBAC)
   const canViewServices =
-    isSuper(user) || can(user, "services_view") || can(user, "services_manage");
-  const canManageServices = isSuper(user) || can(user, "services_manage");
+    isSuper(user) ||
+    can(user, "services_view") ||
+    can(user, "services_manage") ||
+    can(user, "site_view") ||
+    can(user, "site_manage");
+  const canManageServices =
+    isSuper(user) || can(user, "services_manage") || can(user, "site_manage");
 
   const canViewConfig =
-    isSuper(user) || can(user, "config_view") || can(user, "config_manage");
-  const canManageConfig = isSuper(user) || can(user, "config_manage");
+    isSuper(user) ||
+    can(user, "config_view") ||
+    can(user, "config_manage") ||
+    can(user, "site_view") ||
+    can(user, "site_manage");
+  const canManageConfig =
+    isSuper(user) || can(user, "config_manage") || can(user, "site_manage");
 
-  // La page reste accessible (profil) ; sections Services/Business sont déplacées
-  const canAccessPage = true;
-  const showVitrineSections = true;
+  const canAccessPage =
+    isSuper(user) || can(user, "site_view") || can(user, "site_manage");
+  const canManageSiteContent = isSuper(user) || can(user, "site_manage");
 
   // ─────────── Profile
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -56,8 +66,19 @@ export default function Settings() {
   const [loadingServices, setLoadingServices] = useState(true);
   const [inlineSaving, setInlineSaving] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", price: "", icon: "" });
+  const [addForm, setAddForm] = useState({
+    name: "",
+    subtitle: "",
+    description: "",
+    price: "",
+    icon: "",
+  });
+  const [addImageFile, setAddImageFile] = useState(null);
+  const [addImagePreview, setAddImagePreview] = useState("");
+  const [rowImageFiles, setRowImageFiles] = useState({});
+  const [rowImagePreviews, setRowImagePreviews] = useState({});
   const [servicesOpen, setServicesOpen] = useState(true);
+  const [histoireOpen, setHistoireOpen] = useState(true);
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [closingAddServiceModal, setClosingAddServiceModal] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -94,6 +115,23 @@ export default function Settings() {
   const [savingBusinessConfig, setSavingBusinessConfig] = useState(false);
   const [savingSupportContacts, setSavingSupportContacts] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [siteContentLoading, setSiteContentLoading] = useState(true);
+  const [siteContentSaving, setSiteContentSaving] = useState(false);
+  const [siteContent, setSiteContent] = useState({
+    histoire: {
+      title: "",
+      intro1: "",
+      intro2: "",
+      image: "",
+      modalTitle: "",
+      modalSubtitle: "",
+      modalBody: "",
+    },
+    services: { title: "", logoImage: "" },
+    tarifs: { title: "", subtitle: "", logoImage: "", photos: {} },
+    faq: { title: "", subtitle: "", image: "" },
+  });
+  const [tarifsPhotosRaw, setTarifsPhotosRaw] = useState("{}");
 
   const isLogged = useMemo(() => Boolean(token), [token]);
 
@@ -167,6 +205,14 @@ export default function Settings() {
     return <Comp style={{ fontSize: size }} />;
   };
 
+  const toAssetUrl = (value) => {
+    if (!value) return "";
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = API_BASE.replace(/\/api$/, "");
+    const path = String(value).startsWith("/") ? value : `/${value}`;
+    return `${base}${path}`;
+  };
+
   // Chargement paresseux de la grosse liste d'icônes (évite de bloquer au montage)
   useEffect(() => {
     if (!iconPickerOpen || iconList.length > 0 || iconsLoading) return;
@@ -220,7 +266,7 @@ export default function Settings() {
     if (!canViewServices) return; // RBAC
     setLoadingServices(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/services`, {
+      const res = await fetch(`${API_BASE}/api/admin/vitrine/services`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -260,12 +306,89 @@ export default function Settings() {
     }
   };
 
+  const loadSiteContent = async () => {
+    setSiteContentLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/config/site-content`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur chargement contenu vitrine");
+      const raw = data?.data || {};
+      const next = {
+        histoire: { ...siteContent.histoire, ...(raw.histoire || {}) },
+        services: { ...siteContent.services, ...(raw.services || {}) },
+        tarifs: { ...siteContent.tarifs, ...(raw.tarifs || {}) },
+        faq: { ...siteContent.faq, ...(raw.faq || {}) },
+      };
+      setSiteContent(next);
+      setTarifsPhotosRaw(
+        JSON.stringify(
+          next?.tarifs?.photos && typeof next.tarifs.photos === "object"
+            ? next.tarifs.photos
+            : {},
+          null,
+          2
+        )
+      );
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSiteContentLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isLogged) return;
     loadServices();
     loadConfig();
+    loadSiteContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLogged, canViewServices, canViewConfig]);
+
+  const updateSiteSection = (section, key, value) => {
+    setSiteContent((prev) => ({
+      ...prev,
+      [section]: { ...(prev[section] || {}), [key]: value },
+    }));
+  };
+
+  const saveSiteContent = async () => {
+    if (!canManageSiteContent) return toast.error("Droit requis: site_manage");
+    let photosParsed = {};
+    try {
+      const parsed = JSON.parse(tarifsPhotosRaw || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Le JSON des photos tarifs doit être un objet");
+      }
+      photosParsed = parsed;
+    } catch (e) {
+      return toast.error(e.message || "JSON photos tarifs invalide");
+    }
+    try {
+      setSiteContentSaving(true);
+      const payload = {
+        ...siteContent,
+        tarifs: { ...(siteContent.tarifs || {}), photos: photosParsed },
+      };
+      const res = await fetch(`${API_BASE}/api/admin/config/site-content`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ site_content: payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur sauvegarde contenu vitrine");
+      toast.success("Contenu vitrine mis à jour ✅");
+      setSiteContent(payload);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSiteContentSaving(false);
+    }
+  };
 
   if (!canAccessPage) {
     return (
@@ -368,20 +491,37 @@ export default function Settings() {
     if (isNaN(price) || price < 0) return toast.error("Prix invalide");
     try {
       setInlineSaving(srv.id);
-      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+      const payload = new FormData();
+      payload.append("name", String(srv.name || "").trim());
+      payload.append("subtitle", String(srv.subtitle || "").trim());
+      payload.append("description", String(srv.description || "").trim());
+      payload.append("price", String(price));
+      if (rowImageFiles[srv.id]) {
+        payload.append("image", rowImageFiles[srv.id]);
+      }
+      const res = await fetch(`${API_BASE}/api/admin/vitrine/services/${srv.id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ price }),
+        body: payload,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur mise à jour prix");
-      toast.success(`Prix de "${srv.name}" mis à jour ✅`);
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
+      toast.success(`Service "${srv.name}" mis à jour ✅`);
       setServices((prev) =>
-        prev.map((s) => (s.id === srv.id ? { ...s, price } : s))
+        prev.map((s) => (s.id === srv.id ? { ...s, ...(data?.data || {}), price } : s))
       );
+      setRowImageFiles((prev) => {
+        const next = { ...prev };
+        delete next[srv.id];
+        return next;
+      });
+      setRowImagePreviews((prev) => {
+        const next = { ...prev };
+        delete next[srv.id];
+        return next;
+      });
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -397,7 +537,7 @@ export default function Settings() {
     }
     try {
       setConfirmServiceLoading(true);
-      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/vitrine/services/${srv.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -431,24 +571,27 @@ export default function Settings() {
     if (isNaN(price) || price < 0) return toast.error("Prix invalide");
     try {
       setAdding(true);
-      const payload = {
-        name: addForm.name,
-        price: String(price),
-        icon_name: addForm.icon || "",
-      };
+      const payload = new FormData();
+      payload.append("name", addForm.name.trim());
+      payload.append("subtitle", addForm.subtitle.trim());
+      payload.append("description", addForm.description.trim());
+      payload.append("price", String(price));
+      payload.append("icon_name", addForm.icon || "");
+      if (addImageFile) payload.append("image", addImageFile);
 
-      const res = await fetch(`${API_BASE}/api/admin/services`, {
+      const res = await fetch(`${API_BASE}/api/admin/vitrine/services`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: payload,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
       toast.success("Service ajouté ✅");
-      setAddForm({ name: "", price: "", icon: "" });
+      setAddForm({ name: "", subtitle: "", description: "", price: "", icon: "" });
+      setAddImageFile(null);
+      setAddImagePreview("");
       setIconPickerOpen(false);
       setClosingAddServiceModal(true);
       setTimeout(() => {
@@ -598,173 +741,87 @@ export default function Settings() {
   };
 
   // ─────────── Render
+  if (!canAccessPage) {
+    return (
+      <div className="p-6 rounded shadow" style={{ background: "var(--bg-card)" }}>
+        <h2 className="text-xl font-bold mb-2">Accès refusé</h2>
+        <p className="opacity-80">
+          Cette section est réservée aux rôles avec la permission{" "}
+          <b>site_view</b> ou <b>site_manage</b>.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 theme-fade">
-      {/* ──────────────── Section Profil (toujours visible) */}
+    <div className="space-y-8">
       <section
         className="p-6 rounded shadow"
         style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
       >
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <FaRegCircleUser />
-          Profil
-        </h2>
-
-        <div className="flex items-center gap-5 mb-4">
-          <div
-            className="w-20 h-20 rounded-full overflow-hidden border"
-            style={{
-              background: "var(--bg-card)",
-              borderColor: "var(--border-color)",
-            }}
-          >
-            {avatarPreview ? (
-              <img
-                src={avatarPreview}
-                alt="preview"
-                className="w-full h-full object-cover"
-              />
-            ) : user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt="avatar"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center opacity-60">
-                A
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1">
-            <p className="text-lg font-semibold">{user?.name || "?"}</p>
-            <p className="opacity-70">{user?.email || "?"}</p>
-            <p className="opacity-70">{user?.phone || "?"}</p>
-          </div>
-          <div className="flex flex-col gap-3 max-w-xs items-start">
-          <button
-            type="button"
-            onClick={() => {
-              setClosingEditProfile(false);
-              setShowEditProfile(true);
-            }}
-            className="px-4 py-2 rounded flex items-center gap-2"
-            style={{ background: "var(--bg-main)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
-          >
-            <FaEdit />
-            Modifier mes infos
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPwd({ current: "", next: "", confirm: "" });
-              setClosingPasswordModal(false);
-              setShowPasswordModal(true);
-            }}
-            className="px-4 py-2 rounded flex items-center gap-2"
-            style={{ background: "var(--bg-main)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
-          >
-            <FaKey />
-            Changer le mot de passe
-          </button>
-        </div>
-        </div>
-
-
-        
+        <h2 className="text-xl font-bold mb-2">Site vitrine</h2>
+        <p className="opacity-70 text-sm">
+          Gérez uniquement les cartes services du site vitrine .
+        </p>
       </section>
 
-      {showEditProfile && (
+      <section
+        className="p-6 rounded shadow"
+        style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
+      >
+        <button
+          onClick={() => setHistoireOpen((s) => !s)}
+          className="w-full flex items-center justify-between mb-4"
+        >
+          <h3 className="text-lg font-bold">Contenu Histoire</h3>
+          <span
+            style={{
+              transition: "transform 0.25s ease",
+              transform: histoireOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          >
+            ⌄
+          </span>
+        </button>
         <div
-          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingEditProfile ? "closing" : ""}`}
-          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
-          onClick={() => {
-            setClosingEditProfile(true);
-            setTimeout(() => {
-              setShowEditProfile(false);
-              setClosingEditProfile(false);
-            }, 180);
+          className="transition-all duration-300"
+          style={{
+            maxHeight: histoireOpen ? "800px" : "0",
+            overflow: "hidden",
+            opacity: histoireOpen ? 1 : 0,
           }}
         >
-          <div
-            ref={editProfileModalRef}
-            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingEditProfile ? "closing" : ""}`}
-            style={{
-              background: "var(--bg-card)",
-              color: "var(--text-color)",
-              border: "1px solid var(--border-color)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold mb-4">Modifier mes infos</h3>
-            <label className="block text-sm opacity-70 mb-1">Nom</label>
-            <input
-              type="text"
-              value={profile.name}
-              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-              className="w-full mb-3 p-2 rounded border"
-              style={{
-                background: "var(--bg-card)",
-                color: "var(--text-color)",
-                borderColor: "var(--border-color)",
-              }}
-            />
-            <label className="block text-sm opacity-70 mb-1">Email</label>
-            <input
-              type="email"
-              value={profile.email}
-              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-              className="w-full mb-3 p-2 rounded border"
-              style={{
-                background: "var(--bg-card)",
-                color: "var(--text-color)",
-                borderColor: "var(--border-color)",
-              }}
-            />
-            <label className="block text-sm opacity-70 mb-1">T?l?phone</label>
-            <input
-              type="text"
-              value={profile.phone}
-              onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-              className="w-full mb-4 p-2 rounded border"
-              style={{
-                background: "var(--bg-card)",
-                color: "var(--text-color)",
-                borderColor: "var(--border-color)",
-              }}
-            />
-            <div className="flex justify-end gap-2">
+          {siteContentLoading ? (
+            <p className="opacity-70">Chargement contenu…</p>
+          ) : (
+            <div className="space-y-3">
+              <input
+                className="w-full p-2 rounded border"
+                style={{ borderColor: "var(--border-color)", background: "var(--bg-card)", color: "var(--text-color)" }}
+                placeholder="Sous-titre histoire"
+                value={siteContent.histoire.modalSubtitle || ""}
+                onChange={(e) => updateSiteSection("histoire", "modalSubtitle", e.target.value)}
+              />
+              <textarea
+                className="w-full p-2 rounded border"
+                style={{ borderColor: "var(--border-color)", background: "var(--bg-card)", color: "var(--text-color)" }}
+                rows={10}
+                placeholder="Contenu histoire (texte long)"
+                value={siteContent.histoire.modalBody || ""}
+                onChange={(e) => updateSiteSection("histoire", "modalBody", e.target.value)}
+              />
               <button
-                onClick={() => {
-                  setClosingEditProfile(true);
-                  setTimeout(() => {
-                    setShowEditProfile(false);
-                    setClosingEditProfile(false);
-                  }, 180);
-                }}
-                className="px-4 py-2 rounded border"
-                style={{ borderColor: "var(--border-color)" }}
+                onClick={saveSiteContent}
+                disabled={siteContentSaving || !canManageSiteContent}
+                className="px-4 py-2 rounded text-white disabled:opacity-60"
+                style={{ background: "var(--accent)" }}
               >
-                Annuler
-              </button>
-              <button
-                onClick={saveProfile}
-                disabled={savingProfile}
-                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
-                {savingProfile ? (
-                  <AiOutlineLoading3Quarters className="animate-spin" />
-                ) : (
-                  <FaSave />
-                )}
-                Enregistrer
+                {siteContentSaving ? "Sauvegarde..." : "Sauvegarder Histoire"}
               </button>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </section>
 
       {showPasswordModal && (
         <div
@@ -845,7 +902,7 @@ export default function Settings() {
 
 
       {/* ──────────────── Section Services (RBAC) */}
-      {showVitrineSections && canViewServices && (
+      {canViewServices && (
         <section
           className="p-6 rounded shadow theme-fade"
           style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
@@ -883,6 +940,9 @@ export default function Settings() {
                 <tr>
                   <th className="px-3 py-2 text-left">Icône</th>
                   <th className="px-3 py-2 text-left">Nom</th>
+                  <th className="px-3 py-2 text-left">Sous-titre</th>
+                  <th className="px-3 py-2 text-left">Description</th>
+                  <th className="px-3 py-2 text-left">Image carte</th>
                   <th className="px-3 py-2 text-left">Prix (FCFA)</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
@@ -890,14 +950,14 @@ export default function Settings() {
               <tbody>
                 {loadingServices ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
+                    <td colSpan={7} className="px-3 py-6 text-center opacity-70">
                       <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
                       Chargement...
                     </td>
                   </tr>
                 ) : services.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
+                    <td colSpan={7} className="px-3 py-6 text-center opacity-70">
                       Aucun service.
                     </td>
                   </tr>
@@ -933,7 +993,103 @@ export default function Settings() {
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-2">{s.name}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={s.name || ""}
+                          onChange={(e) =>
+                            setServices((prev) =>
+                              prev.map((x) =>
+                                x.id === s.id
+                                  ? { ...x, name: e.target.value }
+                                  : x
+                              )
+                            )
+                          }
+                          disabled={!canManageServices}
+                          className="w-44 p-2 rounded border"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={s.subtitle || ""}
+                          onChange={(e) =>
+                            setServices((prev) =>
+                              prev.map((x) =>
+                                x.id === s.id
+                                  ? { ...x, subtitle: e.target.value }
+                                  : x
+                              )
+                            )
+                          }
+                          disabled={!canManageServices}
+                          className="w-56 p-2 rounded border"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                          placeholder="Aperçu court (carte)"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <textarea
+                          value={s.description || ""}
+                          onChange={(e) =>
+                            setServices((prev) =>
+                              prev.map((x) =>
+                                x.id === s.id
+                                  ? { ...x, description: e.target.value }
+                                  : x
+                              )
+                            )
+                          }
+                          disabled={!canManageServices}
+                          className="w-64 p-2 rounded border min-h-[72px]"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                          placeholder="Texte de la carte service"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-2">
+                          {(rowImagePreviews[s.id] || s.image_url) && (
+                            <img
+                              src={rowImagePreviews[s.id] || toAssetUrl(s.image_url)}
+                              alt={s.name}
+                              className="w-28 h-16 rounded object-cover border"
+                              style={{ borderColor: "var(--border-color)" }}
+                            />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={!canManageServices}
+                            className="w-56 p-2 rounded border text-sm"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const preview = URL.createObjectURL(file);
+                              setRowImageFiles((prev) => ({ ...prev, [s.id]: file }));
+                              setRowImagePreviews((prev) => ({ ...prev, [s.id]: preview }));
+                            }}
+                          />
+                        </div>
+                      </td>
                       <td className="px-3 py-2">
                         <input
                           type="number"
@@ -1012,402 +1168,7 @@ export default function Settings() {
         </section>
       )}
 
-      {/* ──────────────── Section Business (RBAC) */}
-      {showVitrineSections && canViewConfig && (
-        <section
-          className="p-6 rounded shadow theme-fade"
-          style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
-        >
-          <button
-            onClick={() => setBusinessOpen((s) => !s)}
-            className="w-full flex items-center justify-between mb-4"
-          >
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <FaBriefcase />
-              Paramètres Business
-            </h2>
-            <span
-              style={{
-                transition: "transform 0.25s ease",
-                transform: businessOpen ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              ⌄
-            </span>
-          </button>
-          <div
-            className="transition-all duration-300"
-            style={{
-              maxHeight: businessOpen ? "2000px" : "0",
-              overflow: "hidden",
-              opacity: businessOpen ? 1 : 0,
-            }}
-          >
-            {loadingConfig ? (
-              <p className="opacity-70">
-                <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
-                Chargement config…
-              </p>
-            ) : (
-              <>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Commission */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Commission admin (%)
-                  </label>
-                  <div className="relative">
-                    <FaPercent className="absolute left-2 top-1/2 -translate-y-1/2 opacity-70" />
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={commission}
-                      onChange={(e) => setCommission(e.target.value)}
-                      disabled={!canManageConfig}
-                      className="pl-8 w-full p-2 rounded border"
-                      style={{
-                        background: "var(--bg-card)",
-                        color: "var(--text-color)",
-                        borderColor: "var(--border-color)",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Prix remorquage / km */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Prix remorquage par km
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={towingPricePerKm}
-                    onChange={(e) => setTowingPricePerKm(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 500"
-                  />
-                </div>
-
-                {/* Prix de base remorquage */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Prix de base remorquage
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={towingBasePrice}
-                    onChange={(e) => setTowingBasePrice(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 3000"
-                  />
-                </div>
-
-                {/* Devise */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Devise
-                  </label>
-                  <input
-                    type="text"
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border uppercase"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: FCFA"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Rayon missions standard (km)
-                  </label>
-                  <input
-                    type="number"
-                    value={operatorMissionRadius}
-                    onChange={(e) => setOperatorMissionRadius(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Rayon remorquage (km)
-                  </label>
-                  <input
-                    type="number"
-                    value={operatorTowingRadius}
-                    onChange={(e) => setOperatorTowingRadius(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 100"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <button
-                  onClick={saveBusinessConfig}
-                  disabled={savingBusinessConfig || !canManageConfig}
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
-                  title={canManageConfig ? "" : "Droit requis: config_manage"}
-                >
-                  {savingBusinessConfig ? (
-                    <AiOutlineLoading3Quarters className="animate-spin" />
-                  ) : (
-                    <FaSave />
-                  )}
-                  Mettre à jour
-                </button>
-              </div>
-            </>
-          )}
-          </div>
-        </section>
-      )}
-
-      {showVitrineSections && canViewConfig && (
-        <section
-          className="p-6 rounded shadow theme-fade"
-          style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
-        >
-          <button
-            onClick={() => setSupportOpen((s) => !s)}
-            className="w-full flex items-center justify-between mb-4"
-          >
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <FaHeadset />
-              Coordonnées service client
-            </h2>
-            <span
-              style={{
-                transition: "transform 0.25s ease",
-                transform: supportOpen ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            >
-              ⌄
-            </span>
-          </button>
-          <div
-            className="transition-all duration-300"
-            style={{
-              maxHeight: supportOpen ? "1600px" : "0",
-              overflow: "hidden",
-              opacity: supportOpen ? 1 : 0,
-            }}
-          >
-            {loadingConfig ? (
-              <p className="opacity-70">
-                <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
-                Chargement coordonnées…
-              </p>
-            ) : (
-<>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm opacity-70 mb-1">
-                      Numéro d’appel
-                    </label>
-                  <input
-                    type="tel"
-                    value={supportPhone}
-                    onChange={(e) => setSupportPhone(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="+22300000000"
-                  />
-                </div>
-                  <div>
-                    <label className="block text-sm opacity-70 mb-1">
-                      WhatsApp (international)
-                    </label>
-                    <input
-                    type="tel"
-                    value={supportWhatsApp}
-                    onChange={(e) => setSupportWhatsApp(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="00223…"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Email support
-                  </label>
-                  <input
-                    type="email"
-                    value={supportEmail}
-                    onChange={(e) => setSupportEmail(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="support@ttm.com"
-                  />
-                </div>
-              </div>
-
-              
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={saveSupportContacts}
-                  disabled={savingSupportContacts || !canManageConfig}
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                  className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
-                  title={canManageConfig ? "" : "Droit requis: config_manage"}
-                >
-                  {savingSupportContacts ? (
-                    <AiOutlineLoading3Quarters className="animate-spin" />
-                  ) : (
-                    <FaSave />
-                  )}
-                  Enregistrer les coordonnées
-                </button>
-                <button
-                  onClick={() => {
-                    setClosingTestSmsModal(false);
-                    setShowTestSmsModal(true);
-                  }}
-                  disabled={!canManageConfig}
-                  className="px-4 py-2 rounded flex items-center gap-2"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--text-color)",
-                  }}
-                  title={canManageConfig ? "" : "Droit requis: config_manage"}
-                >
-                  <FaPaperPlane />
-                  Tester SMS
-                </button>
-              </div>
-            </>
-            )}
-          </div>
-        </section>
-      )}
-      {showVitrineSections && showTestSmsModal && (
-        <div
-          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingTestSmsModal ? "closing" : ""}`}
-          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
-          onClick={() => {
-            if (sendingTestSms) return;
-            setClosingTestSmsModal(true);
-            setTimeout(() => {
-              setShowTestSmsModal(false);
-              setClosingTestSmsModal(false);
-            }, 180);
-          }}
-        >
-          <div
-            ref={testSmsModalRef}
-            className={`p-6 rounded shadow w-full max-w-md modal-panel ${closingTestSmsModal ? "closing" : ""}`}
-            style={{
-              background: "var(--bg-card)",
-              color: "var(--text-color)",
-              border: "1px solid var(--border-color)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-bold mb-2">Tester l'envoi SMS</h3>
-            <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-              Entre un numéro pour recevoir un SMS de test.
-            </p>
-            <label className="block text-sm opacity-70 mb-1">Numéro</label>
-            <input
-              type="tel"
-              value={testSmsPhone}
-              onChange={(e) => setTestSmsPhone(e.target.value)}
-              className="w-full p-2 rounded border"
-              style={{
-                background: "var(--bg-card)",
-                color: "var(--text-color)",
-                borderColor: "var(--border-color)",
-              }}
-              placeholder="+22300000000"
-            />
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => {
-                  if (sendingTestSms) return;
-                  setClosingTestSmsModal(true);
-                  setTimeout(() => {
-                    setShowTestSmsModal(false);
-                    setClosingTestSmsModal(false);
-                  }, 180);
-                }}
-                className="px-4 py-2 rounded"
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--border-color)",
-                  color: "var(--text-color)",
-                }}
-                disabled={sendingTestSms}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={sendTestSms}
-                className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
-                style={{ background: "var(--accent)" }}
-                disabled={sendingTestSms}
-              >
-                {sendingTestSms ? (
-                  <AiOutlineLoading3Quarters className="animate-spin" />
-                ) : (
-                  <FaPaperPlane />
-                )}
-                Envoyer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showVitrineSections && confirmService && (
+      {confirmService && (
         <div
           className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirmService ? "closing" : ""}`}
           style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
@@ -1479,10 +1240,10 @@ export default function Settings() {
           </div>
         </div>
       )}
-      {showVitrineSections && showAddServiceModal && (
+      {showAddServiceModal && (
         <div
-          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingAddServiceModal ? "closing" : ""}`}
-          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          className={`fixed inset-0 flex items-center justify-center modal-backdrop ${closingAddServiceModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 9999, padding: "20px" }}
           onClick={() => {
             if (adding) return;
             setClosingAddServiceModal(true);
@@ -1499,6 +1260,9 @@ export default function Settings() {
               background: "var(--bg-card)",
               color: "var(--text-color)",
               border: "1px solid var(--border-color)",
+              position: "relative",
+              maxHeight: "90vh",
+              overflowY: "auto",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1537,6 +1301,66 @@ export default function Settings() {
                   }}
                   placeholder="Ex: 150"
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-1">Sous-titre (aperçu)</label>
+                <input
+                  type="text"
+                  value={addForm.subtitle}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, subtitle: e.target.value })
+                  }
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Texte court affiché sur la carte"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-1">Description</label>
+                <textarea
+                  value={addForm.description}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, description: e.target.value })
+                  }
+                  className="w-full p-2 rounded border min-h-[90px]"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Texte affiché dans la carte service"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-1">Photo de la carte</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setAddImageFile(file);
+                    setAddImagePreview(URL.createObjectURL(file));
+                  }}
+                />
+                {addImagePreview && (
+                  <img
+                    src={addImagePreview}
+                    alt="Aperçu"
+                    className="mt-2 h-24 rounded object-cover border"
+                    style={{ borderColor: "var(--border-color)" }}
+                  />
+                )}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm opacity-70 mb-1">Icône</label>
@@ -1628,6 +1452,8 @@ export default function Settings() {
                   setTimeout(() => {
                     setShowAddServiceModal(false);
                     setClosingAddServiceModal(false);
+                    setAddImageFile(null);
+                    setAddImagePreview("");
                   }, 180);
                 }}
                 className="px-4 py-2 rounded border"
@@ -1655,3 +1481,4 @@ export default function Settings() {
     </div>
   )
 }
+

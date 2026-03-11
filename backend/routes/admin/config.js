@@ -1,7 +1,7 @@
 // routes/admin/config.js
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
+import { loadAdminPermissions, checkPermission, requireAny } from "../../middleware/checkPermission.js";
 import { sendSMS } from "../../utils/sms.js";
 
 const router = express.Router();
@@ -75,6 +75,20 @@ export default (db) => {
       } catch (e) {
         // ignore si table absente, traité plus bas
       }
+      // Ajoute site_content_json si manquante
+      try {
+        const [[col]] = await db.query(
+          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'site_content_json'`
+        );
+        if (!col) {
+          await db.query(
+            "ALTER TABLE configurations ADD COLUMN site_content_json JSON NULL"
+          );
+        }
+      } catch (e) {
+        // ignore si table absente, traité plus bas
+      }
 
       const [[row]] = await db.query(
         "SELECT * FROM configurations LIMIT 1"
@@ -110,6 +124,7 @@ export default (db) => {
             support_email VARCHAR(120) NOT NULL DEFAULT 'support@ttm.com',
             operator_mission_radius_km DECIMAL(6,2) NOT NULL DEFAULT 5,
             operator_towing_radius_km DECIMAL(6,2) NOT NULL DEFAULT 100,
+            site_content_json JSON NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -133,7 +148,10 @@ export default (db) => {
   // ---------------------------------------------------------
   // 📖 GET — Lire la configuration Business
   // ---------------------------------------------------------
-  router.get("/", checkPermission("config_view"), async (req, res) => {
+  router.get(
+    "/",
+    requireAny(["config_view", "site_view", "site_manage"]),
+    async (req, res) => {
     try {
       const cfg = await ensureConfigRow(req.db);
 
@@ -162,7 +180,10 @@ export default (db) => {
   // ---------------------------------------------------------
   // ✏️ PUT — Mettre à jour la configuration Business
   // ---------------------------------------------------------
-  router.put("/", checkPermission("config_manage"), async (req, res) => {
+  router.put(
+    "/",
+    requireAny(["config_manage", "site_manage"]),
+    async (req, res) => {
     try {
       // On récupère d’abord la ligne actuelle
       const cfg = await ensureConfigRow(req.db);
@@ -296,7 +317,10 @@ export default (db) => {
   // ---------------------------------------------------------
   // 📲 POST — Tester l'envoi SMS (admin panel)
   // ---------------------------------------------------------
-  router.post("/test-sms", checkPermission("config_manage"), async (req, res) => {
+  router.post(
+    "/test-sms",
+    requireAny(["config_manage", "site_manage"]),
+    async (req, res) => {
     try {
       const rawPhone = String(req.body?.phone || "").trim();
       if (!rawPhone) {
@@ -323,6 +347,65 @@ export default (db) => {
       });
     }
   });
+
+  // ---------------------------------------------------------
+  // 🌐 GET — Contenu éditorial du site vitrine
+  // ---------------------------------------------------------
+  router.get(
+    "/site-content",
+    requireAny(["site_view", "site_manage"]),
+    async (req, res) => {
+      try {
+        const cfg = await ensureConfigRow(req.db);
+        let siteContent = {};
+        if (cfg.site_content_json) {
+          if (typeof cfg.site_content_json === "string") {
+            try {
+              siteContent = JSON.parse(cfg.site_content_json);
+            } catch {
+              siteContent = {};
+            }
+          } else {
+            siteContent = cfg.site_content_json;
+          }
+        }
+        return res.json({ data: siteContent || {} });
+      } catch (err) {
+        console.error("❌ Erreur GET /admin/config/site-content:", err);
+        return res.status(500).json({ error: "Erreur chargement contenu site" });
+      }
+    }
+  );
+
+  // ---------------------------------------------------------
+  // 🌐 PUT — Mettre à jour le contenu éditorial du site vitrine
+  // ---------------------------------------------------------
+  router.put(
+    "/site-content",
+    requireAny(["site_manage"]),
+    async (req, res) => {
+      try {
+        const cfg = await ensureConfigRow(req.db);
+        const id = cfg.id;
+        const payload = req.body?.site_content ?? req.body ?? {};
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          return res.status(400).json({ error: "Payload site_content invalide" });
+        }
+        const json = JSON.stringify(payload);
+        await req.db.query(
+          "UPDATE configurations SET site_content_json=?, updated_at=NOW() WHERE id=?",
+          [json, id]
+        );
+        await logAdminEvent(req.db, req.user?.id, "site_content_update", {
+          keys: Object.keys(payload || {}),
+        });
+        return res.json({ message: "Contenu site mis à jour ✅", data: payload });
+      } catch (err) {
+        console.error("❌ Erreur PUT /admin/config/site-content:", err);
+        return res.status(500).json({ error: "Erreur mise à jour contenu site" });
+      }
+    }
+  );
 
   return router;
 };

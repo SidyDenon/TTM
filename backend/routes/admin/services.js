@@ -6,7 +6,7 @@ import fs from "fs";
 import authMiddleware from "../../middleware/auth.js";
 import {
   loadAdminPermissions,
-  checkPermission,
+  requireAny,
 } from "../../middleware/checkPermission.js";
 
 const router = express.Router();
@@ -30,18 +30,21 @@ const AVAILABLE_ICONS_DIR = "public/service-icons";
 if (!fs.existsSync(AVAILABLE_ICONS_DIR)) fs.mkdirSync(AVAILABLE_ICONS_DIR, { recursive: true });
 
 // Détection colonnes icon_url / icon (pas de cache pour éviter les incohérences après migration)
-const ensureIconColumns = async (db) => {
+const ensureServiceColumns = async (db) => {
   try {
     const [rows] = await db.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'services'
-         AND COLUMN_NAME IN ('icon_url','icon')`
+         AND COLUMN_NAME IN ('icon_url','icon','description','subtitle','image_url')`
     );
     const hasIconUrlColumn = rows.some((r) => r.COLUMN_NAME === "icon_url");
     const hasIconNameColumn = rows.some((r) => r.COLUMN_NAME === "icon");
-    return { hasIconUrlColumn, hasIconNameColumn };
+    const hasDescriptionColumn = rows.some((r) => r.COLUMN_NAME === "description");
+    const hasSubtitleColumn = rows.some((r) => r.COLUMN_NAME === "subtitle");
+    const hasImageUrlColumn = rows.some((r) => r.COLUMN_NAME === "image_url");
+    return { hasIconUrlColumn, hasIconNameColumn, hasDescriptionColumn, hasSubtitleColumn, hasImageUrlColumn };
   } catch {
-    return { hasIconUrlColumn: false, hasIconNameColumn: false };
+    return { hasIconUrlColumn: false, hasIconNameColumn: false, hasDescriptionColumn: false, hasSubtitleColumn: false, hasImageUrlColumn: false };
   }
 };
 
@@ -54,6 +57,10 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage });
+const uploadServiceAssets = upload.fields([
+  { name: "icon", maxCount: 1 },
+  { name: "image", maxCount: 1 },
+]);
 
 /**
  * 🔹 Normalisation d'un nom de service → clé simple
@@ -135,7 +142,10 @@ export default (db) => {
   // ────────────────────────────────
   // 📋 Liste d'icônes disponibles (pour picker front)
   // ────────────────────────────────
-  router.get("/icons", checkPermission("services_view"), async (_req, res) => {
+  router.get(
+    "/icons",
+    requireAny(["services_view", "site_view", "site_manage"]),
+    async (_req, res) => {
     try {
       const files = fs.readdirSync(AVAILABLE_ICONS_DIR);
       const icons = files
@@ -152,13 +162,25 @@ export default (db) => {
   });
 
   
-  router.get("/", checkPermission("services_view"), async (req, res) => {
+  router.get(
+    "/",
+    requireAny(["services_view", "site_view", "site_manage"]),
+    async (req, res) => {
     try {
-      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
+      const {
+        hasIconUrlColumn: iconUrlEnabled,
+        hasIconNameColumn,
+        hasDescriptionColumn,
+        hasSubtitleColumn,
+        hasImageUrlColumn,
+      } = await ensureServiceColumns(req.db);
       const selectFields = [
         "id",
         "name",
+        hasDescriptionColumn ? "description" : null,
+        hasSubtitleColumn ? "subtitle" : null,
         "price",
+        hasImageUrlColumn ? "image_url" : null,
         iconUrlEnabled ? "icon_url" : null,
         hasIconNameColumn ? "icon" : null,
       ]
@@ -184,6 +206,9 @@ export default (db) => {
           null;
         return {
           ...s,
+          description: hasDescriptionColumn ? s.description || "" : "",
+          subtitle: hasSubtitleColumn ? s.subtitle || "" : "",
+          image_url: hasImageUrlColumn ? s.image_url || null : null,
           icon_url: normUrl || virtualIcon || null,
           icon: virtualIcon,
         };
@@ -199,11 +224,20 @@ export default (db) => {
 
   router.get("/public", async (req, res) => {
     try {
-      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
+      const {
+        hasIconUrlColumn: iconUrlEnabled,
+        hasIconNameColumn,
+        hasDescriptionColumn,
+        hasSubtitleColumn,
+        hasImageUrlColumn,
+      } = await ensureServiceColumns(req.db);
       const selectFields = [
         "id",
         "name",
+        hasDescriptionColumn ? "description" : null,
+        hasSubtitleColumn ? "subtitle" : null,
         "price",
+        hasImageUrlColumn ? "image_url" : null,
         iconUrlEnabled ? "icon_url" : null,
         hasIconNameColumn ? "icon" : null,
       ]
@@ -232,7 +266,10 @@ export default (db) => {
         return {
           id: s.id,
           name: s.name,
+          description: hasDescriptionColumn ? s.description || "" : "",
+          subtitle: hasSubtitleColumn ? s.subtitle || "" : "",
           price: Number(s.price),
+          image_url: hasImageUrlColumn ? s.image_url || null : null,
           icon_url: normUrl || virtualIcon || null,
           icon: virtualIcon,
         };
@@ -247,16 +284,23 @@ export default (db) => {
 
   router.post(
     "/",
-    checkPermission("services_manage"),
-    upload.single("icon"),
+    requireAny(["services_manage", "site_manage"]),
+    uploadServiceAssets,
     async (req, res) => {
       try {
-        const { name, price, selected_icon, icon_name } = req.body;
+        const { name, description, subtitle, image_url, price, selected_icon, icon_name } = req.body;
         if (!name || price == null)
           return res.status(400).json({ error: "Nom et prix requis" });
 
-        const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
-        const uploadedIcon = req.file ? req.file.filename : null;
+        const {
+          hasIconUrlColumn: iconUrlEnabled,
+          hasIconNameColumn,
+          hasDescriptionColumn,
+          hasSubtitleColumn,
+          hasImageUrlColumn,
+        } = await ensureServiceColumns(req.db);
+        const uploadedIcon = req.files?.icon?.[0]?.filename || null;
+        const uploadedImage = req.files?.image?.[0]?.filename || null;
 
         const pickedIcon =
           selected_icon && typeof selected_icon === "string" && selected_icon.trim()
@@ -269,6 +313,12 @@ export default (db) => {
 
         const defaultIcon = resolveServiceIcon(name); // déjà /service-icons/xxx ou null
         let autoIcon = defaultIcon;
+        let serviceImage = null;
+        if (uploadedImage) {
+          serviceImage = `/uploads/services/${uploadedImage}`;
+        } else if (typeof image_url === "string" && image_url.trim()) {
+          serviceImage = image_url.trim();
+        }
         if (uploadedIcon) {
           autoIcon = `/uploads/services/${uploadedIcon}`;
         } else if (pickedIcon) {
@@ -285,10 +335,25 @@ export default (db) => {
         }
 
         let result;
-        if (iconUrlEnabled || hasIconNameColumn) {
+        if (iconUrlEnabled || hasIconNameColumn || hasDescriptionColumn || hasImageUrlColumn) {
           const fields = ["name", "price"];
           const placeholders = ["?", "?"];
           const values = [name, price];
+          if (hasDescriptionColumn) {
+            fields.push("description");
+            placeholders.push("?");
+            values.push(typeof description === "string" ? description.trim() : null);
+          }
+          if (hasSubtitleColumn) {
+            fields.push("subtitle");
+            placeholders.push("?");
+            values.push(typeof subtitle === "string" ? subtitle.trim() : null);
+          }
+          if (hasImageUrlColumn) {
+            fields.push("image_url");
+            placeholders.push("?");
+            values.push(serviceImage);
+          }
           if (iconUrlEnabled) {
             fields.push("icon_url");
             placeholders.push("?");
@@ -318,7 +383,10 @@ export default (db) => {
         const newService = {
           id: result.insertId,
           name,
+          description: typeof description === "string" ? description.trim() : "",
+          subtitle: typeof subtitle === "string" ? subtitle.trim() : "",
           price: Number(price),
+          image_url: serviceImage,
           icon_url: iconUrlEnabled ? autoIcon : null,
           icon: hasIconNameColumn ? iconName : null,
         };
@@ -338,14 +406,36 @@ export default (db) => {
   );
 
 
-  router.put("/:id", checkPermission("services_manage"), async (req, res) => {
+  router.put(
+    "/:id",
+    requireAny(["services_manage", "site_manage"]),
+    uploadServiceAssets,
+    async (req, res) => {
     try {
-      const { price, name, selected_icon, icon_name } = req.body;
-      const { hasIconUrlColumn: iconUrlEnabled, hasIconNameColumn } = await ensureIconColumns(req.db);
-      if (price == null && !name && (!iconUrlEnabled || !selected_icon) && (!hasIconNameColumn || !icon_name))
+      const { price, name, description, subtitle, image_url, selected_icon, icon_name } = req.body;
+      const {
+        hasIconUrlColumn: iconUrlEnabled,
+        hasIconNameColumn,
+        hasDescriptionColumn,
+        hasSubtitleColumn,
+        hasImageUrlColumn,
+      } = await ensureServiceColumns(req.db);
+      const uploadedIcon = req.files?.icon?.[0]?.filename || null;
+      const uploadedImage = req.files?.image?.[0]?.filename || null;
+      if (
+        price == null &&
+        !name &&
+        description == null &&
+        subtitle == null &&
+        image_url == null &&
+        !uploadedImage &&
+        !uploadedIcon &&
+        (!iconUrlEnabled || !selected_icon) &&
+        (!hasIconNameColumn || !icon_name)
+      )
         return res
           .status(400)
-          .json({ error: "Au moins un champ (nom, prix ou icône) est requis" });
+          .json({ error: "Au moins un champ (nom, description, image, prix ou icône) est requis" });
 
       const [[current]] = await req.db.query("SELECT * FROM services WHERE id = ?", [
         req.params.id,
@@ -361,11 +451,34 @@ export default (db) => {
         values.push(name);
 
       }
+      if (hasDescriptionColumn && description != null) {
+        fields.push("description = ?");
+        values.push(String(description).trim());
+      }
+      if (hasSubtitleColumn && subtitle != null) {
+        fields.push("subtitle = ?");
+        values.push(String(subtitle).trim());
+      }
+      if (hasImageUrlColumn && image_url != null) {
+        const cleanImage = String(image_url).trim();
+        fields.push("image_url = ?");
+        values.push(cleanImage || null);
+      }
+      if (hasImageUrlColumn && uploadedImage) {
+        const imagePath = `/uploads/services/${uploadedImage}`;
+        fields.push("image_url = ?");
+        values.push(imagePath);
+      }
 
       if (iconUrlEnabled && selected_icon && typeof selected_icon === "string" && selected_icon.trim()) {
         const sel = selected_icon.trim();
         fields.push("icon_url = ?");
         values.push(/^[a-z0-9]+:/i.test(sel) ? sel : sel);
+      }
+      if (iconUrlEnabled && uploadedIcon) {
+        const iconPath = `/uploads/services/${uploadedIcon}`;
+        fields.push("icon_url = ?");
+        values.push(iconPath);
       }
       if (hasIconNameColumn && typeof icon_name === "string") {
         const clean = icon_name.trim();
@@ -415,7 +528,10 @@ export default (db) => {
         message: "Service mis à jour ✅",
         data: {
           ...updated,
+          description: hasDescriptionColumn ? updated.description || "" : "",
+          subtitle: hasSubtitleColumn ? updated.subtitle || "" : "",
           price: Number(updated.price),
+          image_url: hasImageUrlColumn ? updated.image_url || null : null,
           icon_url: iconUrlEnabled ? updated.icon_url || null : null,
           icon: hasIconNameColumn ? updated.icon || null : null,
         },
@@ -431,10 +547,10 @@ export default (db) => {
   // ────────────────────────────────
   router.delete(
     "/:id",
-    checkPermission("services_manage"),
+    requireAny(["services_manage", "site_manage"]),
     async (req, res) => {
       try {
-        const { hasIconUrlColumn: iconEnabled } = await ensureIconColumns(req.db);
+        const { hasIconUrlColumn: iconEnabled } = await ensureServiceColumns(req.db);
         const [[service]] = await req.db.query(
           iconEnabled
             ? "SELECT * FROM services WHERE id = ?"

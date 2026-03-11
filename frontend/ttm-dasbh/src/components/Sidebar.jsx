@@ -139,12 +139,14 @@ export default function Sidebar({ open = false, onClose }) {
         label: "Paramètres",
         icon: <Cog6ToothIcon className="w-5 h-5" />,
         show: () =>
-          isSuperAdmin ||
-          can(user, "settings_view") ||
-          can(user, "config_view") ||
-          can(user, "config_manage") ||
-          can(user, "services_view") ||
-          can(user, "services_manage"),
+          isSuperAdmin || can(user, "settings_view"),
+      },
+      {
+        to: DASHBOARD_ROUTES.siteVitrine,
+        label: "Site vitrine",
+        icon: <Cog6ToothIcon className="w-5 h-5" />,
+        show: () =>
+          isSuperAdmin || can(user, "site_view") || can(user, "site_manage"),
       },
     ],
     [

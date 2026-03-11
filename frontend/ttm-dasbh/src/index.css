@@ -118,8 +118,12 @@
   opacity: 1;
 }
 
+/* NOTE:
+   Avoid CSS filter on layout wrappers in dark mode.
+   A filter on parent creates a new containing block and can break
+   fixed-position modals (they appear off-center / scroll with content). */
 html.dark .theme-fade {
-  filter: brightness(1.05);
+  filter: none;
 }
 
 /* ==========================

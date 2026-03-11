@@ -2,6 +2,7 @@ import React from "react";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
+import { fetchSiteContent } from "./config/siteContent";
 /* ---------- Variants (Framer Motion) ---------- */
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -121,6 +122,8 @@ function Modal({ open, onClose, service, onWhatsApp }) {
 
 /* ---------- Card (révélation au scroll + hover overlay) ---------- */
 function ServiceCard({ icon, iconImage, iconAlt, title, desc, onMore, index }) {
+  const shortDesc =
+    typeof desc === "string" && desc.length > 80 ? `${desc.slice(0, 80).trim()}…` : desc;
   return (
     <motion.div
       className="group relative overflow-hidden rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-zinc-200"
@@ -145,7 +148,7 @@ function ServiceCard({ icon, iconImage, iconAlt, title, desc, onMore, index }) {
           <i className={`fa-solid ${icon} text-4xl text-[#800E08]`} />
         )}
         <h3 className="font-semibold text-zinc-900">{title}</h3>
-        <p className="text-sm text-zinc-600">{desc}</p>
+        <p className="text-sm text-zinc-600">{shortDesc}</p>
       </div>
 
       {/* Fond rouge animé */}
@@ -170,6 +173,7 @@ export default function Services() {
   const [selected, setSelected] = React.useState(null);
   const [open, setOpen] = React.useState(false);
   const [services, setServices] = React.useState(DEFAULT_SERVICES);
+  const [sectionContent, setSectionContent] = React.useState({});
   const { buildSupportServiceLink } = useSupportConfig();
 
   React.useEffect(() => {
@@ -184,6 +188,22 @@ export default function Services() {
       active = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    let active = true;
+    fetchSiteContent()
+      .then((data) => {
+        if (!active) return;
+        setSectionContent(data?.services || {});
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const sectionTitle = sectionContent?.title || "Nos Services";
+  const sectionLogo = sectionContent?.logoImage || "";
 
   const openModal = (service) => {
     setSelected(service);
@@ -209,8 +229,16 @@ export default function Services() {
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: 0.4 }}
         >
-          Nos Services
+          {sectionTitle}
         </motion.h2>
+        {sectionLogo ? (
+          <img
+            src={sectionLogo}
+            alt="Logo services"
+            loading="lazy"
+            className="h-16 object-contain -mt-28"
+          />
+        ) : null}
 
         <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {services.map((s, i) => (

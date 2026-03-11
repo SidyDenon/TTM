@@ -112,6 +112,7 @@ export const DASHBOARD_ROUTES = {
   transactions: "/dashboard/transactions",
   withdrawals: "/dashboard/withdrawals",
   settings: "/dashboard/settings",
+  siteVitrine: "/dashboard/site-vitrine",
   admins: "/dashboard/admins",
 };
 

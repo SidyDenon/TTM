@@ -3,6 +3,7 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
+import { fetchSiteContent } from "./config/siteContent";
 import "./App.css";
 
 /* ---------- Utils ---------- */
@@ -128,7 +129,9 @@ function Card({ item, onMore, onWhatsApp }) {
         <p className="text-[11px] text-zinc-500 -mt-1">À partir de</p>
         <p className="font-bold text-[#800E08]">{formatPrice(item.amount)}</p>
 
-        <p className="text-[12px] text-zinc-600">{excerpt(item.description, 140)}</p>
+        <p className="text-[12px] text-zinc-600">
+          {item.subtitle || excerpt(item.description || "", 70)}
+        </p>
 
         <div className="flex items-center justify-center gap-2">
           <button
@@ -167,6 +170,7 @@ export default function Tarifs() {
   const [showMore, setShowMore] = React.useState(false);
   const [selected, setSelected] = React.useState(null);
   const [tarifs, setTarifs] = React.useState(DEFAULT_SERVICES);
+  const [sectionContent, setSectionContent] = React.useState({});
   const { buildSupportServiceLink } = useSupportConfig();
   const openWhatsApp = React.useCallback(
     (service) => {
@@ -192,32 +196,68 @@ export default function Tarifs() {
     };
   }, []);
 
-  const featured = tarifs.filter((t) => t.featured);
-  const visibleFeatured = featured.length ? featured : tarifs;
-  const extra = featured.length ? tarifs.filter((t) => !t.featured) : [];
+  React.useEffect(() => {
+    let active = true;
+    fetchSiteContent()
+      .then((data) => {
+        if (!active) return;
+        setSectionContent(data?.tarifs || {});
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const photosByService = React.useMemo(() => {
+    const photos = sectionContent?.photos;
+    if (!photos || typeof photos !== "object" || Array.isArray(photos)) return {};
+    return photos;
+  }, [sectionContent]);
+
+  const tarifsWithPhotos = React.useMemo(
+    () =>
+      tarifs.map((item) => {
+        const key = String(item.title || "").toLowerCase().trim();
+        const override = photosByService[key];
+        if (!override) return item;
+        return { ...item, img: override };
+      }),
+    [tarifs, photosByService]
+  );
+
+  const featured = tarifsWithPhotos.filter((t) => t.featured);
+  const visibleFeatured = featured.length ? featured : tarifsWithPhotos;
+  const extra = featured.length ? tarifsWithPhotos.filter((t) => !t.featured) : [];
+  const sectionTitle = sectionContent?.title || "Nos Tarifs";
+  const sectionSubtitle =
+    sectionContent?.subtitle || "NOS TARIFS LES MEILLEURS SUR LE MARCHÉ";
+  const sectionLogo = sectionContent?.logoImage || "/assets/logoApp2.png";
 
   return (
     <section className="w-full min-h-screen flex">
       <div className="z-5 w-full bg-black/50 text-white flex flex-col items-center gap-15 py-24 px-4">
-     <motion.h1
+<motion.h1
   className="text-4xl font-bold"
   initial={{ opacity: 0, y: -40 }}
   whileInView={{ opacity: 1, y: 0 }}
   viewport={{ once: true, amount: 0.4 }}
   transition={{ duration: 0.6, ease: "easeOut" }}
 >
-  Nos Tarifs
+  {sectionTitle}
 </motion.h1>
 
 <header className="py-2 flex items-center gap-4">
   {/* Logo qui glisse depuis la gauche */}
   <motion.div
-    className="bg-[url('/assets/logoApp2.png')] bg-no-repeat bg-center bg-cover w-50 h-20"
+    className="w-50 h-20"
     initial={{ opacity: 0, x: -50 }}
     whileInView={{ opacity: 1, x: 0 }}
     viewport={{ once: true, amount: 0.4 }}
     transition={{ duration: 0.6, ease: "easeOut" }}
-  />
+  >
+    <img src={sectionLogo} alt="Logo tarifs" className="h-full w-full object-contain" />
+  </motion.div>
 
   {/* Texte qui glisse depuis la droite */}
   <motion.p
@@ -227,7 +267,7 @@ export default function Tarifs() {
     viewport={{ once: true, amount: 0.4 }}
     transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
   >
-    NOS TARIFS LES MEILLEURS SUR LE MARCHÉ
+    {sectionSubtitle}
   </motion.p>
 </header>
 

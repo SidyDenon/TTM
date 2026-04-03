@@ -39,20 +39,33 @@ export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServi
 
 // Optionnel : récupérer la config support depuis l'API backend (si dispo)
 import { getBaseCandidates } from "./api";
+import { fetchJsonWithTimeout, readCache, writeCache } from "./fetchUtils";
+
+const SUPPORT_CACHE_KEY = "ttm:support-config";
 
 export async function fetchSupportConfig(apiBase = "") {
+  const cached = !apiBase ? readCache(SUPPORT_CACHE_KEY) : null;
+  if (cached && typeof cached === "object" && !Array.isArray(cached)) {
+    return {
+      phone: cached.phone || RAW_SUPPORT_PHONE,
+      whatsapp: cached.whatsapp || RAW_WHATSAPP_NUMBER,
+      email: cached.email || RAW_SUPPORT_EMAIL,
+    };
+  }
+
   const bases = apiBase ? [apiBase] : getBaseCandidates();
   for (const base of bases) {
     try {
       const normalized = base.replace(/\/+$/, "");
-      const res = await fetch(`${normalized}/api/config/public`);
-      if (!res.ok) continue;
-      const data = await res.json();
-      return {
+      const data = await fetchJsonWithTimeout(`${normalized}/api/config/public`);
+      if (!data) continue;
+      const support = {
         phone: data.support_phone || RAW_SUPPORT_PHONE,
         whatsapp: data.support_whatsapp || RAW_WHATSAPP_NUMBER,
         email: data.support_email || RAW_SUPPORT_EMAIL,
       };
+      writeCache(SUPPORT_CACHE_KEY, support);
+      return support;
     } catch {
       continue;
     }

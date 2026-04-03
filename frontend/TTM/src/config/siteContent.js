@@ -1,4 +1,5 @@
 import { getBaseCandidates } from "./api";
+import { fetchJsonWithTimeout, readCache, writeCache } from "./fetchUtils";
 
 export const DEFAULT_SITE_CONTENT = {
   histoire: {},
@@ -7,7 +8,14 @@ export const DEFAULT_SITE_CONTENT = {
   faq: {},
 };
 
+const SITE_CONTENT_CACHE_KEY = "ttm:site-content";
+
 export async function fetchSiteContent(apiBase = "") {
+  const cached = !apiBase ? readCache(SITE_CONTENT_CACHE_KEY) : null;
+  if (cached && typeof cached === "object" && !Array.isArray(cached)) {
+    return { ...DEFAULT_SITE_CONTENT, ...cached };
+  }
+
   const bases = apiBase ? [apiBase] : getBaseCandidates();
 
   for (const base of bases) {
@@ -21,9 +29,8 @@ export async function fetchSiteContent(apiBase = "") {
         const path = raw.startsWith("/") ? raw : `/${raw}`;
         return `${normalized}${path}`;
       };
-      const res = await fetch(`${normalized}/api/config/public`);
-      if (!res.ok) continue;
-      const data = await res.json();
+      const data = await fetchJsonWithTimeout(`${normalized}/api/config/public`);
+      if (!data) continue;
       const content = data?.site_content;
       if (!content || typeof content !== "object" || Array.isArray(content)) continue;
       const merged = { ...DEFAULT_SITE_CONTENT, ...content };
@@ -36,6 +43,7 @@ export async function fetchSiteContent(apiBase = "") {
         Object.entries(merged.tarifs.photos).forEach(([k, v]) => { normalizedPhotos[k] = toAbsolute(v); });
         merged.tarifs.photos = normalizedPhotos;
       }
+      writeCache(SITE_CONTENT_CACHE_KEY, merged);
       return merged;
     } catch {
       continue;

@@ -171,7 +171,15 @@ export default function Tarifs() {
   const [selected, setSelected] = React.useState(null);
   const [tarifs, setTarifs] = React.useState(DEFAULT_SERVICES);
   const [sectionContent, setSectionContent] = React.useState({});
+  const [cardsPerRow, setCardsPerRow] = React.useState(4);
+  const cardsContainerRef = React.useRef(null);
+  const hiddenStartRef = React.useRef(null);
   const { buildSupportServiceLink } = useSupportConfig();
+  const collapseMore = React.useCallback(() => {
+    setShowMore(false);
+    if (!cardsContainerRef.current) return;
+    cardsContainerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
   const openWhatsApp = React.useCallback(
     (service) => {
       window.open(
@@ -226,9 +234,29 @@ export default function Tarifs() {
     [tarifs, photosByService]
   );
 
-  const featured = tarifsWithPhotos.filter((t) => t.featured);
-  const visibleFeatured = featured.length ? featured : tarifsWithPhotos;
-  const extra = featured.length ? tarifsWithPhotos.filter((t) => !t.featured) : [];
+  React.useEffect(() => {
+    const updateCardsPerRow = () => {
+      const node = cardsContainerRef.current;
+      if (!node) return;
+      const containerWidth = node.clientWidth;
+      const cardWidth = 260;
+      const gap = 20;
+      const perRow = Math.max(1, Math.floor((containerWidth + gap) / (cardWidth + gap)));
+      setCardsPerRow(perRow);
+    };
+
+    updateCardsPerRow();
+    window.addEventListener("resize", updateCardsPerRow);
+    return () => window.removeEventListener("resize", updateCardsPerRow);
+  }, []);
+
+  React.useEffect(() => {
+    if (!showMore) return;
+    if (!hiddenStartRef.current) return;
+    hiddenStartRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showMore]);
+
+  const visibleTarifs = tarifsWithPhotos.slice(0, cardsPerRow);
   const sectionTitle = sectionContent?.title || "Nos Tarifs";
   const sectionSubtitle =
     sectionContent?.subtitle || "NOS TARIFS LES MEILLEURS SUR LE MARCHÉ";
@@ -272,9 +300,9 @@ export default function Tarifs() {
 </header>
 
 
-        {/* Toutes les cartes dans un seul conteneur */}
-        <div className="w-full max-w-6xl flex flex-wrap justify-center gap-5">
-          {tarifsWithPhotos.map((item, i) => (
+        {/* Première ligne visible, le reste au clic sur la flèche */}
+        <div ref={cardsContainerRef} className="w-full max-w-6xl flex flex-wrap justify-center gap-5">
+          {visibleTarifs.map((item, i) => (
             <Card
               key={`t-${i}`}
               item={item}
@@ -283,6 +311,54 @@ export default function Tarifs() {
             />
           ))}
         </div>
+
+        {tarifsWithPhotos.length > cardsPerRow && !showMore && (
+          <button
+            type="button"
+            onClick={() => setShowMore(true)}
+            className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition"
+            aria-label="Afficher plus de tarifs"
+          >
+            Voir plus
+            <i className="fa-solid fa-chevron-down" />
+          </button>
+        )}
+
+        <AnimatePresence initial={false}>
+          {showMore && tarifsWithPhotos.length > cardsPerRow && (
+            <motion.div
+              key="more-tarifs"
+              initial={{ height: 0, opacity: 0, y: -10 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: -10 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="w-full overflow-hidden"
+            >
+              <div ref={hiddenStartRef} className="w-full max-w-6xl mx-auto pt-5 flex flex-wrap justify-center gap-5">
+                {tarifsWithPhotos.slice(cardsPerRow).map((item, i) => (
+                  <Card
+                    key={`t-more-${i}`}
+                    item={item}
+                    onMore={() => setSelected(item)}
+                    onWhatsApp={openWhatsApp}
+                  />
+                ))}
+              </div>
+
+              <div className="pt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={collapseMore}
+                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition"
+                  aria-label="Replier les tarifs"
+                >
+                  Replier
+                  <i className="fa-solid fa-chevron-up" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Modal détail */}

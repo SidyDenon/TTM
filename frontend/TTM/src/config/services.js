@@ -1,4 +1,5 @@
 import { getBaseCandidates } from "./api";
+import { fetchJsonWithTimeout, readCache, writeCache } from "./fetchUtils";
 
 const DEFAULT_IMAGE = "/assets/accueil.png";
 
@@ -239,6 +240,7 @@ const toFaIconClass = (value = "") => {
 };
 
 export const DEFAULT_SERVICES = BASE_SERVICES;
+const SERVICES_CACHE_KEY = "ttm:public-services";
 
 export function mergeServices(apiServices = []) {
   if (!Array.isArray(apiServices) || apiServices.length === 0) {
@@ -278,17 +280,24 @@ export function mergeServices(apiServices = []) {
 }
 
 export async function fetchPublicServices(apiBase = "") {
+  const cached = !apiBase ? readCache(SERVICES_CACHE_KEY) : null;
+  if (Array.isArray(cached) && cached.length) {
+    return mergeServices(cached);
+  }
+
   const bases = apiBase ? [apiBase] : getBaseCandidates();
 
   for (const base of bases) {
     try {
       const normalized = base.replace(/\/+$/, "");
       for (const path of ["/api/vitrine/services/public", "/api/services/public"]) {
-        const res = await fetch(`${normalized}${path}`);
-        if (!res.ok) continue;
-        const json = await res.json();
+        const json = await fetchJsonWithTimeout(`${normalized}${path}`);
+        if (!json) continue;
         const data = json?.data || [];
-        if (Array.isArray(data) && data.length) return mergeServices(data);
+        if (Array.isArray(data) && data.length) {
+          writeCache(SERVICES_CACHE_KEY, data);
+          return mergeServices(data);
+        }
       }
     } catch {
       continue;

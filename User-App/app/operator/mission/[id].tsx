@@ -1381,12 +1381,12 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   fullscreenBtnFull: {
-    top: undefined,
-    bottom: 300,
+    top: 30,
+    bottom: undefined,
   },
   focusBtn: {
     position: "absolute",
-    top: 60,
+    top: 70,
     right: 15,
     backgroundColor: "rgba(0,0,0,0.7)",
     padding: 10,
@@ -1394,12 +1394,12 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   focusBtnFull: {
-    top: undefined,
-    bottom: 240,
+    top: 80,
+    bottom: undefined,
   },
   viewToggleBtn: {
     position: "absolute",
-    top: 105,
+    top: 135,
     right: 15,
     backgroundColor: "rgba(0,0,0,0.7)",
     padding: 10,
@@ -1407,8 +1407,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   viewToggleBtnFull: {
-    top: undefined,
-    bottom: 180,
+    top: 135,
+    bottom: undefined,
   },
 
   card: {

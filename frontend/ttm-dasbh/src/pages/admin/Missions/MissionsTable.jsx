@@ -34,6 +34,7 @@ export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDe
         <thead style={{ color: "var(--muted)", borderBottom: "1px solid var(--border-color)", position: "sticky", top: 0, background: "var(--bg-card)", zIndex: 1 }}>
           <tr>
             <th className="px-3 py-2">ID</th>
+            <th className="px-3 py-2">Opérateur</th>
             <th className="px-3 py-2">Client</th>
             <th className="px-3 py-2">Téléphone</th>
             <th className="px-3 py-2">Adresse</th>
@@ -55,6 +56,7 @@ export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDe
               onClick={() => onSelect(req)}
             >
               <td className="px-3 py-2">#{req.id}</td>
+              <td className="px-3 py-2">{req.operator_name || "—"}</td>
               <td className="px-3 py-2">{req.user_name || "—"}</td>
               <td className="px-3 py-2">{req.user_phone || "—"}</td>
               <td className="px-3 py-2">{req.address || "—"}</td>

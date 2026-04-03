@@ -5,7 +5,7 @@ import {
   CheckCircleIcon,
   StarIcon,
   UserGroupIcon,
-  TruckIcon,
+  WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
@@ -79,7 +79,7 @@ export default function DashboardStats({ stats, navigate }) {
       perm: "clients_view",
     },
     {
-      icon: TruckIcon,
+      icon: WrenchScrewdriverIcon,
       label: "Opérateurs",
       key: "totalOperators",
       color: "#06b6d4",

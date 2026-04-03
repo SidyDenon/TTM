@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import { toast } from "../../../utils/toast";
 import { API_BASE } from "../../../config/urls";
+import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";
 
 import MissionsTable from "./MissionsTable";
@@ -224,6 +225,82 @@ export default function Missions() {
     }
   };
 
+  const filteredRequests = requests.filter((r) => {
+    if (monthFilter !== "all") {
+      const when = r?.created_at ? new Date(r.created_at) : null;
+      if (!when || Number.isNaN(when.getTime())) return false;
+      const ym = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}`;
+      if (ym !== monthFilter) return false;
+    }
+
+    if (statusFilter !== "all") {
+      const currentStatus = String(r?.status || "").toLowerCase();
+      if (statusFilter === "ongoing") {
+        if (!ONGOING_STATUSES.has(currentStatus)) return false;
+      } else if (currentStatus !== statusFilter) {
+        return false;
+      }
+    }
+
+    if (normalizedId) {
+      if (Number(r?.id) !== Number(normalizedId)) return false;
+    }
+
+    return true;
+  });
+
+  const printTable = () => {
+    const win = window.open("", "_blank");
+    if (!win) return;
+
+    const rowsHtml = filteredRequests
+      .map(
+        (r) => `
+          <tr>
+            <td>#${r.id}</td>
+            <td>${r.operator_name || "—"}</td>
+            <td>${r.user_name || "—"}</td>
+            <td>${r.user_phone || "—"}</td>
+            <td>${r.address || "—"}</td>
+            <td>${r.service || "—"}</td>
+            <td>${r.status || "—"}</td>
+            <td>${r.created_at ? new Date(r.created_at).toLocaleString("fr-FR") : "—"}</td>
+          </tr>`
+      )
+      .join("");
+
+    win.document.write(`
+      <html>
+        <head>
+          <title>Rapport missions</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 16px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+            th { background: #f5f5f5; }
+          </style>
+        </head>
+        <body>
+          <h2>Rapport missions Tow Truck Mali</h2>
+          <p><strong>Mois :</strong> ${monthFilter === "all" ? "Tous" : monthFilter}</p>
+          <p><strong>Statut :</strong> ${statusFilter}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>#ID</th><th>Opérateur</th><th>Client</th><th>Téléphone</th><th>Adresse</th><th>Service</th><th>Statut</th><th>Date</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
   useEffect(() => {
     if (token) loadRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -306,62 +383,62 @@ export default function Missions() {
       </div>
 
       {/* Filtres supplémentaires */}
-      <div className="flex flex-wrap items-center gap-3 mb-3">
-        <label className="text-sm text-[var(--muted)]">Statut:</label>
-        <select
-          className="px-2 py-1 rounded border"
-          style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)" }}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">Tous</option>
-          <option value="ongoing">en cours</option>
-          <option value="publiee">publiée</option>
-          <option value="acceptee">acceptée</option>
-          <option value="assignee">assignée</option>
-          <option value="en_route">en route</option>
-          <option value="sur_place">sur place</option>
-          <option value="remorquage">remorquage</option>
-          <option value="terminee">terminée</option>
-          <option value="annulee_admin">annulée admin</option>
-          <option value="annulee_client">annulée client</option>
-        </select>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm text-[var(--muted)]">Statut:</label>
+          <select
+            className="px-2 py-1 rounded border"
+            style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)" }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Tous</option>
+            <option value="ongoing">en cours</option>
+            <option value="publiee">publiée</option>
+            <option value="acceptee">acceptée</option>
+            <option value="assignee">assignée</option>
+            <option value="en_route">en route</option>
+            <option value="sur_place">sur place</option>
+            <option value="remorquage">remorquage</option>
+            <option value="terminee">terminée</option>
+            <option value="annulee_admin">annulée admin</option>
+            <option value="annulee_client">annulée client</option>
+          </select>
 
-        <label className="text-sm text-[var(--muted)]">Recherche ID:</label>
-        <input
-          type="text"
-          placeholder="#id"
-          value={idSearch}
-          onChange={(e) => setIdSearch(e.target.value)}
-          className="px-2 py-1 rounded border"
-          style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)", width: 120 }}
-        />
+          <label className="text-sm text-[var(--muted)]">Recherche ID:</label>
+          <input
+            type="text"
+            placeholder="#id"
+            value={idSearch}
+            onChange={(e) => setIdSearch(e.target.value)}
+            className="px-2 py-1 rounded border"
+            style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)", width: 120 }}
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={loadRequests}
+            className="px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            <ArrowPathIcon className="w-5 h-5" />
+            Actualiser
+          </button>
+          <button
+            onClick={printTable}
+            className="px-3 py-2 rounded-lg transition-all flex items-center gap-2 border shadow-sm"
+            style={{ background: "var(--bg-card)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
+            title="Imprimer le rapport"
+          >
+            <PrinterIcon className="w-5 h-5" />
+            Imprimer
+          </button>
+        </div>
       </div>
 
       <MissionsTable
-        requests={requests.filter((r) => {
-          // Filtre mois
-          if (monthFilter !== 'all') {
-            const when = r?.created_at ? new Date(r.created_at) : null;
-            if (!when || isNaN(when.getTime())) return false;
-            const ym = `${when.getFullYear()}-${String(when.getMonth()+1).padStart(2,'0')}`;
-            if (ym !== monthFilter) return false;
-          }
-          // Filtre statut
-          if (statusFilter !== 'all') {
-            const currentStatus = String(r?.status || '').toLowerCase();
-            if (statusFilter === 'ongoing') {
-              if (!ONGOING_STATUSES.has(currentStatus)) return false;
-            } else if (currentStatus !== statusFilter) {
-              return false;
-            }
-          }
-          // Recherche ID
-          if (normalizedId) {
-            if (Number(r?.id) !== Number(normalizedId)) return false;
-          }
-          return true;
-        })}
+        requests={filteredRequests}
         onSelect={setSelectedMission}
         onUpdateStatus={updateStatus}
         onDelete={deleteMission}

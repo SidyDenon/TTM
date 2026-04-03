@@ -50,7 +50,7 @@ export default function Header({ onToggleSidebar }) {
     }
 
     if (Notification.permission === "denied") {
-      toast.error("⚠️ Vous avez refusé les notifications dans votre navigateur");
+      toast.error("Vous avez refusé les notifications dans votre navigateur");
       return;
     }
 
@@ -59,7 +59,7 @@ export default function Header({ onToggleSidebar }) {
       if (perm === "granted") {
         toast.success("🔔 Notifications activées !");
       } else {
-        toast.warn("⚠️ Notifications refusées");
+        toast.warn("Notifications refusées");
       }
     });
   };

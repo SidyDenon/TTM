@@ -4,7 +4,7 @@ import { ADMIN_API } from "../../config/urls";
 import { toast } from "../../utils/toast";
 import { socket } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
-import { ArrowPathIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, BanknotesIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Transactions() {
@@ -243,7 +243,7 @@ export default function Transactions() {
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg-main)] border border-[var(--border-color)]">
-            💰
+            <BanknotesIcon className="w-6 h-6 text-green-500" />
           </div>
           <div>
             <h2 className="text-xl font-bold">Transactions</h2>

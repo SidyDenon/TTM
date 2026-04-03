@@ -25,8 +25,10 @@ function RootNavigator() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 🔔 Prépare notifications (permissions + token)
+  // 🔔 Prépare notifications (permissions + token) uniquement après authentification
   useEffect(() => {
+    if (!user?.id || !token) return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -55,7 +57,7 @@ function RootNavigator() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id, token]);
 
   // 🔗 Envoi du token au backend lorsque l'utilisateur est authentifié
   useEffect(() => {

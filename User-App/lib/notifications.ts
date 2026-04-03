@@ -44,7 +44,6 @@ export async function setupNotificationChannel() {
   await Notifications.setNotificationChannelAsync("default", {
     name: "Notifications TowTruck",
     importance: Notifications.AndroidImportance.HIGH,
-    sound: "towtruck_alert.wav",
   });
 }
 

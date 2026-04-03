@@ -1,4 +1,4 @@
-import { resolveApiBase } from "./api";
+import { getBaseCandidates } from "./api";
 
 const DEFAULT_IMAGE = "/assets/accueil.png";
 
@@ -278,19 +278,22 @@ export function mergeServices(apiServices = []) {
 }
 
 export async function fetchPublicServices(apiBase = "") {
-  const base = apiBase || await resolveApiBaseAsync();
-  if (!base) return DEFAULT_SERVICES;
-  const normalized = base.replace(/\/+$/, "");
-  const urls = [
-    `${normalized}/api/vitrine/services/public`,
-    `${normalized}/api/services/public`,
-  ];
-  for (const url of urls) {
-    const res = await fetch(url);
-    if (!res.ok) continue;
-    const json = await res.json();
-    const data = json?.data || [];
-    if (Array.isArray(data) && data.length) return mergeServices(data);
+  const bases = apiBase ? [apiBase] : getBaseCandidates();
+
+  for (const base of bases) {
+    try {
+      const normalized = base.replace(/\/+$/, "");
+      for (const path of ["/api/vitrine/services/public", "/api/services/public"]) {
+        const res = await fetch(`${normalized}${path}`);
+        if (!res.ok) continue;
+        const json = await res.json();
+        const data = json?.data || [];
+        if (Array.isArray(data) && data.length) return mergeServices(data);
+      }
+    } catch {
+      continue;
+    }
   }
+
   return DEFAULT_SERVICES;
 }

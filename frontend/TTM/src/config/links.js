@@ -38,21 +38,24 @@ export const buildServiceRequestMessage = (service) => {
 export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServiceRequestMessage(service));
 
 // Optionnel : récupérer la config support depuis l'API backend (si dispo)
-import { resolveApiBase, resolveApiBaseAsync } from "./api";
+import { getBaseCandidates } from "./api";
 
 export async function fetchSupportConfig(apiBase = "") {
-  try {
-    const base = apiBase || await resolveApiBaseAsync();
-    if (!base) return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
-    const normalized = base.replace(/\/+$/, "");
-    const res = await fetch(`${normalized}/api/config/public`);
-    const data = await res.json();
-    return {
-      phone: data.support_phone || RAW_SUPPORT_PHONE,
-      whatsapp: data.support_whatsapp || RAW_WHATSAPP_NUMBER,
-      email: data.support_email || RAW_SUPPORT_EMAIL,
-    };
-  } catch {
-    return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
+  const bases = apiBase ? [apiBase] : getBaseCandidates();
+  for (const base of bases) {
+    try {
+      const normalized = base.replace(/\/+$/, "");
+      const res = await fetch(`${normalized}/api/config/public`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      return {
+        phone: data.support_phone || RAW_SUPPORT_PHONE,
+        whatsapp: data.support_whatsapp || RAW_WHATSAPP_NUMBER,
+        email: data.support_email || RAW_SUPPORT_EMAIL,
+      };
+    } catch {
+      continue;
+    }
   }
+  return { phone: RAW_SUPPORT_PHONE, whatsapp: RAW_WHATSAPP_NUMBER, email: RAW_SUPPORT_EMAIL };
 }

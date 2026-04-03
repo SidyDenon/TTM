@@ -17,7 +17,7 @@ export let API_URL = `${API_BASE}/api`;
 async function testBackend(url: string) {
   const base = String(url || "").replace(/\/+$/, "");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2000);
+  const timeout = setTimeout(() => controller.abort(), 1200);
   try {
     const res = await fetch(`${base}/api/ping`, { method: "GET", signal: controller.signal });
     return res.ok;
@@ -37,6 +37,15 @@ export async function initApiBase() {
     (process.env.REACT_NATIVE_API_BASE as string) ||
     (process.env.API_BASE as string) ||
     "";
+
+  // En production mobile, on évite les tests locaux (trop lents) et on utilise directement la prod.
+  // Le mode local auto-detect reste actif en développement.
+  const isDev = typeof __DEV__ !== "undefined" && __DEV__;
+  if (!isDev && !envBase) {
+    API_BASE = PROD_BASE;
+    API_URL = `${API_BASE}/api`;
+    return;
+  }
 
   // 2) Liste des candidats locaux (priorité émulateur Android puis localhost, loopback, LAN)
   const lanCandidates = LAN_IPS.map((ip) => `http://${ip}:${DEFAULT_PORT}`);

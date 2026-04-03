@@ -21,7 +21,7 @@ function RootNavigator() {
 
   // 🕐 Splash de 2,5 secondes
   useEffect(() => {
-    const timer = setTimeout(() => setSplashDone(true), 2500);
+    const timer = setTimeout(() => setSplashDone(true), 1200);
     return () => clearTimeout(timer);
   }, []);
 

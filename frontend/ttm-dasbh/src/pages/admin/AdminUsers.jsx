@@ -916,28 +916,28 @@ export default function AdminUsers() {
             </div>
           </div>
 
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mt-4 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 min-w-0">
               <label className="block text-sm font-medium">Permissions à accorder</label>
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto min-w-0">
+                <div className="relative w-full sm:w-auto min-w-0">
                   <FaSearch className="absolute left-2 top-1/2 -translate-y-1/2 opacity-50" />
                   <input
                     placeholder="Filtrer…"
                     value={permFilter}
                     onChange={(e) => setPermFilter(e.target.value)}
-                    className="pl-8 p-2 rounded border"
+                    className="pl-8 p-2 rounded border w-full sm:w-56"
                     style={{ background: "var(--bg-card)", color: "var(--text-color)", borderColor: "var(--border-color)" }}
                   />
                 </div>
-                <button onClick={toggleAll} className="px-3 py-2 rounded border"
+                <button onClick={toggleAll} className="px-3 py-2 rounded border w-full sm:w-auto"
                   style={{ borderColor: "var(--border-color)" }}>
                   {checkAll ? <><FaSquare className="inline mr-2" />Tout retirer</> : <><FaCheckSquare className="inline mr-2" />Tout accorder</>}
                 </button>
               </div>
             </div>
 
-            <div className="p-2 rounded border max-h-64 overflow-auto"
+            <div className="p-2 rounded border max-h-56 overflow-auto"
               style={{ borderColor: "var(--border-color)", background: "var(--bg-card)" }}>
               {filteredPerms.length === 0 ? (
                 <p style={{ color: "var(--muted)" }}>Aucune permission.</p>
@@ -1655,13 +1655,13 @@ function Modal({ onClose, children }) {
   const modalRef = useModalOrigin(true);
   return (
     <div
-      className="fixed inset-0 flex justify-center items-center modal-backdrop"
+      className="fixed inset-0 flex justify-center items-start sm:items-center modal-backdrop overflow-y-auto p-3 sm:p-4"
       style={{ background: "rgba(0,0,0,0.6)", zIndex: 50 }}
       onClick={onClose}
     >
       <div
         ref={modalRef}
-        className="p-6 rounded shadow w-full max-w-2xl modal-panel"
+        className="p-4 sm:p-6 rounded shadow w-full max-w-2xl max-h-[86vh] overflow-y-auto modal-panel"
         style={{ background: "var(--bg-card)", color: "var(--text-color)", border: "1px solid var(--border-color)" }}
         onClick={(e) => e.stopPropagation()}
       >

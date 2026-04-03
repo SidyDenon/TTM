@@ -278,7 +278,7 @@ export function mergeServices(apiServices = []) {
 }
 
 export async function fetchPublicServices(apiBase = "") {
-  const base = apiBase || resolveApiBase();
+  const base = apiBase || await resolveApiBaseAsync();
   if (!base) return DEFAULT_SERVICES;
   const normalized = base.replace(/\/+$/, "");
   const urls = [

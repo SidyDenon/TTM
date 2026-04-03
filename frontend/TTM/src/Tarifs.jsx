@@ -8,7 +8,7 @@ import "./App.css";
 
 /* ---------- Utils ---------- */
 const cx = (...c) => c.filter(Boolean).join(" ");
-const formatPrice = (p) => p.replace(/\s/g, "\u202F");
+const formatPrice = (p) => (p ? String(p).replace(/\s/g, "\u202F") : "—");
 const excerpt = (s, n = 120) => (s.length > n ? s.slice(0, n).trim() + "…" : s);
 
 /* ---------- Modal ---------- */
@@ -106,7 +106,7 @@ function Card({ item, onMore, onWhatsApp }) {
     <motion.article
       layout
       className={cx(
-        "group rounded-2xl overflow-hidden bg-white text-black",
+        "group rounded-2xl overflow-hidden bg-white text-black w-[260px]",
         "ring-1 ring-zinc-200 shadow-sm transition",
         "hover:-translate-y-0.5 hover:shadow-md focus-within:-translate-y-0.5 focus-within:shadow-md"
       )}
@@ -272,69 +272,17 @@ export default function Tarifs() {
 </header>
 
 
-        {/* Grille responsive sans trous */}
-        <div
-          className="w-full max-w-6xl grid gap-5"
-          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-        >
-          {visibleFeatured.map((item, i) => (
+        {/* Toutes les cartes dans un seul conteneur */}
+        <div className="w-full max-w-6xl flex flex-wrap justify-center gap-5">
+          {tarifsWithPhotos.map((item, i) => (
             <Card
-              key={`f-${i}`}
+              key={`t-${i}`}
               item={item}
               onMore={() => setSelected(item)}
               onWhatsApp={openWhatsApp}
             />
           ))}
         </div>
-
-        {/* Bloc "voir plus" animé */}
-        <AnimatePresence initial={false}>
-          {showMore && (
-            <motion.div
-              className="w-full max-w-6xl"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-            >
-              <div
-                className="mt-6 grid gap-5"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
-              >
-                {extra.map((item, i) => (
-                  <Card
-                    key={`x-${i}`}
-                    item={item}
-                    onMore={() => setSelected(item)}
-                    onWhatsApp={openWhatsApp}
-                  />
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bouton bas */}
-        {extra.length > 0 && (
-          <button
-            onClick={() => setShowMore((v) => !v)}
-            className={cx(
-              "cursor-pointer mt-10 inline-flex items-center gap-2",
-              "border-2 border-[#800E08] px-6 rounded-3xl text-sm py-2",
-              "shadow-white/30 hover:bg-[#800E08] hover:text-white transition",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-            )}
-            aria-expanded={showMore}
-          >
-            {showMore ? "Voir moins" : "Voir plus"}
-            <i
-              className={cx(
-                "fa-solid fa-chevron-down transition-transform",
-                showMore ? "rotate-180" : "rotate-0"
-              )}
-            />
-          </button>
-        )}
       </div>
 
       {/* Modal détail */}

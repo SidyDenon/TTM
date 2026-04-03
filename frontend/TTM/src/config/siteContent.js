@@ -1,4 +1,4 @@
-import { resolveApiBase } from "./api";
+import { resolveApiBaseAsync } from "./api";
 
 export const DEFAULT_SITE_CONTENT = {
   histoire: {},
@@ -9,7 +9,7 @@ export const DEFAULT_SITE_CONTENT = {
 
 export async function fetchSiteContent(apiBase = "") {
   try {
-    const base = apiBase || resolveApiBase();
+    const base = apiBase || await resolveApiBaseAsync();
     if (!base) return DEFAULT_SITE_CONTENT;
     const normalized = base.replace(/\/+$/, "");
     const toAbsolute = (value) => {

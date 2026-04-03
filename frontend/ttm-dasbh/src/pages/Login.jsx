@@ -53,7 +53,7 @@ export default function Login() {
                 Email ou téléphone
               </label>
               <input
-                className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 bg-gray-50"
+                className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 bg-gray-50 text-gray-900"
                 placeholder="ex. admin@site.com ou +223xxxxxxxx"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
@@ -67,7 +67,7 @@ export default function Login() {
               </label>
               <div className="relative">
                 <input
-                  className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 pr-10 bg-gray-50"
+                  className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 pr-10 bg-gray-50 text-gray-900"
                   type={showPwd ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

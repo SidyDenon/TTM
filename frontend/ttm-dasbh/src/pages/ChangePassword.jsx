@@ -91,7 +91,7 @@ export default function ChangePassword() {
           <>
             <label className="block text-sm text-gray-600 mb-1">Email ou téléphone</label>
             <input
-              className="w-full border rounded px-3 py-2 mb-4 focus:outline-red-600"
+              className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 mb-4 bg-gray-50 text-gray-900"
               placeholder="ex. admin@site.com ou +223xxxxxxx"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
@@ -113,7 +113,7 @@ export default function ChangePassword() {
             <div>
               <label className="block text-sm text-gray-600 mb-1">Code reçu</label>
               <input
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 bg-gray-50 text-gray-900"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="Code de 6 chiffres"
@@ -123,20 +123,22 @@ export default function ChangePassword() {
             <div>
               <label className="block text-sm text-gray-600 mb-1">Nouveau mot de passe</label>
               <input
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 bg-gray-50 text-gray-900"
                 type="password"
                 value={newPwd}
                 onChange={(e) => setNewPwd(e.target.value)}
+                placeholder="••••••••"
                 required
               />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Confirmer le mot de passe</label>
               <input
-                className="w-full border rounded px-3 py-2"
+                className="w-full rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 px-3 py-2 bg-gray-50 text-gray-900"
                 type="password"
                 value={confirmPwd}
                 onChange={(e) => setConfirmPwd(e.target.value)}
+                placeholder="••••••••"
                 required
               />
             </div>

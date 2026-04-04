@@ -37,6 +37,7 @@ function HomeContent() {
   const [region, setRegion] = useState<Region>(FALLBACK_REGION);
   const [satellite, setSatellite] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [locationGranted, setLocationGranted] = useState(false);
   const { logout, user, token } = useAuth();
   const { isConnected } = useSocket();
   const router = useRouter();
@@ -124,8 +125,10 @@ function HomeContent() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         const servicesEnabled = await Location.hasServicesEnabledAsync();
+        const granted = status === "granted" && servicesEnabled;
+        setLocationGranted(granted);
 
-        if (status === "granted" && servicesEnabled) {
+        if (granted) {
           const location = await Location.getCurrentPositionAsync({});
           setRegion({
             latitude: location.coords.latitude,
@@ -137,6 +140,7 @@ function HomeContent() {
           setRegion(FALLBACK_REGION);
         }
       } catch {
+        setLocationGranted(false);
         setRegion(FALLBACK_REGION);
       } finally {
         setLoading(false);
@@ -193,9 +197,9 @@ function HomeContent() {
         ref={mapRef}
         provider={mapProvider}
         mapType={satellite ? "satellite" : "standard"}
-        showsUserLocation
+        showsUserLocation={locationGranted}
         showsMyLocationButton={false}
-        followsUserLocation
+        followsUserLocation={locationGranted}
         style={StyleSheet.absoluteFillObject}
         region={region}
       >

@@ -23,6 +23,8 @@ export default function useNotifications(options = {}) {
   const { token, user } = useAuth();
   const { socket } = useSocket();
   const router = useRouter();
+  const onRefreshWallet = options?.onRefreshWallet;
+  const onOpenWithdrawals = options?.onOpenWithdrawals;
 
   useEffect(() => {
     if (!token || !socket) return;
@@ -60,7 +62,7 @@ export default function useNotifications(options = {}) {
       await triggerNotification("💸 Retrait mis à jour", data.message);
 
       // Recharge le solde ou les retraits (optionnel)
-      options.onRefreshWallet?.();
+      onRefreshWallet?.();
     };
 
     const handleMissionUpdated = async (data) => {
@@ -88,7 +90,7 @@ export default function useNotifications(options = {}) {
       ? Notifications.addNotificationResponseReceivedListener((resp) => {
           const type = resp.notification.request.content.data?.type;
           if (type === "withdrawal_update") {
-            options.onOpenWithdrawals?.();
+            onOpenWithdrawals?.();
           }
           if (type === "mission_accepted" && user?.role !== "operator") {
             Toast.show({
@@ -125,7 +127,7 @@ export default function useNotifications(options = {}) {
       socket.off("mission:updated", handleMissionUpdated);
       tapSub?.remove();
     };
-  }, [token, socket, user?.id, user?.role, options, router]);
+  }, [token, socket, user?.id, user?.role, onRefreshWallet, onOpenWithdrawals, router]);
 }
 
 // 🔔 Notification locale + vibration

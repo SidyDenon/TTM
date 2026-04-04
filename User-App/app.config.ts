@@ -1,5 +1,7 @@
 import { ConfigContext, ExpoConfig } from "expo/config";
 
+const ANDROID_MAPS_KEY_FALLBACK = "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Tow Truck Mali",
@@ -64,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         apiKey:
           process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
           process.env.GOOGLE_MAPS_API_KEY ||
-          "",
+          ANDROID_MAPS_KEY_FALLBACK,
       },
     },
   },

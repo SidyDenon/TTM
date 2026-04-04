@@ -89,8 +89,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "38248df3-3a7c-43ff-817f-5161e57ab39f"
+        "projectId": "e1bb8732-6077-48fa-98ce-9dfa8a2e83e9"
       }
-    }
+    },
+    "owner": "sidydenon6"
   }
 }

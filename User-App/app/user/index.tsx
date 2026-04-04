@@ -8,6 +8,7 @@ import {
   Animated,
   Dimensions,
   ScrollView,
+  Platform,
 } from "react-native";
 import MapView, { Marker, Callout, Region, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
@@ -21,6 +22,7 @@ import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import { API_URL } from "../../utils/api";
 import Loader from "../../components/Loader";
+import useNotifications from "../../hooks/useNotifications";
 
 const FALLBACK_REGION: Region = {
   latitude: 12.6392,
@@ -46,6 +48,9 @@ function HomeContent() {
   const slideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [loggingOut, setLoggingOut] = useState(false);
+  const mapProvider = Platform.OS === "ios" ? PROVIDER_GOOGLE : undefined;
+
+  useNotifications();
 
   const openMenu = () => {
     setMenuVisible(true);
@@ -85,7 +90,15 @@ function HomeContent() {
         const res = await fetch(`${API_URL}/requests/active`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const json = await res.json();
+
+        let json;
+        try {
+          json = await res.json();
+        } catch (jsonErr) {
+          console.error("❌ Erreur parsing mission active response:", jsonErr);
+          setLoading(false);
+          return;
+        }
 
         const activeMission = Array.isArray(json.data) ? json.data[0] : json.data;
 
@@ -100,7 +113,9 @@ function HomeContent() {
       }
     };
 
-    checkActiveMission();
+    if (token) {
+      checkActiveMission();
+    }
   }, [token, router]);
 
   // 📍 Récupération position du client
@@ -145,14 +160,15 @@ function HomeContent() {
           longitudeDelta: 0.01,
         };
         setRegion(newRegion);
-        mapRef.current.animateToRegion(newRegion, 1000);
+        if (mapRef.current) mapRef.current.animateToRegion(newRegion, 1000);
       } else {
         setRegion(FALLBACK_REGION);
-        mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
+        if (mapRef.current) mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
       }
     } catch (err) {
+      console.error("❌ Erreur recenter map:", err);
       setRegion(FALLBACK_REGION);
-      mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
+      if (mapRef.current) mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
     }
   };
 
@@ -175,7 +191,7 @@ function HomeContent() {
       {/* 🗺️ Carte Google Maps */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+        provider={mapProvider}
         mapType={satellite ? "satellite" : "standard"}
         showsUserLocation
         showsMyLocationButton={false}

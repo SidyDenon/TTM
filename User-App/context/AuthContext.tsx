@@ -43,7 +43,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (storedToken && storedUser) {
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (parseErr) {
+            console.error("❌ Erreur parsing storedUser:", parseErr);
+            await AsyncStorage.removeItem("user");
+          }
 
           // Sécurité : timeout pour ne pas bloquer le chargement si le backend ne répond pas
           const controller = new AbortController();
@@ -56,15 +61,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (res.status === 401) {
             await logout();
           } else if (res.ok) {
-            const data = await res.json();
-            const u = (data && (data.user || data)) || null;
-            if (active) {
-              setUser(u);
-              if (u) {
-                await AsyncStorage.setItem("user", JSON.stringify(u));
-              } else {
-                await AsyncStorage.removeItem("user");
+            try {
+              const data = await res.json();
+              const u = (data && (data.user || data)) || null;
+              if (active) {
+                setUser(u);
+                if (u) {
+                  await AsyncStorage.setItem("user", JSON.stringify(u));
+                } else {
+                  await AsyncStorage.removeItem("user");
+                }
               }
+            } catch (jsonErr) {
+              console.error("❌ Erreur parsing /me response:", jsonErr);
             }
           } else {
             // Erreur temporaire (503, réseau, etc.) : on garde la session locale
@@ -107,7 +116,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return user;
       }
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.error("❌ Erreur parsing refreshUser response:", jsonErr);
+        return user;
+      }
       const u = (data && (data.user || data)) || null;
       setUser(u);
       if (u) {
@@ -125,53 +140,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 👤 Connexion
   const login = async (identifier: string, password: string): Promise<User> => {
-    const res = await fetch(`${API_URL}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier, password }),
-    });
-
-    const text = await res.text();
-    let data: any = {};
     try {
-      data = JSON.parse(text);
-    } catch {
-      /* laisse data vide */
+      const res = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        console.error("❌ Erreur parsing login response:", jsonErr);
+        throw new Error("Réponse invalide du serveur");
+      }
+
+      if (!res.ok) {
+        const msg =
+          data?.error ||
+          data?.message ||
+          (res.status === 401
+            ? "Identifiants incorrects ou utilisateur introuvable."
+            : `Erreur ${res.status}: connexion impossible`);
+        throw new Error(msg);
+      }
+
+      if (!data.token || !data.user) {
+        throw new Error("Réponse invalide du serveur (login)");
+      }
+
+      setToken(data.token);
+      setUser(data.user);
+      await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("user", JSON.stringify(data.user));
+
+      return data.user as User;
+    } catch (err) {
+      console.error("❌ Erreur login:", err);
+      throw err;
     }
-
-    if (!res.ok) {
-      const msg =
-        data?.error ||
-        data?.message ||
-        (res.status === 401
-          ? "Identifiants incorrects ou utilisateur introuvable."
-          : `Erreur ${res.status}: connexion impossible`);
-      throw new Error(msg);
-    }
-
-    if (!data.token || !data.user) {
-      throw new Error("Réponse invalide du serveur (login)");
-    }
-
-    setToken(data.token);
-    setUser(data.user);
-    await AsyncStorage.setItem("token", data.token);
-    await AsyncStorage.setItem("user", JSON.stringify(data.user));
-
-    return data.user as User;
   };
 
   // 📝 Inscription
   const register = async (name: string, phone: string, password: string): Promise<User> => {
-    const res = await fetch(`${API_URL}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, password }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, password }),
+      });
 
-    const data = await res.json();
-    if (!data.user) throw new Error("Réponse invalide du serveur (register)");
-    return data.user as User;
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.error("❌ Erreur parsing register response:", jsonErr);
+        throw new Error("Réponse invalide du serveur");
+      }
+
+      if (!data.user) throw new Error("Réponse invalide du serveur (register)");
+      return data.user as User;
+    } catch (err) {
+      console.error("❌ Erreur register:", err);
+      throw err;
+    }
   };
 
   // 🚪 Déconnexion

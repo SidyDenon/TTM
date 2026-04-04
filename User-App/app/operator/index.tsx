@@ -35,9 +35,9 @@ import Loader from "../../components/Loader";
 import { syncOperatorLocation } from "../../utils/operatorProfile";
 import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
-import { blue } from "react-native-reanimated/lib/typescript/Colors";
 import { API_BASE } from "../../utils/api";
 import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
+import useNotifications from "../../hooks/useNotifications";
 
 const logoutAnim = require("../../assets/animations/ttmload.json");
 
@@ -153,6 +153,9 @@ export default function OperatorScreen() {
   const [activeMissionId, setActiveMissionId] = useState<number | null>(null);
   const [checkingActiveMission, setCheckingActiveMission] = useState(true);
   const [isInternal, setIsInternal] = useState(false);
+  const mapProvider = Platform.OS === "ios" ? PROVIDER_GOOGLE : undefined;
+
+  useNotifications();
 
   const router = useRouter();
   const { token, logout, user } = useAuth();
@@ -173,12 +176,20 @@ const [loggingOut, setLoggingOut] = useState(false);
         const res = await fetch(`${API_URL}/operator/wallet`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json();
+
+        let data;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          console.error("❌ Erreur parsing wallet response:", jsonErr);
+          return;
+        }
+
         if (res.ok && data?.is_internal !== undefined) {
           setIsInternal(!!data.is_internal);
         }
-      } catch {
-        // silencieux
+      } catch (err) {
+        console.error("❌ Erreur fetchInternalFlag:", err);
       }
     };
     if (token) fetchInternalFlag();
@@ -487,7 +498,8 @@ const panGesture = React.useMemo(
  const recentrerCarte = () => {
   if (!mapRef.current) return;
 
-  const coords = filteredMissions
+  try {
+    const coords = filteredMissions
     .map((m) => ({
       latitude: Number(m.lat),
       longitude: Number(m.lng),
@@ -510,17 +522,24 @@ const panGesture = React.useMemo(
   if (coords.length === 0) return; // 🧠 sécurité
 
   if (coords.length === 1) {
+    if (mapRef.current) {
     mapRef.current.animateToRegion({
       latitude: coords[0].latitude,
       longitude: coords[0].longitude,
       latitudeDelta: 0.05,
       longitudeDelta: 0.05,
     });
+    }
   } else {
+    if (mapRef.current) {
     mapRef.current.fitToCoordinates(coords, {
       edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
       animated: true,
     });
+    }
+  }
+  } catch (err) {
+    console.error("❌ Erreur recentrerCarte:", err);
   }
 };
 
@@ -537,7 +556,14 @@ const panGesture = React.useMemo(
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          console.error("❌ Erreur parsing missions response:", jsonErr);
+          setLoading(false);
+          return;
+        }
 
         const missionsNormalisées: Mission[] = (data.data || [])
           .map((m: any) => normalizeMissionPayload(m))
@@ -812,7 +838,7 @@ const filteredMissions = missions.filter((m) => {
 <MapView
   ref={mapRef}
   style={styles.map}
-  provider={PROVIDER_GOOGLE}
+  provider={mapProvider}
   mapType="standard"
   initialRegion={{
     latitude: Number(location?.lat) || 12.6392,

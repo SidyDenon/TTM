@@ -29,18 +29,26 @@ export default function useNotifications(options = {}) {
 
     // 1️⃣ Enregistre le token Expo push (si disponible)
     if (notificationsAvailable) {
-      registerForPushNotificationsAsync().then(async (expoPushToken) => {
-        if (expoPushToken && token) {
-          await fetch(`${API_URL}/user/push-token`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ token: expoPushToken }),
-          });
-        }
-      });
+      registerForPushNotificationsAsync()
+        .then(async (expoPushToken) => {
+          if (expoPushToken && token) {
+            try {
+              await fetch(`${API_URL}/user/push-token`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ token: expoPushToken }),
+              });
+            } catch (err) {
+              console.error("❌ Erreur fetch push-token:", err);
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Erreur registerForPushNotificationsAsync:", err);
+        });
     } else {
       console.log("⚠️ Notifications indisponibles sur cette build (Expo Go ?)");
     }

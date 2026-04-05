@@ -11,9 +11,20 @@ const cx = (...c) => c.filter(Boolean).join(" ");
 const formatPrice = (p) => (p ? String(p).replace(/\s/g, "\u202F") : "—");
 const excerpt = (s, n = 120) => (s.length > n ? s.slice(0, n).trim() + "…" : s);
 
+const tarifModalVariants = {
+  hidden: { opacity: 0 },
+  show:   { opacity: 1, transition: { duration: 0.2 } },
+  exit:   { opacity: 0, transition: { duration: 0.2 } },
+};
+
+const tarifCardVariants = {
+  hidden: { y: 40, opacity: 0, scale: 0.97 },
+  show:   { y: 0,  opacity: 1, scale: 1, transition: { duration: 0.25, ease: "easeOut" } },
+  exit:   { y: 24, opacity: 0, scale: 0.97, transition: { duration: 0.2, ease: "easeIn" } },
+};
+
 /* ---------- Modal ---------- */
 function TarifModal({ open, onClose, item, onWhatsApp }) {
-  // Fermer sur Échap + bloquer le scroll
   React.useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -29,72 +40,76 @@ function TarifModal({ open, onClose, item, onWhatsApp }) {
   return (
     <AnimatePresence>
       {open && item && (
-        <>
+        <motion.div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          aria-modal="true"
+          role="dialog"
+          onClick={onClose}
+          variants={tarifModalVariants}
+          initial="hidden"
+          animate="show"
+          exit="exit"
+        >
+          {/* Overlay */}
           <motion.div
-            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+            variants={tarifModalVariants}
           />
+
+          {/* Card */}
           <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-            initial={{ opacity: 0, scale: 0.97, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-            onClick={onClose}
+            className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl ring-1 ring-zinc-200"
+            onClick={(e) => e.stopPropagation()}
+            variants={tarifCardVariants}
           >
-            <div
-              className="relative w-full max-w-2xl rounded-2xl bg-white ring-1 ring-zinc-200 shadow-xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="aspect-[16/9] overflow-hidden">
-                <img
-                  src={item.img}
-                  alt={item.title}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
+            {/* Header: image + titre + prix + fermer */}
+            <div className="flex items-start gap-3 p-5">
+              {item.img && (
+                <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#800E08]/10 overflow-hidden">
+                  <img
+                    src={item.img}
+                    alt={item.title}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-zinc-900">{item.title}</h3>
+                <p className="mt-1 text-[#800E08] font-bold">{formatPrice(item.amount)}</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="ml-2 rounded-full p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition"
+                aria-label="Fermer"
+              >
+                <i className="fa-solid fa-xmark text-lg" />
+              </button>
+            </div>
+
+            {/* Corps scrollable – même hauteur que Services */}
+            <div className="px-5 pb-5">
+              <div className="rounded-lg h-[500px] overflow-y-scroll bg-zinc-50 p-4 text-sm text-zinc-900 leading-7 tracking-widest whitespace-pre-line">
+                {item.details || item.description}
               </div>
 
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-zinc-900">{item.title}</h3>
-                    <p className="text-[#800E08] font-bold mt-1">{formatPrice(item.amount)}</p>
-                  </div>
-                  <button
-                    onClick={onClose}
-                    className="rounded-full p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition"
-                    aria-label="Fermer"
-                  >
-                    <i className="fa-solid fa-xmark text-lg" />
-                  </button>
-                </div>
-
-                <div className="mt-3 rounded-lg bg-zinc-50 p-4 text-sm text-zinc-800 whitespace-pre-line leading-6">
-                  {item.details || item.description}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    onClick={() => onWhatsApp(item)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[#800e08] px-4 py-2 text-[#800e08] hover:bg-[#800e08]/10 transition"
-                  >
-                    <i className="fa-brands fa-whatsapp" />
-                    Demander ce service
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="rounded-lg border px-4 py-2 text-zinc-700 hover:bg-zinc-100 transition"
-                  >
-                    Fermer
-                  </button>
-                </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#800E08] px-4 py-2 text-[#800E08] hover:bg-[#800E08] hover:text-white transition"
+                  onClick={() => onWhatsApp(item)}
+                >
+                  Demander ce service <i className="fa-solid fa-arrow-right" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="rounded-lg border px-4 py-2 text-zinc-700 hover:bg-zinc-100 transition"
+                >
+                  Fermer
+                </button>
               </div>
             </div>
           </motion.div>
-        </>
+        </motion.div>
       )}
     </AnimatePresence>
   );

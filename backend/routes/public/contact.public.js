@@ -31,16 +31,17 @@ export default (db) => {
         if (cfg?.support_email) supportEmail = cfg.support_email;
       } catch {}
 
+      const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
       await sendMail(
         supportEmail,
         `Nouveau message site vitrine - ${name}`,
         `Nom: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
         `
           <h3>Nouveau message site vitrine</h3>
-          <p><b>Nom:</b> ${name}</p>
-          <p><b>Email:</b> ${email}</p>
+          <p><b>Nom:</b> ${esc(name)}</p>
+          <p><b>Email:</b> ${esc(email)}</p>
           <p><b>Message:</b></p>
-          <pre style="white-space:pre-wrap;font-family:inherit">${message}</pre>
+          <pre style="white-space:pre-wrap;font-family:inherit">${esc(message)}</pre>
         `
       );
 

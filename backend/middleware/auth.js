@@ -1,6 +1,7 @@
 // backend/middleware/auth.js
 import jwt from "jsonwebtoken";
 import db from "../config/db.js";
+import { isTokenBlacklisted } from "../utils/tokenBlacklist.js";
 
 // 🔧 Helper pour parser n'importe quel format de permissions
 function normalizePermissions(raw) {
@@ -34,6 +35,9 @@ export default async function authMiddleware(req, res, next) {
     }
 
     const token = authHeader.split(" ")[1];
+    if (isTokenBlacklisted(token)) {
+      return res.status(401).json({ error: "Session expirée, veuillez vous reconnecter" });
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // decoded = { id, role }
 

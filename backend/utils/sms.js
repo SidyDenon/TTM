@@ -24,8 +24,8 @@ const normalizePhone = (raw) => {
 };
 
 export async function sendSMS(to, message) {
-  if (!username || !apiKey) {
-    throw new Error("AFRICAS_TALKING credentials missing");
+  if (!username || !apiKey || username === "dummy_username" || apiKey === "dummy_api_key") {
+    throw new Error("AFRICAS_TALKING credentials non configurés");
   }
   const normalized = normalizePhone(to);
   const payload = {

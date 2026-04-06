@@ -1,10 +1,20 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import authMiddleware from "../middleware/auth.js";
 import { getSchemaColumns } from "../utils/schema.js";
 import { sendMail } from "../utils/mailer.js";
 import { sendSMS } from "../utils/sms.js";
+import { blacklistToken } from "../utils/tokenBlacklist.js";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Trop de tentatives. Réessayez dans 15 minutes." },
+});
 
 export default (db) => {
   const router = express.Router();
@@ -56,7 +66,7 @@ export default (db) => {
   // ⚡ SMS (Africa's Talking)
 
   // Enregistrement utilisateur
-  router.post("/register", async (req, res) => {
+  router.post("/register", authLimiter, async (req, res) => {
     try {
       const { name, phone, password, email } = req.body;
       if (!name || !phone || !password) {
@@ -93,7 +103,7 @@ export default (db) => {
   });
 
 // Connexion
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
     const { identifier, password } = req.body || {};
     if (!identifier || !password) {
@@ -149,7 +159,7 @@ router.post("/login", async (req, res) => {
     }
 
     if (candidates.length === 0) {
-      return res.status(400).json({ error: "Utilisateur introuvable" });
+      return res.status(400).json({ error: "Identifiant ou mot de passe incorrect" });
     }
 
     let userMatch = null;
@@ -162,7 +172,7 @@ router.post("/login", async (req, res) => {
     }
 
     if (!userMatch) {
-      return res.status(400).json({ error: "Mot de passe incorrect" });
+      return res.status(400).json({ error: "Identifiant ou mot de passe incorrect" });
     }
 
     // 🚫 Blocage opérateur (dispo = 0)
@@ -239,9 +249,15 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// 🔓 Déconnexion (admin)
+// 🔓 Déconnexion
 router.post("/logout", authMiddleware, async (req, res) => {
   try {
+    // Invalider le token côté serveur
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      blacklistToken(authHeader.split(" ")[1]);
+    }
+
     const { id, role } = req.user || {};
     if (canonicalRole(role) === "admin" && id) {
       try {
@@ -268,7 +284,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
 
 
   // 🔑 Mot de passe oublié (OTP mail / SMS)
-  router.post("/forgot-password", async (req, res) => {
+  router.post("/forgot-password", authLimiter, async (req, res) => {
     try {
       const { identifier } = req.body;
       if (!identifier) {

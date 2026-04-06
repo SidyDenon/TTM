@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 
 import db from "./config/db.js";
@@ -45,14 +47,15 @@ import { loadAdminPermissions } from "./middleware/checkPermission.js";
 
 const app = express();
 app.use(express.json());
-
-app.get("/api/ping", (req, res) => {
-  res.json({ ok: true });
-});
+app.use(helmet({ contentSecurityPolicy: false })); // headers sécurité HTTP
 
 app.use(cors(corsOptions));
 // Express 5 + path-to-regexp v6: avoid '*' string path
 app.options(/.*/, cors(corsOptions));
+
+app.get("/api/ping", (req, res) => {
+  res.json({ ok: true });
+});
 
 // Forcer JSON uniquement pour l’API (pas pour /uploads)
 app.use((req, res, next) => {
@@ -108,7 +111,10 @@ app.use("/api", meRoutes(db));
 // ✅ Toutes les routes /api/admin sont protégées automatiquement
 app.use("/api", authRoutes(db));
 
-app.use("/api/test", debugRoutes());
+// Routes de debug désactivées en production
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/test", debugRoutes());
+}
 
 // ---------------- STATICS ----------------
 app.use("/uploads", express.static("uploads"));

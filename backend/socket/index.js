@@ -280,8 +280,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
-      console.log("⚠️ Token absent — connexion autorisée temporairement");
-      return next();
+      return next(new Error("Token manquant — connexion refusée"));
     }
     try {
       const user = jwt.verify(token, process.env.JWT_SECRET);
@@ -302,16 +301,8 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
     const user = socket.user;
 
     if (!user) {
-      socket.on("register", (payload) => {
-        try {
-          const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
-          socket.user = decoded;
-          registerSocket(decoded, socket);
-        } catch {
-          console.log("❌ Token de register invalide");
-          socket.disconnect();
-        }
-      });
+      // Toujours authentifié grâce au middleware io.use — ce bloc ne devrait plus être atteint
+      socket.disconnect();
     } else {
       await registerSocket(user, socket);
     }

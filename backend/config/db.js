@@ -1,10 +1,5 @@
 import mysql from "mysql2/promise";
-import dotenv from "dotenv";
-
-// Charger dotenv seulement en local
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config();
-}
+// dotenv est chargé une seule fois dans config/env.js au démarrage
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,

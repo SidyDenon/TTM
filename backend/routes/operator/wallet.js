@@ -265,8 +265,7 @@ export default (db) => {
         [operatorId]
       );
 
-      // 📡 Notifier les admins
-      io.to("admins").emit("withdrawal_created", {
+      const withdrawalPayload = {
         id: withdrawalId,
         operator_id: operatorId,
         operator_name: user?.name || "Opérateur",
@@ -276,7 +275,16 @@ export default (db) => {
         status: "en_attente",
         currency: "FCFA",
         created_at: new Date().toISOString(),
-      });
+      };
+
+      // 📡 Notifier les admins
+      io.to("admins").emit("withdrawal_created", withdrawalPayload);
+
+      // 📡 Notifier aussi l'opérateur concerné (wallet/retrait en temps réel)
+      io.to(`operator:${Number(operatorUserId)}`).emit(
+        "withdrawal_created",
+        withdrawalPayload
+      );
 
       console.log(
         `📢 "withdrawal_created" envoyé à tous les admins (#${withdrawalId})`

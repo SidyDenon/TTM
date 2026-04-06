@@ -1,6 +1,6 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { upload } from "../../middleware/upload.js";
+import { upload, validateUploadedFilesSignature } from "../../middleware/upload.js";
 import { buildPublicUrl } from "../../config/links.js";
 import { getCommissionPercent } from "../../utils/commission.js";
 import { getSchemaColumns } from "../../utils/schema.js";
@@ -128,6 +128,57 @@ async function getOperatorTowingRadiusKm(db) {
   }
   const fromEnv = Number(process.env.TOWING_RADIUS_KM || 100);
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 100;
+}
+
+async function loadTowingPricingConfig(db) {
+  let basePrice = null;
+  let pricePerKm = null;
+
+  // Source principale: configurations (nouvelle UI admin)
+  try {
+    const [[cfg]] = await db.query(
+      "SELECT towing_base_price, towing_price_per_km FROM configurations LIMIT 1"
+    );
+    const baseCfg = Number(cfg?.towing_base_price);
+    const kmCfg = Number(cfg?.towing_price_per_km);
+    if (Number.isFinite(baseCfg) && baseCfg >= 0) basePrice = baseCfg;
+    if (Number.isFinite(kmCfg) && kmCfg >= 0) pricePerKm = kmCfg;
+  } catch {
+    // ignore and fallback
+  }
+
+  // Fallback legacy: settings (anciens noms de clés)
+  if (basePrice == null || pricePerKm == null) {
+    try {
+      const [rows] = await db.query(
+        `SELECT key_name, value FROM settings
+         WHERE key_name IN ('tow_base_price','tow_price_per_km','remorquage_base_price','remorquage_price_per_km')`
+      );
+
+      const byKey = new Map((rows || []).map((r) => [String(r.key_name), Number(r.value)]));
+
+      const legacyBase = byKey.get("tow_base_price");
+      const legacyBaseFr = byKey.get("remorquage_base_price");
+      const legacyKm = byKey.get("tow_price_per_km");
+      const legacyKmFr = byKey.get("remorquage_price_per_km");
+
+      if (basePrice == null) {
+        const b = Number.isFinite(legacyBase) ? legacyBase : legacyBaseFr;
+        if (Number.isFinite(b) && b >= 0) basePrice = b;
+      }
+      if (pricePerKm == null) {
+        const k = Number.isFinite(legacyKm) ? legacyKm : legacyKmFr;
+        if (Number.isFinite(k) && k >= 0) pricePerKm = k;
+      }
+    } catch {
+      // ignore and keep defaults below
+    }
+  }
+
+  return {
+    base_price: basePrice ?? 10000,
+    price_per_km: pricePerKm ?? 500,
+  };
 }
 
 const normalizeMissionPayload = (mission = {}, photos = []) => {
@@ -552,7 +603,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
 
   // 📌 Créer une demande
   // 📌 Créer une demande (avec calcul automatique remorquage)
-router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => {
+router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFilesSignature, async (req, res) => {
   try {
     const {
       service,
@@ -621,19 +672,10 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
     let finalPrice = Number(srv.price); // prix normal par défaut
 
     if (isRemorquage) {
-      // 📌 Charger tarifs depuis settings
-      const [settingsRows] = await req.db.query(
-        `SELECT key_name, value FROM settings 
-         WHERE key_name IN ('tow_base_price','tow_price_per_km')`
-      );
-
-      let basePrice = 10000; // fallback
-      let pricePerKm = 500;
-
-      settingsRows.forEach(row => {
-        if (row.key_name === "tow_base_price") basePrice = Number(row.value);
-        if (row.key_name === "tow_price_per_km") pricePerKm = Number(row.value);
-      });
+      // 📌 Source unifiée: configurations, fallback legacy settings
+      const towingCfg = await loadTowingPricingConfig(req.db);
+      const basePrice = Number(towingCfg.base_price);
+      const pricePerKm = Number(towingCfg.price_per_km);
 
       // 📏 Distance (Haversine)
       function haversine(lat1, lon1, lat2, lon2) {
@@ -851,7 +893,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), async (req, res) => 
           if (opUser?.notification_token) {
             const title = "Paiement client validé";
             const body = `Le client a validé la mission #${id}.`;
-            req.app?.get?.("io")?.to(`user_${mission.operator_id}`).emit("payment_confirmed", {
+            req.app?.get?.("io")?.to(`operator:${Number(mission.operator_id)}`).emit("payment_confirmed", {
               request_id: Number(id),
               transaction_id: tx.id,
               status: "en_attente",

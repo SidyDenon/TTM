@@ -8,6 +8,7 @@ import {
   loadAdminPermissions,
   requireAny,
 } from "../../middleware/checkPermission.js";
+import { validateUploadedFilesSignature } from "../../middleware/upload.js";
 
 const router = express.Router();
 
@@ -286,6 +287,7 @@ export default (db) => {
     "/",
     requireAny(["services_manage", "site_manage"]),
     uploadServiceAssets,
+    validateUploadedFilesSignature,
     async (req, res) => {
       try {
         const { name, description, subtitle, image_url, price, selected_icon, icon_name } = req.body;
@@ -410,6 +412,7 @@ export default (db) => {
     "/:id",
     requireAny(["services_manage", "site_manage"]),
     uploadServiceAssets,
+    validateUploadedFilesSignature,
     async (req, res) => {
     try {
       const { price, name, description, subtitle, image_url, selected_icon, icon_name } = req.body;

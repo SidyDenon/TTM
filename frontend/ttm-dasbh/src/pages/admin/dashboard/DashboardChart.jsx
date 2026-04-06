@@ -12,15 +12,7 @@ import { useAuth } from "../../../context/AuthContext";
 
 export default function DashboardChart({ requests }) {
   const { user } = useAuth();
-
-  // 🔒 Si l’admin n’a pas la permission de voir les stats
-  if (!isSuper(user) && !can(user, "chart_view")) {
-    return (
-      <div className="flex items-center justify-center h-full text-[var(--muted)] italic">
-        📊 Accès restreint à ce module
-      </div>
-    );
-  }
+  const canViewChart = isSuper(user) || can(user, "chart_view");
 
   // 🧮 Regroupe les missions par type réel depuis le backend
   const data = useMemo(() => {
@@ -55,7 +47,9 @@ export default function DashboardChart({ requests }) {
       textColor = getComputedStyle(document.documentElement)
         .getPropertyValue("--text-color")
         .trim() || textColor;
-    } catch {}
+    } catch {
+      textColor = "#ffffff";
+    }
   }
 
   const containerRef = useRef(null);
@@ -81,6 +75,15 @@ export default function DashboardChart({ requests }) {
 
   const showEmpty = !Array.isArray(requests) || requests.length === 0;
 
+  // 🔒 Si l’admin n’a pas la permission de voir les stats
+  if (!canViewChart) {
+    return (
+      <div className="flex items-center justify-center h-full text-[var(--muted)] italic">
+        📊 Accès restreint à ce module
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
@@ -96,11 +99,17 @@ export default function DashboardChart({ requests }) {
         <ResponsiveContainer width="100%" height={320}>
           <PieChart>
             <Tooltip
+              wrapperStyle={{ zIndex: 60 }}
               contentStyle={{
-                background: "var(--bg-card)",
+                backgroundColor: "var(--bg-card)",
                 border: "1px solid var(--border-color)",
                 color: "var(--text-color)",
+                borderRadius: "8px",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                opacity: 1,
               }}
+              labelStyle={{ color: "var(--text-color)", fontWeight: 600 }}
+              itemStyle={{ color: "var(--text-color)" }}
               formatter={(value, name) => [`${value} missions`, name]}
             />
             <Legend
@@ -127,7 +136,7 @@ export default function DashboardChart({ requests }) {
               paddingAngle={3}
               animationDuration={800}
             >
-              {data.map((entry, index) => (
+              {data.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={COLORS[index % COLORS.length]}

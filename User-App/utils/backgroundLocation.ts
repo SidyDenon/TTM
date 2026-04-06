@@ -3,6 +3,7 @@ import * as Location from "expo-location";
 import { io } from "socket.io-client";
 import { API_URL } from "./api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getStoredToken } from "../lib/secureSession";
 
 const LOCATION_TASK_NAME = "background-location-task";
 // Ne connecte pas automatiquement; on passera le token avant
@@ -19,7 +20,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
   const operatorId = await AsyncStorage.getItem("operatorId");
   const requestId = await AsyncStorage.getItem("currentMissionId");
-  const token = await AsyncStorage.getItem("token");
+  const token = await getStoredToken();
 
   if (operatorId && requestId && token) {
     try {

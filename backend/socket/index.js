@@ -84,6 +84,36 @@ function joinRoleRooms(user, socket, meta = {}) {
   }
 }
 
+async function canJoinMissionRoom(user, requestId) {
+  const rid = Number(requestId);
+  if (!Number.isInteger(rid) || rid <= 0) return false;
+
+  const role = String(user?.role || "").toLowerCase();
+  const uid = Number(user?.id);
+  if (!Number.isInteger(uid) || uid <= 0) return false;
+
+  if (role === "admin") return true;
+  if (!dbRef) return false;
+
+  if (role === "client") {
+    const [rows] = await dbRef.query(
+      "SELECT id FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
+      [rid, uid]
+    );
+    return rows.length > 0;
+  }
+
+  if (["operator", "operateur", "opérateur"].includes(role)) {
+    const [rows] = await dbRef.query(
+      "SELECT id FROM requests WHERE id = ? AND operator_id = ? LIMIT 1",
+      [rid, uid]
+    );
+    return rows.length > 0;
+  }
+
+  return false;
+}
+
 export function emitMissionEvent(event, mission = {}, options = {}) {
   if (!event) return;
   const payload = { ...mission };
@@ -307,15 +337,26 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
       await registerSocket(user, socket);
     }
 
-    socket.on("join_request", ({ requestId }) => {
+    socket.on("join_request", async ({ requestId }) => {
       if (!socket.user) {
         console.log("⚠️ join_request refusé: utilisateur non authentifié");
         return;
       }
       if (!requestId) return;
-      const room = `mission_${requestId}`;
-      socket.join(room);
-      console.log(`✅ ${socket.id} rejoint la room ${room}`);
+      try {
+        const allowed = await canJoinMissionRoom(socket.user, requestId);
+        if (!allowed) {
+          console.log(`⚠️ join_request refusé: accès non autorisé à mission_${requestId}`);
+          socket.emit("join_request_denied", { requestId });
+          return;
+        }
+        const room = `mission_${Number(requestId)}`;
+        socket.join(room);
+        console.log(`✅ ${socket.id} rejoint la room ${room}`);
+      } catch (err) {
+        console.error("❌ join_request erreur:", err?.message || err);
+        socket.emit("join_request_denied", { requestId });
+      }
     });
 
     socket.on("operator_location", async (data) => {

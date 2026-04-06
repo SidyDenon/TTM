@@ -91,13 +91,11 @@ export function getApiUrl() {
 // ============================================================
 // 🌍 GOOGLE MAPS KEY (from env)
 // ============================================================
-const GOOGLE_MAPS_KEY_FALLBACK = "AIzaSyABd2koHf-EyzT8Nj9kTJp1fUWYizbjFNI";
-
 export const GOOGLE_MAPS_API_KEY =
   (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string) ||
   (process.env.REACT_NATIVE_GOOGLE_MAPS_API_KEY as string) ||
   (process.env.GOOGLE_MAPS_API_KEY as string) ||
-  GOOGLE_MAPS_KEY_FALLBACK;
+  "";
 
 // ============================================================
 // Helpers de build

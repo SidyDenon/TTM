@@ -2,6 +2,7 @@ import * as TaskManager from "expo-task-manager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "./api";
 import { showLocalNotification } from "../lib/notifications";
+import { getStoredToken } from "../lib/secureSession";
 
 const TASK_NAME = "mission-status-background-task";
 const STORAGE_LAST_STATUS = "mission_last_status";
@@ -44,7 +45,7 @@ const ensureTaskDefined = () => {
 
   TaskManager.defineTask(TASK_NAME, async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await getStoredToken();
       if (!token) return BackgroundFetch.BackgroundFetchResult.NoData;
 
       const active = await fetchActiveMission(token);

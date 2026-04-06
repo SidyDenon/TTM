@@ -103,12 +103,14 @@ export default function DashboardStats({ stats, navigate }) {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
-      {visibleCards.map(({ icon: Icon, label, key, color, path }, i) => (
+      {visibleCards.map((card, i) => {
+        const IconComponent = card.icon;
+        return (
         <div
           key={i}
-          onClick={() => path && navigate(path)}
+          onClick={() => card.path && navigate(card.path)}
           className={`p-4 rounded-xl shadow-md flex flex-col items-center text-center select-none transition-all duration-300 hover:scale-105 cursor-pointer border border-[var(--border-color)] ${
-            changedKeys.includes(key)
+            changedKeys.includes(card.key)
               ? "ring-2 ring-[var(--accent)] shadow-lg"
               : ""
           }`}
@@ -117,17 +119,17 @@ export default function DashboardStats({ stats, navigate }) {
             color: "var(--text-color)",
           }}
         >
-          <Icon className="w-7 h-7 mb-2" style={{ color }} />
-          <p className="text-sm font-medium text-[var(--muted)]">{label}</p>
+          <IconComponent className="w-7 h-7 mb-2" style={{ color: card.color }} />
+          <p className="text-sm font-medium text-[var(--muted)]">{card.label}</p>
           <h2
             className={`text-2xl font-bold transition-all duration-500 ease-out`}
-            style={{ color }}
+            style={{ color: card.color }}
           >
-            {animatedStats[key] ?? 0}
-            {key === "avgTime" ? " min" : ""}
+            {animatedStats[card.key] ?? 0}
+            {card.key === "avgTime" ? " min" : ""}
           </h2>
         </div>
-      ))}
+      );})}
     </div>
   );
 }

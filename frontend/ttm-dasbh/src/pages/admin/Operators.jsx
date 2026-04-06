@@ -536,7 +536,7 @@ export default function Operators() {
           {filtered.map((o) => (
             <tr
               key={o.id}
-              className="hover:opacity-95 cursor-pointer"
+              className="cursor-pointer transition hover:bg-black/5 dark:hover:bg-white/5"
               style={{ borderTop: "1px solid var(--border-color)" }}
               onClick={() => setDetailOp(o)}
             >

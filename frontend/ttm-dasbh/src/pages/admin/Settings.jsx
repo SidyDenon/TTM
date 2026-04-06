@@ -12,13 +12,14 @@ import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
 import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { API_BASE } from "../../config/urls";
+import { API_BASE, buildAssetUrl } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
+import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 
 export default function Settings() {
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
 
   // ─────────── Permissions (RBAC)
   const canViewServices =
@@ -68,6 +69,7 @@ export default function Settings() {
   const [confirmService, setConfirmService] = useState(null);
   const [closingConfirmService, setClosingConfirmService] = useState(false);
   const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
+  const [openServiceMenuId, setOpenServiceMenuId] = useState(null);
   const [showTestSmsModal, setShowTestSmsModal] = useState(false);
   const [closingTestSmsModal, setClosingTestSmsModal] = useState(false);
   const [testSmsPhone, setTestSmsPhone] = useState("");
@@ -77,6 +79,16 @@ export default function Settings() {
   const passwordModalRef = useModalOrigin(showPasswordModal);
   const addServiceModalRef = useModalOrigin(showAddServiceModal);
   const testSmsModalRef = useModalOrigin(showTestSmsModal);
+
+  // Ferme le menu ... quand on clique en dehors
+  useEffect(() => {
+    if (!openServiceMenuId) return;
+    const handler = (e) => {
+      if (!e.target.closest(".srv-actions-menu")) setOpenServiceMenuId(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openServiceMenuId]);
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -264,7 +276,7 @@ export default function Settings() {
     if (!isLogged) return;
     loadServices();
     loadConfig();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isLogged, canViewServices, canViewConfig]);
 
   if (!canAccessPage) {
@@ -307,6 +319,12 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour profil");
       toast.success("Profil mis à jour ✅");
+      updateUser({
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone,
+        ...(data.user?.avatar_url !== undefined ? { avatar_url: data.user.avatar_url } : {}),
+      });
       setClosingEditProfile(true);
       setTimeout(() => {
         setShowEditProfile(false);
@@ -626,13 +644,13 @@ export default function Settings() {
               />
             ) : user?.avatar_url ? (
               <img
-                src={user.avatar_url}
+                src={buildAssetUrl(user.avatar_url)}
                 alt="avatar"
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center opacity-60">
-                A
+              <div className="w-full h-full flex items-center justify-center opacity-60 text-2xl font-bold" style={{ background: "var(--bg-main)" }}>
+                {(user?.name?.[0] || "A").toUpperCase()}
               </div>
             )}
           </div>
@@ -698,6 +716,39 @@ export default function Settings() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4">Modifier mes infos</h3>
+
+            {/* Photo de profil */}
+            <div className="flex items-center gap-4 mb-5">
+              <div
+                className="w-16 h-16 rounded-full overflow-hidden border flex-shrink-0"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="preview" className="w-full h-full object-cover" />
+                ) : user?.avatar_url ? (
+                  <img src={buildAssetUrl(user.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-xl font-bold opacity-60"
+                    style={{ background: "var(--bg-main)" }}
+                  >
+                    {(user?.name?.[0] || "A").toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm opacity-70 mb-1">Photo de profil</p>
+                <label
+                  className="px-3 py-1.5 rounded cursor-pointer flex items-center gap-2 text-sm"
+                  style={{ background: "var(--bg-main)", border: "1px solid var(--border-color)", color: "var(--text-color)" }}
+                >
+                  <FaEdit size={12} />
+                  Choisir une photo
+                  <input type="file" accept="image/*" onChange={onPickAvatar} className="hidden" />
+                </label>
+              </div>
+            </div>
+
             <label className="block text-sm opacity-70 mb-1">Nom</label>
             <input
               type="text"
@@ -957,33 +1008,45 @@ export default function Settings() {
                           }}
                         />
                       </td>
-                      <td className="px-3 py-2 text-right space-x-2">
-                        <button
-                          onClick={() => saveInlinePrice(s)}
-                          disabled={inlineSaving === s.id || !canManageServices}
-                          style={{ background: "var(--accent)", color: "#fff" }}
-                          className="px-3 py-1 rounded disabled:opacity-70"
-                          title={
-                            canManageServices ? "" : "Droit requis: services_manage"
-                          }
-                        >
-                          {inlineSaving === s.id ? (
-                            <AiOutlineLoading3Quarters className="inline animate-spin" />
-                          ) : (
-                            <FaSave className="inline" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => deleteService(s)}
-                          disabled={!canManageServices}
-                          className="px-3 py-1 rounded"
-                          style={{ background: "#e5372e", color: "#fff" }}
-                          title={
-                            canManageServices ? "" : "Droit requis: services_manage"
-                          }
-                        >
-                          <FaTrash />
-                        </button>
+                      <td className="px-3 py-2 text-right">
+                        {canManageServices && (
+                          <div className="relative srv-actions-menu inline-block">
+                            <button
+                              onClick={() => setOpenServiceMenuId(openServiceMenuId === s.id ? null : s.id)}
+                              className="p-2 rounded-full text-white shadow-md transition"
+                              style={{ background: "var(--accent)" }}
+                              title="Actions"
+                            >
+                              <EllipsisHorizontalIcon className="w-5 h-5" />
+                            </button>
+                            {openServiceMenuId === s.id && (
+                              <div
+                                className="absolute right-0 mt-2 w-44 rounded shadow-lg border srv-actions-menu"
+                                style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", zIndex: 20 }}
+                              >
+                                <button
+                                  onClick={() => { saveInlinePrice(s); setOpenServiceMenuId(null); }}
+                                  disabled={inlineSaving === s.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
+                                  style={{ color: "var(--text-color)" }}
+                                >
+                                  {inlineSaving === s.id
+                                    ? <AiOutlineLoading3Quarters className="animate-spin w-4 h-4 text-green-400" />
+                                    : <FaSave className="w-4 h-4 text-green-400" />}
+                                  Enregistrer
+                                </button>
+                                <button
+                                  onClick={() => { deleteService(s); setOpenServiceMenuId(null); }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                                  style={{ color: "var(--text-color)" }}
+                                >
+                                  <FaTrash className="w-4 h-4 text-red-500" />
+                                  Supprimer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))

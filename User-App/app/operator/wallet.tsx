@@ -78,6 +78,9 @@ export default function WalletScreen() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [gainsHistoryFilter, setGainsHistoryFilter] = useState<
+    "all" | "today" | "month" | "date"
+  >("all");
 
   const retraitListHeight = Math.max(320, screenHeight - 280);
 
@@ -281,13 +284,24 @@ export default function WalletScreen() {
       ]);
     };
 
+    const handlePaymentConfirmed = (data: any) => {
+      Toast.show({
+        type: "info",
+        text1: "✅ Paiement client validé",
+        text2: `Mission #${data?.request_id || "-"} en attente de confirmation admin`,
+        visibilityTime: 2600,
+      });
+    };
+
     socket.on("withdrawal_created", handleCreated);
     socket.on("withdrawal_update", handleUpdated);
+    socket.on("payment_confirmed", handlePaymentConfirmed);
     socket.on("transaction_confirmed", handleNewTransaction);
 
     return () => {
       socket.off("withdrawal_created", handleCreated);
       socket.off("withdrawal_update", handleUpdated);
+      socket.off("payment_confirmed", handlePaymentConfirmed);
       socket.off("transaction_confirmed", handleNewTransaction);
     };
   }, [socket]);
@@ -380,9 +394,35 @@ export default function WalletScreen() {
   const retraitsFiltered = selectedDate
     ? retraits.filter((t) => isSameDay(new Date(t.created_at), selectedDate))
     : retraits;
-  const gainsFiltered = selectedDate
-    ? gainsList.filter((t) => isSameDay(new Date(t.created_at), selectedDate))
-    : gainsList;
+  const gainsFiltered = gainsList.filter((t) => {
+    const createdAt = new Date(t.created_at);
+    if (gainsHistoryFilter === "today") {
+      return isSameDay(createdAt, today);
+    }
+    if (gainsHistoryFilter === "month") {
+      return (
+        createdAt.getFullYear() === today.getFullYear() &&
+        createdAt.getMonth() === today.getMonth()
+      );
+    }
+    if (gainsHistoryFilter === "date" && selectedDate) {
+      return isSameDay(createdAt, selectedDate);
+    }
+    return true;
+  });
+
+  const gainsFilterLabel =
+    gainsHistoryFilter === "today"
+      ? "Aujourd'hui"
+      : gainsHistoryFilter === "month"
+        ? "Ce mois"
+        : gainsHistoryFilter === "date" && selectedDate
+          ? selectedDate.toLocaleDateString("fr-FR", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "Toutes";
 
   const monthLabel = calendarMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   const startOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
@@ -422,6 +462,24 @@ export default function WalletScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+  };
+
+  const openHistoriqueWithFilter = (filter: "today" | "month") => {
+    setGainsHistoryFilter(filter);
+    setSelectedDate(filter === "today" ? new Date() : null);
+
+    if (screenMode !== "historique") {
+      openPanel("historique");
+    }
+  };
+
+  const toggleHistoriquePanel = () => {
+    if (screenMode === "historique") {
+      goWallet();
+      return;
+    }
+    setGainsHistoryFilter("all");
+    openPanel("historique");
   };
   const goWallet = () => {
     if (screenMode === "wallet") return;
@@ -500,7 +558,11 @@ export default function WalletScreen() {
                   <Text style={styles.statsHeader}>Ce mois</Text>
                 </View>
                 <View style={styles.statsRow}>
-                  <View style={styles.statBox}>
+                  <TouchableOpacity
+                    style={styles.statBox}
+                    activeOpacity={0.85}
+                    onPress={() => openHistoriqueWithFilter("today")}
+                  >
                     <View style={styles.statIconWrap}>
                       <MaterialCommunityIcons name="cash" size={18} color="#16A34A" />
                     </View>
@@ -517,8 +579,12 @@ export default function WalletScreen() {
                         {todayStats.count} mission{todayStats.count > 1 ? "s" : ""}
                       </Text>
                     </View>
-                  </View>
-                  <View style={styles.statBox}>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.statBox}
+                    activeOpacity={0.85}
+                    onPress={() => openHistoriqueWithFilter("month")}
+                  >
                     <View style={styles.statIconWrapBlue}>
                       <MaterialIcons name="calendar-month" size={18} color="#1F6FEB" />
                     </View>
@@ -535,7 +601,7 @@ export default function WalletScreen() {
                         {monthStats.count} mission{monthStats.count > 1 ? "s" : ""}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -588,13 +654,17 @@ export default function WalletScreen() {
                 <Pressable
                   style={styles.filterRow}
                   onPress={() => {
-                    setCalendarMonth(selectedDate ?? new Date());
+                    const baseDate =
+                      gainsHistoryFilter === "month"
+                        ? new Date(today.getFullYear(), today.getMonth(), 1)
+                        : selectedDate ?? new Date();
+                    setCalendarMonth(baseDate);
                     setCalendarOpen(true);
                   }}
                 >
                   <View style={styles.filterLeft}>
                     <MaterialIcons name="calendar-month" size={22} color="#1F6FEB" />
-                    <Text style={styles.filterLabel}>{filterLabel}</Text>
+                    <Text style={styles.filterLabel}>{gainsFilterLabel}</Text>
                   </View>
                   <MaterialIcons name="keyboard-arrow-down" size={24} color="#111" />
                 </Pressable>
@@ -652,13 +722,17 @@ export default function WalletScreen() {
                 <Pressable
                   style={styles.filterRow}
                   onPress={() => {
-                    setCalendarMonth(selectedDate ?? new Date());
+                    const baseDate =
+                      gainsHistoryFilter === "month"
+                        ? new Date(today.getFullYear(), today.getMonth(), 1)
+                        : selectedDate ?? new Date();
+                    setCalendarMonth(baseDate);
                     setCalendarOpen(true);
                   }}
                 >
                   <View style={styles.filterLeft}>
                     <MaterialIcons name="calendar-month" size={22} color="#1F6FEB" />
-                    <Text style={styles.filterLabel}>{filterLabel}</Text>
+                    <Text style={styles.filterLabel}>{gainsFilterLabel}</Text>
                   </View>
                   <MaterialIcons name="keyboard-arrow-down" size={24} color="#111" />
                 </Pressable>
@@ -714,7 +788,7 @@ export default function WalletScreen() {
             <TouchableOpacity
               style={styles.item}
               activeOpacity={0.85}
-              onPress={() => (screenMode === "historique" ? goWallet() : openPanel("historique"))}
+              onPress={toggleHistoriquePanel}
             >
               <MaterialIcons name="history" size={26} color={screenMode === "historique" ? RED : "#111"} />
               <Text style={[styles.label, screenMode === "historique" && styles.labelOn]}>
@@ -807,6 +881,9 @@ export default function WalletScreen() {
                     ]}
                     onPress={() => {
                       setSelectedDate(date);
+                      if (screenMode === "historique") {
+                        setGainsHistoryFilter("date");
+                      }
                       setCalendarOpen(false);
                     }}
                   >
@@ -828,7 +905,12 @@ export default function WalletScreen() {
               <TouchableOpacity
                 style={styles.calendarTodayBtn}
                 onPress={() => {
-                  setSelectedDate(null);
+                  if (screenMode === "historique") {
+                    setSelectedDate(new Date());
+                    setGainsHistoryFilter("today");
+                  } else {
+                    setSelectedDate(null);
+                  }
                   setCalendarOpen(false);
                 }}
               >

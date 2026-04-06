@@ -23,7 +23,10 @@ export default (db) => {
         return res.status(400).json({ error: "message trop court" });
       }
 
-      let supportEmail = process.env.MAIL_FROM || "support@ttm.com";
+      let supportEmail =
+        process.env.SUPPORT_EMAIL ||
+        process.env.MAIL_TO ||
+        "support@ttm.com";
       try {
         const [[cfg]] = await db.query(
           "SELECT support_email FROM configurations LIMIT 1"

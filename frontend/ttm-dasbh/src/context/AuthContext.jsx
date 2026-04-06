@@ -4,6 +4,7 @@ import { API_BASE } from "../config/urls";
 import { connectSocket, disconnectSocket } from "../utils/socket";
 
 const AuthContext = createContext(null);
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 // util JSON-safe
@@ -69,12 +70,13 @@ export function AuthProvider({ children }) {
         role_name: me.role_name || null,
         permissions: perms,            // permissions admin si middleware les ajoute
         must_change_password: !!me.must_change_password,
+        avatar_url: me.avatar_url || null,
       };
 
       setUser(normalizedUser);
       setStatus("authenticated");
       connectSocket(tkn);
-    } catch (e) {
+    } catch {
       // token invalide/expiré
       disconnectSocket();
       localStorage.removeItem("token");
@@ -87,7 +89,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     loadMe(token);
     return () => disconnectSocket();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ✅ LOGIN sur /api/auth/login (identifier + password)
@@ -145,6 +147,8 @@ export function AuthProvider({ children }) {
     return perms.every((p) => user?.permissions?.includes(p));
   };
 
+  const updateUser = (patch) => setUser((prev) => prev ? { ...prev, ...patch } : prev);
+
   const value = useMemo(
     () => ({
       status,
@@ -152,12 +156,13 @@ export function AuthProvider({ children }) {
       token,
       login,
       logout,
+      updateUser,
       can,
       canAll,
       isSuper: !!user?.is_super,
       mustChangePassword: !!user?.must_change_password,
     }),
-    [status, user, token, login, logout, can, canAll]
+    [status, user, token, login, logout, updateUser, can, canAll]
   );
 
   return (

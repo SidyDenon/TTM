@@ -23,7 +23,7 @@ async function testLocalBackend(url) {
     });
     // En no-cors, res.type === "opaque" → on considère que le backend répond
     return res.ok || res.type === "opaque";
-  } catch (err) {
+  } catch {
     return false;
   } finally {
     clearTimeout(timeout);

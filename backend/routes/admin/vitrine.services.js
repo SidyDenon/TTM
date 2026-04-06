@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, requireAny } from "../../middleware/checkPermission.js";
+import { validateUploadedFilesSignature } from "../../middleware/upload.js";
 
 const router = express.Router();
 
@@ -82,7 +83,7 @@ export default (db) => {
     }
   });
 
-  router.post("/", requireAny(["site_manage"]), uploadAssets, async (req, res) => {
+  router.post("/", requireAny(["site_manage"]), uploadAssets, validateUploadedFilesSignature, async (req, res) => {
     try {
       await ensureTable(req.db);
       const { name, subtitle, description, price, selected_icon, icon_name, image_url } = req.body;
@@ -131,7 +132,7 @@ export default (db) => {
     }
   });
 
-  router.put("/:id", requireAny(["site_manage"]), uploadAssets, async (req, res) => {
+  router.put("/:id", requireAny(["site_manage"]), uploadAssets, validateUploadedFilesSignature, async (req, res) => {
     try {
       await ensureTable(req.db);
       const { name, subtitle, description, price, selected_icon, icon_name, image_url, is_active } = req.body;

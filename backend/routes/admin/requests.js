@@ -1,5 +1,5 @@
 import express from "express";
-import { upload } from "../../middleware/upload.js";
+import { upload, validateUploadedFilesSignature } from "../../middleware/upload.js";
 import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import { sendPushNotification } from "../../utils/sendPush.js";
@@ -365,6 +365,7 @@ export default (db, io, emitMissionEvent) => {
     "/:id/photos",
     checkPermission("requests_manage"),
     upload.array("photos", 5),
+    validateUploadedFilesSignature,
     async (req, res) => {
       const requestId = req.params.id;
       try {

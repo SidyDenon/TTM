@@ -1,4 +1,5 @@
 // src/pages/admin/SiteVitrine.jsx
+/* eslint-disable no-unused-vars */
 import { useEffect, useMemo, useState, useRef } from "react";
 import { toast } from "../../utils/toast";
 import * as FaIcons from "react-icons/fa";      // UI buttons (edit/save/…)
@@ -342,9 +343,9 @@ export default function SiteVitrine() {
     if (!isLogged) return;
     loadServices();
     loadConfig();
-    loadSiteContent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLogged, canViewServices, canViewConfig]);
+    if (canAccessPage) loadSiteContent();
+     
+  }, [isLogged, canViewServices, canViewConfig, canAccessPage]);
 
   const updateSiteSection = (section, key, value) => {
     setSiteContent((prev) => ({

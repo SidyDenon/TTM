@@ -42,7 +42,7 @@ export default function OnboardingScreen() {
       }
     };
     check();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Splash intro (fond rouge BRAND)

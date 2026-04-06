@@ -1,11 +1,12 @@
 // src/FAQ.jsx
+/* eslint-disable no-unused-vars */
 import React from "react";
 import { DEFAULT_MESSAGES } from "./config/links";
 import { motion, AnimatePresence } from "framer-motion";
 import { FAQS } from "./config/faq";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { fetchSiteContent } from "./config/siteContent";
-import { resolveApiBase } from "./config/api";
+import { getBaseCandidates } from "./config/api";
 
 /* --------- Variants Motion --------- */
 const sectionVariants = {
@@ -86,7 +87,7 @@ export default function Faq() {
     [buildSupportWhatsAppLink]
   );
   const toggle = (i) => setOpen((prev) => (prev === i ? null : i));
-  const apiBase = React.useMemo(() => resolveApiBase(), []);
+  const apiBases = React.useMemo(() => getBaseCandidates(), []);
 
   React.useEffect(() => {
     let active = true;
@@ -342,23 +343,49 @@ export default function Faq() {
                       try {
                         setContactSending(true);
                         setContactFeedback("");
-                        const endpoint = `${apiBase}/api/contact/public`;
-                        const res = await fetch(endpoint, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(contactForm),
-                        });
-                        const raw = await res.text();
-                        let data = {};
-                        if (raw) {
+                        let sent = false;
+                        let lastErr = null;
+
+                        for (const base of apiBases) {
+                          const endpoint = `${String(base).replace(/\/+$/, "")}/api/contact/public`;
                           try {
-                            data = JSON.parse(raw);
-                          } catch {
-                            data = { error: raw };
+                            const res = await fetch(endpoint, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(contactForm),
+                            });
+
+                            const raw = await res.text();
+                            let data = {};
+                            if (raw) {
+                              try {
+                                data = JSON.parse(raw);
+                              } catch {
+                                data = { error: raw };
+                              }
+                            }
+
+                            if (res.ok) {
+                              sent = true;
+                              break;
+                            }
+
+                            // 4xx = erreur fonctionnelle: on arrête immédiatement
+                            if (res.status >= 400 && res.status < 500) {
+                              throw new Error(data?.error || "Erreur envoi");
+                            }
+
+                            // 5xx: on tente la base suivante
+                            lastErr = new Error(data?.error || "Erreur serveur");
+                          } catch (e) {
+                            lastErr = e;
+                            // en cas d'erreur réseau/CORS, on essaie la base suivante
+                            continue;
                           }
                         }
-                        if (!res.ok) {
-                          throw new Error(data?.error || "Erreur envoi");
+
+                        if (!sent) {
+                          throw lastErr || new Error("Erreur envoi");
                         }
                         setContactFeedback("Message envoyé ✅");
                         setContactForm({ name: "", email: "", message: "" });

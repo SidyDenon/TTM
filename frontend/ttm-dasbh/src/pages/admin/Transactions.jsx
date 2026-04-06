@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
 import { toast } from "../../utils/toast";
-import { socket } from "../../utils/socket";
+import { getSocketInstance } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, BanknotesIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
@@ -115,6 +115,9 @@ export default function Transactions() {
   useEffect(() => {
     if (!token) return;
 
+    const socket = getSocketInstance();
+    if (!socket) return;
+
     const handleNewTransaction = (data) => {
       console.log("🆕 Nouvelle transaction :", data);
       showSystemNotification(
@@ -148,7 +151,7 @@ export default function Transactions() {
       socket.off("transaction_confirmed", handleTransactionConfirmed);
       socket.off("transaction_updated", handleTransactionUpdated);
     };
-  }, [token, canTxView]);
+  }, [token, canTxView, statusFilter]);
 
   useEffect(() => {
     if (!token) return;

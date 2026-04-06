@@ -328,7 +328,7 @@ export default function Clients() {
           {filtered.map((c) => (
             <tr
               key={c.id}
-              className="hover:opacity-90"
+              className="transition hover:bg-black/5 dark:hover:bg-white/5"
               style={{ borderTop: "1px solid var(--border-color)" }}
             >
               <td className="px-3 py-2">#{c.id}</td>

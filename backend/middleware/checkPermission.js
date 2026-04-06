@@ -123,10 +123,11 @@ export async function loadAdminPermissions(req, res, next) {
     const roleLabelRaw = String(row.role_slug || row.role_name || "").toLowerCase().trim();
     const roleLabel = roleLabelRaw.replace(/[^a-z0-9]/g, "");
     const roleIsSuper = roleLabel === "superadmin";
+    const allowRoleSlugSuper = String(process.env.ALLOW_ROLE_SLUG_SUPERADMIN || "").toLowerCase() === "true";
     // pas d'extraPerms → []
     req.adminPermissions = Array.from(new Set([...rolePerms, ...extraPerms]));
     req.adminPerms = new Set(req.adminPermissions);
-    req.isSuperAdmin = !!row.is_super || roleIsSuper;
+    req.isSuperAdmin = !!row.is_super || (allowRoleSlugSuper && roleIsSuper);
 
     next();
   } catch (e) {

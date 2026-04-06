@@ -2,7 +2,7 @@
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import usePushNotifications from "./hooks/usePushNotifications";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { useAuth } from "./context/AuthContext";
 import { useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 
@@ -17,7 +17,6 @@ import SiteVitrine from "./pages/admin/SiteVitrine";
 import AdminUsers from "./pages/admin/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
-import { initApiBase } from "./config/urls"; // ton fichier
 import { setLastModalClick } from "./utils/modalOrigin";
 
 
@@ -126,52 +125,47 @@ function Layout() {
 }
 
 export default function App() {
-  useEffect(() => {
-    initApiBase(); // 💥 auto-detect local → prod (1 seule fois)
-  }, []);
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/change-password" element={<ChangePassword />} />
+    <Router>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/change-password" element={<ChangePassword />} />
 
-          {/* Privé */}
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<Dashboard />} />
-            <Route path="missions" element={<Missions />} />
-            <Route path="admins" element={<AdminUsers />} />   {/* ← relatif ! */}
-            <Route path="operators" element={<Operators />} />
-            <Route path="clients" element={<Clients />} />
-            <Route path="transactions" element={<Transactions />} />
-            <Route path="withdrawals" element={<Withdrawals />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="site-vitrine" element={<SiteVitrine />} />
-          </Route>
+        {/* Privé */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="missions" element={<Missions />} />
+          <Route path="admins" element={<AdminUsers />} />   {/* ← relatif ! */}
+          <Route path="operators" element={<Operators />} />
+          <Route path="clients" element={<Clients />} />
+          <Route path="transactions" element={<Transactions />} />
+          <Route path="withdrawals" element={<Withdrawals />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="site-vitrine" element={<SiteVitrine />} />
+        </Route>
 
-          {/* Par défaut */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        {/* Par défaut */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
 
-        <ToastContainer
-          position="top-right"
-          autoClose={4000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          pauseOnHover
-          draggable
-          theme="dark"
-        />
-      </Router>
-    </AuthProvider>
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+        theme="dark"
+      />
+    </Router>
   );
 }

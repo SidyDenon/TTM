@@ -98,7 +98,7 @@ export default function HistoryList() {
     return (
       <View style={styles.center}>
         <Loader />
-        <Text style={{ marginTop: 10 }}>Chargement de l'historique…</Text>
+        <Text style={{ marginTop: 10 }}>Chargement de l&apos;historique…</Text>
       </View>
     );
   }

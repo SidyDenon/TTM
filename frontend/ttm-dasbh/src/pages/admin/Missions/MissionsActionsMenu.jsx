@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { FaEllipsisV, FaTrashAlt, FaBan, FaUserCheck, FaBullhorn, FaCheckCircle } from "react-icons/fa";
+import { FaEllipsisH, FaTrashAlt, FaBan, FaUserCheck, FaBullhorn, FaCheckCircle } from "react-icons/fa";
 
 export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onPublish, onAssign }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (open && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 8,
+        left: rect.right - 176
+      });
+    }
+  }, [open]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -22,14 +33,22 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
           e.stopPropagation();
           setOpen((prev) => !prev);
         }}
-        className="px-2 py-1 bg-[var(--bg-card)] border border-[var(--border-color)] text-xs rounded flex items-center gap-1 hover:opacity-80"
+        className="p-2 rounded-full text-white shadow-md transition hover:opacity-90"
+        style={{ background: "var(--accent)" }}
+        title="Actions"
       >
-        <FaEllipsisV /> Actions
+        <FaEllipsisH className="w-5 h-5" />
       </button>
 
-      <div
-        className={`${open ? "" : "hidden"} absolute right-0 mt-2 w-44 bg-[var(--bg-card)] border border-[var(--border-color)] rounded shadow-lg z-20`}
-      >
+      {open && (
+        <div
+          className="fixed w-44 bg-[var(--bg-card)] border border-[var(--border-color)] rounded shadow-lg z-50"
+          style={{
+            top: `${pos.top}px`,
+            left: `${pos.left}px`,
+            borderColor: "var(--border-color)"
+          }}
+        >
         {req.status === "en_attente" && (
           <button
             onClick={() => {
@@ -81,7 +100,8 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
         >
           <FaTrashAlt /> Supprimer
         </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

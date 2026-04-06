@@ -303,7 +303,7 @@ export default function Missions() {
 
   useEffect(() => {
     if (token) loadRequests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [token, canView]);
 
   useEffect(() => {

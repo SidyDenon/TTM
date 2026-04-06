@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "../utils/toast";
 import { can, isSuper } from "../utils/rbac";
 import { useModalOrigin } from "../hooks/useModalOrigin";
+import { buildAssetUrl } from "../config/urls";
 
 export default function Header({ onToggleSidebar }) {
   const { user, logout } = useAuth();
@@ -137,9 +138,9 @@ export default function Header({ onToggleSidebar }) {
             className="flex items-center justify-center w-9 h-9 rounded-full border border-[var(--border-color)] bg-[var(--bg-card)]"
             title="Profil"
           >
-            {user?.avatar ? (
+            {user?.avatar_url ? (
               <img
-                src={user.avatar}
+                src={buildAssetUrl(user.avatar_url)}
                 alt="Profil"
                 className="w-9 h-9 rounded-full object-cover"
               />
@@ -162,9 +163,9 @@ export default function Header({ onToggleSidebar }) {
               <div className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full border border-[var(--border-color)] bg-[var(--bg-main)]">
-                    {user?.avatar ? (
+                    {user?.avatar_url ? (
                       <img
-                        src={user.avatar}
+                        src={buildAssetUrl(user.avatar_url)}
                         alt="Profil"
                         className="w-10 h-10 rounded-full object-cover"
                       />

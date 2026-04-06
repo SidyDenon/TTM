@@ -7,6 +7,7 @@ import { calculatePrice } from "../../utils/distance.js";
 import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import { buildPublicUrl } from "../../config/links.js";
+import { validateUploadedFilesSignature } from "../../middleware/upload.js";
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ export default (db, io, emitMissionEvent) => {
   });
   const upload = multer({ storage });
 
-  router.put("/utilisateurs/:id", upload.single("avatar"), async (req, res) => {
+  router.put("/utilisateurs/:id", upload.single("avatar"), validateUploadedFilesSignature, async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!req.user || req.user.role !== "admin") {

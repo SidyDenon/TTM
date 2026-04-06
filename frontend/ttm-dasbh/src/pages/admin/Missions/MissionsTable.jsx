@@ -51,7 +51,7 @@ export default function MissionsTable({ requests, onSelect, onUpdateStatus, onDe
           return (
             <tr
               key={req.id}
-              className="cursor-pointer hover:opacity-90 transition"
+              className="cursor-pointer transition hover:bg-black/5 dark:hover:bg-white/5"
               style={{ borderTop: `1px solid var(--border-color)` }}
               onClick={() => onSelect(req)}
             >

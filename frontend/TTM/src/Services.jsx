@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React from "react";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";

@@ -12,7 +12,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { ADMIN_API, DASHBOARD_ROUTES } from "../config/urls";
-import { socket } from "../utils/socket";
+import { getSocketInstance } from "../utils/socket";
 import { can, canAny, isSuper } from "../utils/rbac";
 
 function NavLinkItem({ to, icon, label, badge = 0, onClick }) {
@@ -226,12 +226,13 @@ export default function Sidebar({ open = false, onClose }) {
     const onWithdrawalCreated = () => fetchWithdrawalsCount();
     const onWithdrawalUpdated = () => fetchWithdrawalsCount(); // ex: confirmation
     const onTxEvent = () => fetchPendingTransactions();
+    const socket = getSocketInstance();
 
-    if (canViewWithdrawals) {
+    if (socket && canViewWithdrawals) {
       socket.on("withdrawal_created", onWithdrawalCreated);
       socket.on("withdrawal_updated_admin", onWithdrawalUpdated);
     }
-    if (canViewTransactions) {
+    if (socket && canViewTransactions) {
       socket.on("transaction_created", onTxEvent);
       socket.on("transaction_updated", onTxEvent);
       socket.on("transaction_confirmed", onTxEvent);
@@ -240,11 +241,11 @@ export default function Sidebar({ open = false, onClose }) {
     return () => {
       mounted = false;
       clearInterval(interval);
-      if (canViewWithdrawals) {
+      if (socket && canViewWithdrawals) {
         socket.off("withdrawal_created", onWithdrawalCreated);
         socket.off("withdrawal_updated_admin", onWithdrawalUpdated);
       }
-      if (canViewTransactions) {
+      if (socket && canViewTransactions) {
         socket.off("transaction_created", onTxEvent);
         socket.off("transaction_updated", onTxEvent);
         socket.off("transaction_confirmed", onTxEvent);

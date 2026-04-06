@@ -32,6 +32,22 @@ function safeParsePermissions(raw) {
 export default (db) => {
   let extraPermsChecked = false;
   let hasExtraPermsColumn = false;
+  let avatarUrlChecked = false;
+  let hasAvatarUrlColumn = false;
+
+  async function resolveAvatarUrlColumn() {
+    if (avatarUrlChecked) return hasAvatarUrlColumn;
+    try {
+      const [[{ cnt }]] = await db.query(
+        "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_users' AND COLUMN_NAME = 'avatar_url'"
+      );
+      hasAvatarUrlColumn = Number(cnt) > 0;
+    } catch {
+      hasAvatarUrlColumn = false;
+    }
+    avatarUrlChecked = true;
+    return hasAvatarUrlColumn;
+  }
 
   async function resolveExtraPermsColumn() {
     if (extraPermsChecked) return hasExtraPermsColumn;
@@ -53,9 +69,11 @@ export default (db) => {
 
       if (user.role === "admin") {
         const hasExtra = await resolveExtraPermsColumn();
+        const hasAvatar = await resolveAvatarUrlColumn();
         const extraSelect = hasExtra ? ", u.extra_permissions" : "";
+        const avatarSelect = hasAvatar ? ", u.avatar_url" : "";
         const [[row]] = await db.query(
-          `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super${extraSelect},
+          `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super${extraSelect}${avatarSelect},
                   r.name AS role_name, r.slug AS role_slug, r.permissions
            FROM admin_users u
            LEFT JOIN admin_roles r ON r.id = u.role_id
@@ -86,6 +104,7 @@ export default (db) => {
           is_super: !!row.is_super || roleIsSuper,
           permissions,
           extra_permissions: extraPerms,
+          avatar_url: hasAvatar ? (row.avatar_url || null) : null,
         });
       }
 

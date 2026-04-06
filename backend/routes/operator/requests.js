@@ -69,44 +69,48 @@ async function getOperatorTowingRadiusKm(db) {
 
 async function loadTowingConfig(db) {
   try {
-    // 1) Priorité aux settings (historique)
-    const [[rowBase]] = await db.query(
-      "SELECT value FROM settings WHERE key_name = 'remorquage_base_price' LIMIT 1"
-    );
-    const [[rowKm]] = await db.query(
-      "SELECT value FROM settings WHERE key_name = 'remorquage_price_per_km' LIMIT 1"
-    );
+    let basePrice = null;
+    let pricePerKm = null;
 
-    const baseFromSettings = rowBase ? Number(rowBase.value) : null;
-    const kmFromSettings = rowKm ? Number(rowKm.value) : null;
-
-    // 2) Fallback vers la table configurations (nouvelle UI admin)
-    if (baseFromSettings == null || kmFromSettings == null) {
+    // 1) Source principale: configurations
+    try {
       const [[cfg]] = await db.query(
         "SELECT towing_base_price, towing_price_per_km FROM configurations LIMIT 1"
       );
-      const baseCfg =
-        baseFromSettings != null
-          ? baseFromSettings
-          : cfg?.towing_base_price != null
-          ? Number(cfg.towing_base_price)
-          : null;
-      const kmCfg =
-        kmFromSettings != null
-          ? kmFromSettings
-          : cfg?.towing_price_per_km != null
-          ? Number(cfg.towing_price_per_km)
-          : null;
+      const baseCfg = Number(cfg?.towing_base_price);
+      const kmCfg = Number(cfg?.towing_price_per_km);
+      if (Number.isFinite(baseCfg) && baseCfg >= 0) basePrice = baseCfg;
+      if (Number.isFinite(kmCfg) && kmCfg >= 0) pricePerKm = kmCfg;
+    } catch {
+      // ignore and fallback
+    }
 
-      return {
-        base_price: baseCfg,
-        price_per_km: kmCfg,
-      };
+    // 2) Fallback legacy: settings (anciens noms de clés)
+    if (basePrice == null || pricePerKm == null) {
+      const [rows] = await db.query(
+        `SELECT key_name, value FROM settings
+         WHERE key_name IN ('tow_base_price','tow_price_per_km','remorquage_base_price','remorquage_price_per_km')`
+      );
+      const byKey = new Map((rows || []).map((r) => [String(r.key_name), Number(r.value)]));
+
+      const legacyBase = byKey.get("tow_base_price");
+      const legacyBaseFr = byKey.get("remorquage_base_price");
+      const legacyKm = byKey.get("tow_price_per_km");
+      const legacyKmFr = byKey.get("remorquage_price_per_km");
+
+      if (basePrice == null) {
+        const b = Number.isFinite(legacyBase) ? legacyBase : legacyBaseFr;
+        if (Number.isFinite(b) && b >= 0) basePrice = b;
+      }
+      if (pricePerKm == null) {
+        const k = Number.isFinite(legacyKm) ? legacyKm : legacyKmFr;
+        if (Number.isFinite(k) && k >= 0) pricePerKm = k;
+      }
     }
 
     return {
-      base_price: baseFromSettings,
-      price_per_km: kmFromSettings,
+      base_price: basePrice,
+      price_per_km: pricePerKm,
     };
   } catch (e) {
     return { base_price: null, price_per_km: null };

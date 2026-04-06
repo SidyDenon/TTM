@@ -1,5 +1,9 @@
 import mysql from "mysql2/promise";
-// dotenv est chargé une seule fois dans config/env.js au démarrage
+import dotenv from "dotenv";
+
+// Garantit le chargement de .env avant l'initialisation du pool,
+// même si db.js est importé avant config/env.js.
+dotenv.config();
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,

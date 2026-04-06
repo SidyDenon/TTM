@@ -217,7 +217,7 @@ export default function AdminUsers() {
     }
   };
 
-  useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [token, canUsersView, canRolesView]);
+  useEffect(() => { loadAll(); }, [token, canUsersView, canRolesView]);
 
   useEffect(() => {
     const s = getSocketInstance();
@@ -768,7 +768,7 @@ export default function AdminUsers() {
               {filtered.map(a => (
                 <tr
                   key={a.id}
-                  className="hover:opacity-90 cursor-pointer"
+                  className="cursor-pointer transition hover:bg-black/5 dark:hover:bg-white/5"
                   style={{ borderTop: "1px solid var(--border-color)" }}
                   onClick={() => {
                     setClosingDetail(false);

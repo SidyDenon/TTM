@@ -3,24 +3,6 @@ import { buildUploadUrl } from "../../config/links.js";
 
 const router = express.Router();
 
-const ensureTable = async (db) => {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS vitrine_services (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(160) NOT NULL,
-      subtitle VARCHAR(255) NULL,
-      description TEXT NULL,
-      price DECIMAL(12,2) NOT NULL DEFAULT 0,
-      icon_url VARCHAR(255) NULL,
-      icon VARCHAR(120) NULL,
-      image_url VARCHAR(255) NULL,
-      is_active TINYINT(1) NOT NULL DEFAULT 1,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-  `);
-};
-
 const makeAbsolute = (req, p = "") => {
   if (!p) return null;
   if (p.startsWith("http")) return p;
@@ -49,13 +31,21 @@ const normalizeIcon = (req, value) => {
 export default (db) => {
   router.get("/", async (req, res) => {
     try {
-      await ensureTable(db);
-      const [rows] = await db.query(
-        `SELECT id, name, subtitle, description, price, icon_url, icon, image_url
-         FROM vitrine_services
-         WHERE is_active = 1
-         ORDER BY id DESC`
-      );
+      let rows = [];
+      try {
+        [rows] = await db.query(
+          `SELECT id, name, subtitle, description, price, icon_url, icon, image_url
+           FROM vitrine_services
+           WHERE is_active = 1
+           ORDER BY id DESC`
+        );
+      } catch (e) {
+        // Si la table n'existe pas encore, on renvoie une liste vide côté public.
+        if (e?.code === "ER_NO_SUCH_TABLE") {
+          return res.json({ data: [], count: 0 });
+        }
+        throw e;
+      }
 
       const data = rows.map((s) => ({
         id: s.id,

@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../utils/api";
 import { initApiBase } from "../config/urls";
+import {
+  clearStoredToken,
+  getStoredToken,
+  migrateTokenFromAsyncStorage,
+  setStoredToken,
+} from "../lib/secureSession";
 
 type User = {
   id: number;
@@ -38,7 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // s'assure que l'API (local/prod) est initialisée avant toute requête /me
         await initApiBase();
-        const storedToken = await AsyncStorage.getItem("token");
+        await migrateTokenFromAsyncStorage();
+        const storedToken = await getStoredToken();
         const storedUser = await AsyncStorage.getItem("user");
 
         if (storedToken && storedUser) {
@@ -172,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setToken(data.token);
       setUser(data.user);
-      await AsyncStorage.setItem("token", data.token);
+      await setStoredToken(data.token);
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
 
       return data.user as User;
@@ -211,12 +218,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setToken(null);
     setUser(null);
-    await AsyncStorage.multiRemove(["token", "user"]);
+    await clearStoredToken();
+    await AsyncStorage.removeItem("user");
   };
 
   // 🌍 API centralisée typée
   const apiFetch = async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-    const storedToken = token || (await AsyncStorage.getItem("token"));
+    const storedToken = token || (await getStoredToken());
     const res = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
@@ -228,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (res.status === 401) {
       console.log("⚠️ Session expirée — déconnexion automatique");
-      setTimeout(async () => await logout(), 300);
+      await logout();
       throw new Error("Session expirée, veuillez vous reconnecter.");
     }
 

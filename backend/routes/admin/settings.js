@@ -138,11 +138,27 @@ export default (db) => {
 
   async function ensureConfigRow(db) {
     try {
+      // Assure les colonnes remorquage sur une base existante
+      try {
+        await db.query(
+          "ALTER TABLE configurations ADD COLUMN towing_price_per_km DECIMAL(10,2) NOT NULL DEFAULT 500"
+        );
+      } catch (e) {
+        if (e?.code !== "ER_DUP_FIELDNAME") throw e;
+      }
+      try {
+        await db.query(
+          "ALTER TABLE configurations ADD COLUMN towing_base_price DECIMAL(10,2) NOT NULL DEFAULT 0"
+        );
+      } catch (e) {
+        if (e?.code !== "ER_DUP_FIELDNAME") throw e;
+      }
+
       let [rows] = await db.query("SELECT * FROM configurations LIMIT 1");
       if (!rows.length) {
         await db.query(
-          `INSERT INTO configurations (commission_percent, currency, created_at, updated_at)
-           VALUES (10.00, 'FCFA', NOW(), NOW())`
+          `INSERT INTO configurations (commission_percent, towing_price_per_km, towing_base_price, currency, created_at, updated_at)
+           VALUES (10.00, 500, 0, 'FCFA', NOW(), NOW())`
         );
         const [[cfg]] = await db.query("SELECT * FROM configurations LIMIT 1");
         return cfg;
@@ -155,14 +171,16 @@ export default (db) => {
           CREATE TABLE IF NOT EXISTS configurations (
             id INT AUTO_INCREMENT PRIMARY KEY,
             commission_percent DECIMAL(5,2) NOT NULL DEFAULT 10.00,
+            towing_price_per_km DECIMAL(10,2) NOT NULL DEFAULT 500,
+            towing_base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
             currency VARCHAR(10) NOT NULL DEFAULT 'FCFA',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
         await db.query(
-          `INSERT INTO configurations (commission_percent, currency, created_at, updated_at)
-           VALUES (10.00, 'FCFA', NOW(), NOW())`
+          `INSERT INTO configurations (commission_percent, towing_price_per_km, towing_base_price, currency, created_at, updated_at)
+           VALUES (10.00, 500, 0, 'FCFA', NOW(), NOW())`
         );
         const [[cfg]] = await db.query("SELECT * FROM configurations LIMIT 1");
         return cfg;
@@ -231,21 +249,32 @@ export default (db) => {
 // 📄 Lire les tarifs remorquage
 router.get("/tow-pricing", checkPermission("config_view"), async (req, res) => {
   try {
-    const [rows] = await req.db.query(
-      "SELECT key_name, value FROM settings WHERE key_name IN ('tow_base_price','tow_price_per_km')"
-    );
+    const cfg = await ensureConfigRow(req.db);
 
-    const data = {
-      tow_base_price: 10000,   // fallback
-      tow_price_per_km: 500,
-    };
+    let base = Number(cfg?.towing_base_price);
+    let perKm = Number(cfg?.towing_price_per_km);
 
-    rows.forEach(r => {
-      if (r.key_name === "tow_base_price") data.tow_base_price = Number(r.value);
-      if (r.key_name === "tow_price_per_km") data.tow_price_per_km = Number(r.value);
+    if (!Number.isFinite(base) || !Number.isFinite(perKm)) {
+      const [rows] = await req.db.query(
+        "SELECT key_name, value FROM settings WHERE key_name IN ('tow_base_price','tow_price_per_km','remorquage_base_price','remorquage_price_per_km')"
+      );
+      const byKey = new Map((rows || []).map((r) => [String(r.key_name), Number(r.value)]));
+      const legacyBase = byKey.get("tow_base_price");
+      const legacyBaseFr = byKey.get("remorquage_base_price");
+      const legacyKm = byKey.get("tow_price_per_km");
+      const legacyKmFr = byKey.get("remorquage_price_per_km");
+      if (!Number.isFinite(base)) {
+        base = Number.isFinite(legacyBase) ? legacyBase : legacyBaseFr;
+      }
+      if (!Number.isFinite(perKm)) {
+        perKm = Number.isFinite(legacyKm) ? legacyKm : legacyKmFr;
+      }
+    }
+
+    res.json({
+      tow_base_price: Number.isFinite(base) ? base : 10000,
+      tow_price_per_km: Number.isFinite(perKm) ? perKm : 500,
     });
-
-    res.json(data);
   } catch (err) {
     console.error("❌ Erreur GET /tow-pricing:", err);
     res.status(500).json({ error: "Erreur serveur" });
@@ -269,7 +298,15 @@ router.put("/tow-pricing", checkPermission("config_manage"), async (req, res) =>
     if (!Number.isFinite(perKm) || perKm < 0)
       return res.status(400).json({ error: "Prix au km invalide" });
 
-    // ✔️ Sauvegarde dans settings
+    const cfg = await ensureConfigRow(req.db);
+
+    // ✔️ Source principale: configurations
+    await req.db.query(
+      "UPDATE configurations SET towing_base_price = ?, towing_price_per_km = ?, updated_at = NOW() WHERE id = ?",
+      [base, perKm, cfg.id]
+    );
+
+    // ✔️ Miroir legacy settings pour compatibilité descendante
     await req.db.query(
       `INSERT INTO settings (key_name, value) VALUES 
          ('tow_base_price', ?)
@@ -280,6 +317,18 @@ router.put("/tow-pricing", checkPermission("config_manage"), async (req, res) =>
     await req.db.query(
       `INSERT INTO settings (key_name, value) VALUES 
          ('tow_price_per_km', ?)
+       ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+      [String(perKm)]
+    );
+    await req.db.query(
+      `INSERT INTO settings (key_name, value) VALUES 
+         ('remorquage_base_price', ?)
+       ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+      [String(base)]
+    );
+    await req.db.query(
+      `INSERT INTO settings (key_name, value) VALUES 
+         ('remorquage_price_per_km', ?)
        ON DUPLICATE KEY UPDATE value = VALUES(value)`,
       [String(perKm)]
     );

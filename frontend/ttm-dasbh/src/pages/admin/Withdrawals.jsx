@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
 import { toast } from "../../utils/toast";
-import { socket } from "../../utils/socket";
+import { getSocketInstance } from "../../utils/socket";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
 import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
@@ -136,6 +136,9 @@ export default function Withdrawals() {
     if (!token) return;
     loadWithdrawals();
 
+    const socket = getSocketInstance();
+    if (!socket) return;
+
     const onCreated = (data) => {
       toast.info(`🆕 Nouvelle demande de retrait (#${data.id})`);
       showSystemNotification(
@@ -193,14 +196,14 @@ export default function Withdrawals() {
       socket.off("withdrawal_created", onCreated);
       socket.off("withdrawal_updated_admin", onUpdated);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, canView]);
+     
+  }, [token, canView, filter]);
 
   // Reload quand le filtre change
   useEffect(() => {
     if (!token) return;
     loadWithdrawals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filter, token, canView]);
 
   const filteredWithdrawals =

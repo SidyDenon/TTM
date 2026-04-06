@@ -1,8 +1,9 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
-import { io, notifyUser } from "../../socket/index.js";
+import { io } from "../../socket/index.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import { getCommissionPercent } from "../../utils/commission.js";
+import { sendPushNotification } from "../../utils/sendPush.js";
 
 const router = express.Router();
 
@@ -267,13 +268,39 @@ export default (db) => {
         message: `Transaction #${id} confirmée ✅`,
       });
 
-      notifyUser(op.user_id, "transaction_update", {
+      io.to(`operator:${Number(op.user_id)}`).emit("transaction_confirmed", {
         id,
+        request_id: tx.request_id,
         amount: txAmount,
+        currency: tx.currency || "FCFA",
         netAmount,
         commission,
+        commission_percent: commissionPercent,
+        status: "confirmée",
         message: `Votre paiement de ${txAmount} FCFA a été validé. Vous recevez ${netAmount} FCFA après commission.`,
       });
+
+      try {
+        const [[opUser]] = await req.db.query(
+          "SELECT notification_token FROM users WHERE id = ? LIMIT 1",
+          [op.user_id]
+        );
+        if (opUser?.notification_token) {
+          await sendPushNotification(
+            opUser.notification_token,
+            "Paiement confirmé",
+            `Votre paiement mission #${tx.request_id || id} est confirmé. Gain net: ${netAmount} FCFA.`,
+            {
+              type: "transaction_confirmed",
+              transaction_id: Number(id),
+              request_id: tx.request_id ? Number(tx.request_id) : null,
+              net_amount: Number(netAmount),
+            }
+          );
+        }
+      } catch (pushErr) {
+        console.warn("⚠️ Push opérateur transaction_confirmed échoué:", pushErr?.message || pushErr);
+      }
 
       res.json({
         message: `Transaction #${id} confirmée ✅`,

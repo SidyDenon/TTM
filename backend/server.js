@@ -47,7 +47,10 @@ import { loadAdminPermissions } from "./middleware/checkPermission.js";
 
 const app = express();
 app.use(express.json());
-app.use(helmet({ contentSecurityPolicy: false })); // headers sécurité HTTP
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // autorise le chargement des images /uploads depuis d'autres domaines
+}));
 
 app.use(cors(corsOptions));
 // Express 5 + path-to-regexp v6: avoid '*' string path

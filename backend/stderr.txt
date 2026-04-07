@@ -1,1 +1,1 @@
-❌ Erreur connexion DB: Access denied for user ''@'localhost' (using password: YES)
+❌ Erreur connexion DB: Access interdit pour utilisateur ''@'localhost' (using password: YES)

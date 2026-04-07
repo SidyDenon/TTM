@@ -358,7 +358,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
         [resetCode, expires, user.id]
       );
 
-      let channel = null;
+      let channels = [];
 
       if (user.phone) {
         try {
@@ -366,26 +366,30 @@ router.post("/logout", authMiddleware, async (req, res) => {
             user.phone,
             `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`
           );
-          channel = "sms";
+          channels.push("sms");
         } catch (smsError) {
           console.warn("⚠️ Envoi SMS reset échoué:", smsError?.message || smsError);
         }
       }
 
-      if (!channel && user.email) {
-        await sendMail(
-          user.email,
-          "Code de réinitialisation",
-          `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n⚠️ Ce code est valable 15 minutes.`,
-          `<h2>Bonjour ${user.name || "utilisateur"},</h2>
-           <p>Voici votre code de réinitialisation :</p>
-           <h1 style="color:#E53935">${resetCode}</h1>
-           <p>⚠️ Ce code est valable 15 minutes.</p>`
-        );
-        channel = "email";
+      if (user.email) {
+        try {
+          await sendMail(
+            user.email,
+            "Code de réinitialisation",
+            `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n⚠️ Ce code est valable 15 minutes.`,
+            `<h2>Bonjour ${user.name || "utilisateur"},</h2>
+             <p>Voici votre code de réinitialisation :</p>
+             <h1 style="color:#E53935">${resetCode}</h1>
+             <p>⚠️ Ce code est valable 15 minutes.</p>`
+          );
+          channels.push("email");
+        } catch (emailError) {
+          console.warn("⚠️ Envoi email reset échoué:", emailError?.message || emailError);
+        }
       }
 
-      res.json({ message: "✅ Code envoyé", channel });
+      res.json({ message: "✅ Code envoyé", channels: channels.join(", ") || "aucun canal" });
     } catch (err) {
       console.error("❌ Erreur forgot-password:", err);
       res.status(500).json({ error: "Erreur serveur" });

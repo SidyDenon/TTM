@@ -44,7 +44,7 @@ function Modal({ open, onClose, service, onWhatsApp }) {
     <AnimatePresence>
       {open && service && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-3 sm:p-4"
           aria-modal="true"
           role="dialog"
           aria-labelledby="service-title"
@@ -62,11 +62,11 @@ function Modal({ open, onClose, service, onWhatsApp }) {
 
           {/* Card */}
           <motion.div
-            className="relative z-10 w-full max-w-5xl rounded-2xl bg-white shadow-xl ring-1 ring-zinc-200"
+            className="relative z-10 my-4 flex max-h-[calc(100vh-1.5rem)] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-xl ring-1 ring-zinc-200 sm:my-6 sm:max-h-[calc(100vh-3rem)]"
             onClick={(e) => e.stopPropagation()}
             variants={modalVariants}
           >
-            <div className="flex items-start gap-3 p-5">
+            <div className="flex items-start gap-3 p-4 sm:p-5">
               {service.iconImage ? (
                 <div className="mt-1 flex h-12 w-12 items-center justify-center rounded-full bg-[#800E08]/10">
                   <img
@@ -94,8 +94,8 @@ function Modal({ open, onClose, service, onWhatsApp }) {
               </button>
             </div>
 
-            <div className="px-5 pb-5">
-              <div className="rounded-lg h-[500px] overflow-y-scroll bg-zinc-50 p-4 text-sm text-zinc-900 leading-7 tracking-widest whitespace-pre-line">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5 sm:pb-5">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50 p-4 text-sm leading-7 tracking-widest whitespace-pre-line text-zinc-900">
                 {service.details}
               </div>
 

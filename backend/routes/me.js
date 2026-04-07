@@ -73,7 +73,7 @@ export default (db) => {
         const extraSelect = hasExtra ? ", u.extra_permissions" : "";
         const avatarSelect = hasAvatar ? ", u.avatar_url" : "";
         const [[row]] = await db.query(
-          `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super${extraSelect}${avatarSelect},
+          `SELECT u.id, u.name, u.email, COALESCE(u.phone, us.phone) AS phone, u.is_super, u.must_change_password${extraSelect}${avatarSelect},
                   r.name AS role_name, r.slug AS role_slug, r.permissions
            FROM admin_users u
            LEFT JOIN admin_roles r ON r.id = u.role_id
@@ -104,6 +104,7 @@ export default (db) => {
           is_super: !!row.is_super || roleIsSuper,
           permissions,
           extra_permissions: extraPerms,
+          must_change_password: !!row.must_change_password,
           avatar_url: hasAvatar ? (row.avatar_url || null) : null,
         });
       }

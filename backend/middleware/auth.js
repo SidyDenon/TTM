@@ -45,7 +45,7 @@ export default async function authMiddleware(req, res, next) {
 
     if (role === "admin") {
       const [[row]] = await db.query(
-        `SELECT u.id, u.name, u.email, u.is_super, r.name AS role_name, r.permissions
+        `SELECT u.id, u.name, u.email, u.is_super, u.must_change_password, r.name AS role_name, r.permissions
          FROM admin_users u
          LEFT JOIN admin_roles r ON r.id = u.role_id
          WHERE u.id = ?`,
@@ -61,8 +61,30 @@ export default async function authMiddleware(req, res, next) {
         role: "admin",
         role_name: row.role_name || null,
         is_super: !!row.is_super,
+        must_change_password: !!row.must_change_password,
         permissions: normalizePermissions(row.permissions),
       };
+
+      // Enforce password-change workflow at API level for admins.
+      // This prevents bypassing the UI by entering dashboard URLs directly.
+      if (req.user.must_change_password) {
+        const pathname = String(req.originalUrl || "").split("?")[0];
+        const method = String(req.method || "GET").toUpperCase();
+
+        const allowed =
+          method === "OPTIONS" ||
+          (method === "PUT" && pathname === "/api/password") ||
+          (method === "POST" && pathname === "/api/logout") ||
+          (method === "GET" && (pathname === "/api/me" || pathname === "/api/admin/me"));
+
+        if (!allowed) {
+          return res.status(403).json({
+            error: "MUST_CHANGE_PASSWORD",
+            message: "Changement de mot de passe requis avant d'accéder au dashboard.",
+            redirect_to: "/change-password",
+          });
+        }
+      }
     } else {
       // Client ou opérateur
       const [[userRow]] = await db.query(

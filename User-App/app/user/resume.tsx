@@ -16,6 +16,7 @@ import { API_URL } from "../../utils/api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import Loader from "../../components/Loader";
+import { isHomeOilService, isTowingService } from "../../utils/services";
 
 type Params = {
   service?: string | string[];
@@ -26,6 +27,10 @@ type Params = {
   destination?: string | string[];
   destLat?: string | string[];
   destLng?: string | string[];
+  vehicleType?: string | string[];
+  oilLiters?: string | string[];
+  oilModelId?: string | string[];
+  oilModelName?: string | string[];
 };
 
 const COLORS = {
@@ -68,6 +73,10 @@ export default function Resume() {
   const destination = getFirst(params.destination);
   const destLat = getFirst(params.destLat);
   const destLng = getFirst(params.destLng);
+  const vehicleType = getFirst(params.vehicleType);
+  const oilLiters = getFirst(params.oilLiters);
+  const oilModelId = getFirst(params.oilModelId);
+  const oilModelName = getFirst(params.oilModelName);
 
   const formattedPrice = formatPrice(params.servicePrice);
 
@@ -75,9 +84,8 @@ export default function Resume() {
   const [desc, setDesc] = useState(description || "");
 
   // 🔍 savoir si on est sur un remorquage
-  const isRemorquage = serviceLabel
-    ? serviceLabel.toLowerCase().includes("remorqu")
-    : false;
+  const isRemorquage = isTowingService(serviceLabel);
+  const isOilService = isHomeOilService(serviceLabel);
 
   // 🔐 Rediriger proprement si pas connecté
   useEffect(() => {
@@ -133,12 +141,28 @@ export default function Resume() {
       const zone = geo.length > 0 ? geo[0].city || geo[0].region : null;
 
       const formData = new FormData();
-      formData.append("service", String(service));
       formData.append("description", desc.trim());
       formData.append("lat", latitude.toString());
       formData.append("lng", longitude.toString());
       formData.append("address", address || "");
       formData.append("zone", zone || "");
+
+      if (isOilService) {
+        if (!vehicleType) {
+          throw new Error("Type de véhicule manquant");
+        }
+        if (!oilLiters || Number(oilLiters) <= 0) {
+          throw new Error("Nombre de litres invalide");
+        }
+        if (!oilModelId) {
+          throw new Error("Modèle d'huile manquant");
+        }
+        formData.append("vehicle_type", vehicleType);
+        formData.append("oil_liters", oilLiters);
+        formData.append("oil_model_id", oilModelId);
+      } else {
+        formData.append("service", String(service));
+      }
 
       // 🧭 Infos de remorquage (destination + coords finales) → seulement pour remorquage
       if (isRemorquage) {
@@ -163,7 +187,9 @@ export default function Resume() {
         } as any);
       });
 
-      const res = await fetch(`${API_URL}/requests`, {
+      const targetUrl = isOilService ? `${API_URL}/requests/oil-service` : `${API_URL}/requests`;
+
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -180,10 +206,20 @@ export default function Resume() {
         throw new Error("ID de la mission introuvable dans la réponse");
       }
 
-      router.replace({
-        pathname: "/user/SearchingOperatorsScreen",
-        params: { requestId: String(requestId) },
-      });
+      if (isOilService) {
+        router.replace({
+          pathname: "/user/ServiceRequestSentScreen",
+          params: {
+            requestId: String(requestId),
+            serviceLabel: serviceLabel || "Service à Domicile",
+          },
+        });
+      } else {
+        router.replace({
+          pathname: "/user/SearchingOperatorsScreen",
+          params: { requestId: String(requestId) },
+        });
+      }
     } catch (err: any) {
       console.error("❌ Erreur envoi demande:", err);
       Alert.alert("❌ Erreur", err.message || "Impossible d’envoyer");
@@ -218,6 +254,19 @@ export default function Resume() {
               <Text style={styles.value}>
                 {destination || "Destination non définie"}
               </Text>
+            </>
+          )}
+
+          {isOilService && (
+            <>
+              <Text style={styles.label}>Type de véhicule</Text>
+              <Text style={styles.value}>{vehicleType || "-"}</Text>
+
+              <Text style={styles.label}>Nombre de litres</Text>
+              <Text style={styles.value}>{oilLiters ? `${oilLiters} L` : "-"}</Text>
+
+              <Text style={styles.label}>Modèle d&apos;huile</Text>
+              <Text style={styles.value}>{oilModelName || "-"}</Text>
             </>
           )}
 

@@ -25,11 +25,13 @@ export function startCron({ db, emitMissionEvent }) {
       }
 
       const [rows] = await db.query(
-        `SELECT id, user_id
-         FROM requests
-         WHERE status = 'publiee'
-           AND (operator_id IS NULL OR operator_id = 0)
-           AND created_at <= (NOW() - INTERVAL ? MINUTE)
+        `SELECT r.id, r.user_id
+         FROM requests r
+         WHERE r.status = 'publiee'
+           AND (r.operator_id IS NULL OR r.operator_id = 0)
+           AND COALESCE(LOWER(r.service_type), '') <> 'oil_service'
+           AND COALESCE(LOWER(r.service), '') <> 'oil_service'
+           AND r.created_at <= (NOW() - INTERVAL ? MINUTE)
          LIMIT 200`,
         [REQUEST_AUTO_CANCEL_MINUTES]
       );

@@ -10,6 +10,8 @@ export default function MissionsDetailsModal({
   mission,
   onClose,
   onUpdateStatus,
+  onAssign,
+  onCancel,
   onDelete,
   onPublish,
   onPhoto,
@@ -24,6 +26,12 @@ export default function MissionsDetailsModal({
   };
 
   const parsePhotos = (photos) => (Array.isArray(photos) ? photos : []);
+  const missionPosition = (() => {
+    const lat = Number(mission?.lat);
+    const lng = Number(mission?.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  })();
+
   const normalizePhotoUrl = (p) => {
     if (!p) return null;
     const raw = typeof p === "object" && "url" in p ? p.url : p;
@@ -41,6 +49,14 @@ export default function MissionsDetailsModal({
       }
     }
     return buildAssetUrl(raw) || null;
+  };
+
+  const formatServiceLabel = (raw) => {
+    const value = String(raw || "").trim();
+    if (!value) return "—";
+    const normalized = value.toLowerCase();
+    if (normalized === "oil_service") return "Service à Domicile";
+    return value;
   };
 
   // 🔒 Vérification des permissions
@@ -82,16 +98,16 @@ export default function MissionsDetailsModal({
           </h2>
 
           {/* 🗺️ Carte */}
-          {mission.lat && mission.lng && (
+          {missionPosition && (
             <div className="mb-4 h-56 rounded overflow-hidden border border-[var(--border-color)] shadow-sm">
               <MapContainer
-                center={[mission.lat, mission.lng]}
+                center={missionPosition}
                 zoom={14}
                 className="w-full h-full"
                 whenCreated={(map) => setTimeout(() => map.invalidateSize(), 0)}
               >
                 <TileLayer url={MAP_TILES.DEFAULT} />
-                <Marker position={[mission.lat, mission.lng]} />
+                <Marker position={missionPosition} />
               </MapContainer>
             </div>
           )}
@@ -101,7 +117,7 @@ export default function MissionsDetailsModal({
             <p><strong className="text-[var(--accent)]">👤 Client :</strong> {mission.user_name || "—"}</p>
             <p><strong className="text-[var(--accent)]">📞 Téléphone :</strong> {mission.user_phone || "—"}</p>
             <p><strong className="text-[var(--accent)]">📍 Adresse :</strong> {mission.address || "—"}</p>
-            <p><strong className="text-[var(--accent)]">🛠 Service :</strong> {mission.service || "—"}</p>
+            <p><strong className="text-[var(--accent)]">🛠 Service :</strong> {formatServiceLabel(mission.service || mission.service_type)}</p>
             <p><strong className="text-[var(--accent)]">📅 Date :</strong> {mission.created_at ? new Date(mission.created_at).toLocaleString("fr-FR") : "—"}</p>
           </div>
 
@@ -116,7 +132,7 @@ export default function MissionsDetailsModal({
                     src={normalizePhotoUrl(p)}
                     alt="mission"
                     className="w-24 h-24 object-cover rounded-md border border-[var(--border-color)] shadow-sm cursor-pointer hover:scale-105 transition-transform duration-200"
-                    onClick={() => onPhoto(normalizePhotoUrl(p))}
+                    onClick={() => onPhoto?.(normalizePhotoUrl(p))}
                   />
                 ))}
               </div>
@@ -129,7 +145,7 @@ export default function MissionsDetailsModal({
           <div className="mt-6 flex flex-wrap gap-3">
             {mission.status === "en_attente" && canPublish && (
               <button
-                onClick={() => onPublish(mission.id)}
+                onClick={() => onPublish?.(mission.id)}
                 className="px-3 py-1 rounded bg-[var(--info,#3b82f6)] text-white hover:brightness-110 transition-all shadow-md"
               >
                 Publier
@@ -139,7 +155,7 @@ export default function MissionsDetailsModal({
               <>
                 {canAssign && (
                   <button
-                    onClick={() => onUpdateStatus(mission.id, "assignee")}
+                    onClick={() => onAssign?.(mission)}
                     className="px-3 py-1 rounded bg-[var(--warning,#facc15)] text-black hover:brightness-110 transition-all shadow-md"
                   >
                     Assigner
@@ -147,7 +163,7 @@ export default function MissionsDetailsModal({
                 )}
                 {canCancel && (
                   <button
-                    onClick={() => onUpdateStatus(mission.id, "annulee_admin")}
+                    onClick={() => onCancel?.(mission.id)}
                     className="px-3 py-1 rounded bg-[var(--danger,#ef4444)] text-white hover:brightness-110 transition-all shadow-md"
                   >
                     Annuler
@@ -159,7 +175,7 @@ export default function MissionsDetailsModal({
               <>
                 {canComplete && (
                   <button
-                    onClick={() => onUpdateStatus(mission.id, "terminee")}
+                    onClick={() => onUpdateStatus?.(mission.id, "terminee")}
                     className="px-3 py-1 rounded bg-[var(--success,#22c55e)] text-white hover:brightness-110 transition-all shadow-md"
                   >
                     Terminer
@@ -167,7 +183,7 @@ export default function MissionsDetailsModal({
                 )}
                 {canCancel && (
                   <button
-                    onClick={() => onUpdateStatus(mission.id, "annulee_admin")}
+                    onClick={() => onCancel?.(mission.id)}
                     className="px-3 py-1 rounded bg-[var(--danger,#ef4444)] text-white hover:brightness-110 transition-all shadow-md"
                   >
                     Annuler
@@ -177,7 +193,7 @@ export default function MissionsDetailsModal({
             )}
             {canDelete && (
               <button
-                onClick={() => onDelete(mission.id)}
+                onClick={() => onDelete?.(mission.id)}
                 className="px-3 py-1 rounded bg-[var(--muted)] text-white hover:opacity-90 transition-all shadow-md"
               >
                 Supprimer

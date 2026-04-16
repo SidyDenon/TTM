@@ -9,8 +9,12 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useState, useMemo } from "react";
-import { SUPPORT_PHONE, SUPPORT_WHATSAPP, SUPPORT_WHATSAPP_LINK } from "../config/support";
-import { API_URL } from "../utils/api";
+import {
+  SUPPORT_PHONE,
+  SUPPORT_WHATSAPP,
+  SUPPORT_EMAIL,
+  fetchPublicSupportConfig,
+} from "../config/support";
 
 type Props = {
   visible: boolean;
@@ -20,22 +24,16 @@ type Props = {
 export function SupportModal({ visible, onClose }: Props) {
   const [phone, setPhone] = useState(SUPPORT_PHONE);
   const [whatsapp, setWhatsapp] = useState(SUPPORT_WHATSAPP);
-  const [email, setEmail] = useState("support@ttm.com");
+  const [email, setEmail] = useState(SUPPORT_EMAIL);
 
   useEffect(() => {
     let cancelled = false;
     const loadConfig = async () => {
-      try {
-        const res = await fetch(`${API_URL.replace(/\/+$/, "")}/config/public`);
-        const data = await res.json();
-        if (!res.ok) return;
-        if (cancelled) return;
-        if (data.support_phone) setPhone(String(data.support_phone));
-        if (data.support_whatsapp) setWhatsapp(String(data.support_whatsapp));
-        if (data.support_email) setEmail(String(data.support_email));
-      } catch {
-        /* silent fallback */
-      }
+      const cfg = await fetchPublicSupportConfig();
+      if (cancelled) return;
+      setPhone(cfg.support_phone);
+      setWhatsapp(cfg.support_whatsapp);
+      setEmail(cfg.support_email);
     };
     if (visible) loadConfig();
     return () => {

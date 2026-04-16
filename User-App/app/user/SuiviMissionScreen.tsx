@@ -17,6 +17,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
 import { MissionStepper } from "../../components/MissionStepper";
 import Loader from "../../components/Loader";
+import { getResponderLabel, isTowingService } from "../../utils/services";
 
 const BASE_STEPS = [
   { key: "demande", label: "Demande" },
@@ -130,9 +131,9 @@ export default function SuiviMissionScreen() {
     }
   };
 
-  const isTowingMission =
-    typeof mission?.service === "string" &&
-    mission.service.toLowerCase().includes("remorqu");
+  const isTowingMission = isTowingService(mission?.service);
+
+  const responderLabel = getResponderLabel(mission?.service);
 
   const hasDestinationCoords =
     typeof mission?.dest_lat === "number" &&
@@ -258,11 +259,11 @@ export default function SuiviMissionScreen() {
           />
         )}
 
-        {/* Dépanneur */}
+        {/* Intervenant */}
         {operatorLocation && (
           <Marker
             coordinate={operatorLocation}
-            title="Dépanneur"
+            title={responderLabel}
             anchor={{ x: 0.5, y: 0.5 }}
             zIndex={90}
             tracksViewChanges={tracksViewChanges}
@@ -325,7 +326,7 @@ export default function SuiviMissionScreen() {
                 activeOpacity={0.8}
               >
                 <MaterialIcons name="phone" size={18} color="#fff" />
-                <Text style={styles.callFabLabel}>Dépanneur</Text>
+                <Text style={styles.callFabLabel}>{responderLabel}</Text>
               </TouchableOpacity>
             )}
 

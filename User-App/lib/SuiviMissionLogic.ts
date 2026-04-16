@@ -13,10 +13,7 @@ import {
   setupNotificationChannel,
   showLocalNotification,
 } from "./notifications";
-
-/* ---------- Config ---------- */
-// 👉 À adapter avec ton vrai numéro de support
-const SUPPORT_PHONE = "+22300000000";
+import { SUPPORT_PHONE, fetchPublicSupportConfig } from "../config/support";
 
 /* ---------- Types ---------- */
 
@@ -143,6 +140,7 @@ export function useSuiviMissionLogic() {
   const [eta, setEta] = useState<number | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [operatorPhone, setOperatorPhone] = useState<string | null>(null);
+  const [supportPhone, setSupportPhone] = useState<string>(SUPPORT_PHONE);
 
   // animations + perf Android
   const rotation = useRef(new Animated.Value(0)).current;
@@ -178,6 +176,18 @@ export function useSuiviMissionLogic() {
         console.warn("⚠️ Impossible de vérifier les notifications:", err);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cfg = await fetchPublicSupportConfig();
+      if (cancelled) return;
+      setSupportPhone(cfg.support_phone || SUPPORT_PHONE);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ------ Fetch mission active ------ */
@@ -653,11 +663,11 @@ export function useSuiviMissionLogic() {
   };
 
   const callSupport = () => {
-    if (!SUPPORT_PHONE) return;
-    Linking.openURL(`tel:${SUPPORT_PHONE}`);
+    if (!supportPhone) return;
+    Linking.openURL(`tel:${supportPhone}`);
   };
 
-  const hasSupportPhone = Boolean(SUPPORT_PHONE);
+  const hasSupportPhone = Boolean(supportPhone);
 
   return {
     // data

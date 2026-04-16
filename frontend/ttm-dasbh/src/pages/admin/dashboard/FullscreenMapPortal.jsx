@@ -8,6 +8,13 @@ import { can, isSuper } from "../../../utils/rbac";
 import { MAP_TILES } from "../../../config/urls";
 import { useModalOrigin } from "../../../hooks/useModalOrigin";
 
+const toFiniteLatLng = (lat, lng) => {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+  return [latNum, lngNum];
+};
+
 export default function FullscreenMapPortal({ requests, onClose, onSelectMission }) {
   const { user } = useAuth();
   const [userLocation, setUserLocation] = useState(null);
@@ -122,24 +129,32 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
         fadeAnimation
       >
         <TileLayer url={MAP_TILES.DEFAULT} />
-        {userLocation && (
-          <CircleMarker
-            center={[Number(userLocation.lat), Number(userLocation.lng)]}
-            radius={6}
-            pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
-          >
-            <Popup>Votre position</Popup>
-          </CircleMarker>
-        )}
+        {(() => {
+          const center = userLocation
+            ? toFiniteLatLng(userLocation.lat, userLocation.lng)
+            : null;
+          if (!center) return null;
+          return (
+            <CircleMarker
+              center={center}
+              radius={6}
+              pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
+            >
+              <Popup>Votre position</Popup>
+            </CircleMarker>
+          );
+        })()}
 
         {active.map((r, i) => {
+          const position = toFiniteLatLng(r.lat, r.lng);
+          if (!position) return null;
           const operator = r.operator_name || r.operator?.name || "—";
           const status = r.status?.charAt(0).toUpperCase() + r.status?.slice(1);
 
           return (
             <Marker
               key={`portal-${i}`}
-              position={[Number(r.lat), Number(r.lng)]}
+              position={position}
               icon={getServiceIcon(r.service, r.status)}
             >
               <Popup>
@@ -207,8 +222,11 @@ function AutoCenterOnUser({ userLocation, hasActive }) {
   const didCenter = useRef(false);
 
   useEffect(() => {
-    if (!userLocation || hasActive || didCenter.current) return;
-    map.setView([Number(userLocation.lat), Number(userLocation.lng)], 12, { animate: true });
+    const center = userLocation
+      ? toFiniteLatLng(userLocation.lat, userLocation.lng)
+      : null;
+    if (!center || hasActive || didCenter.current) return;
+    map.setView(center, 12, { animate: true });
     didCenter.current = true;
   }, [map, userLocation, hasActive]);
 

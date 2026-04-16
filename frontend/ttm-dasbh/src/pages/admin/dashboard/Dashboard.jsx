@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import useRequireAuth from "../../../hooks/useRequireAuth";
-import { useNavigate } from "react-router-dom";
-import { ADMIN_API } from "../../../config/urls";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { ADMIN_API, apiUrl } from "../../../config/urls";
 import { socket } from "../../../utils/socket";
 import { can, canAny } from "../../../utils/rbac";
 import { toast } from "../../../utils/toast";
@@ -43,6 +43,10 @@ export default function Dashboard() {
   const user = useRequireAuth("admin");
   const { token } = useAuth();
   const navigate = useNavigate();
+  const {
+    requestedOilMissionId,
+    clearRequestedOilMission,
+  } = useOutletContext() || {};
 
   const [requests, setRequests] = useState([]);
   const [stats, setStats] = useState({});
@@ -51,6 +55,12 @@ export default function Dashboard() {
   const [errors, setErrors] = useState({ requests: null, stats: null }); // 👈 pour afficher les 403/erreurs
   const [operatorPositions, setOperatorPositions] = useState({}); // { [requestId]: { lat, lng, operatorId, timestamp } }
   const [monthFilter, setMonthFilter] = useState("all"); // "all" or "YYYY-MM"
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignMission, setAssignMission] = useState(null);
+  const [assignOperators, setAssignOperators] = useState([]);
+  const [assignSearch, setAssignSearch] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignSubmittingId, setAssignSubmittingId] = useState(null);
   const lastToastRef = useRef(null);
 
   const showSystemNotification = useMemo(
@@ -333,6 +343,241 @@ const fetchData = async (signal) => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!requestedOilMissionId) return;
+
+    const id = Number(requestedOilMissionId);
+    if (!Number.isFinite(id) || id <= 0) {
+      clearRequestedOilMission?.();
+      return;
+    }
+
+    const localMission = requests.find((r) => Number(r.id) === id);
+    if (localMission) {
+      setSelectedMission(localMission);
+      clearRequestedOilMission?.();
+      return;
+    }
+
+    let aborted = false;
+    (async () => {
+      try {
+        const res = await fetch(`${ADMIN_API.requests(`?id=${id}&limit=1`)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await fetchJsonSafe(res);
+        if (!res.ok) return;
+
+        const mission = Array.isArray(data?.data)
+          ? data.data.find((m) => Number(m.id) === id)
+          : null;
+        if (!mission || aborted) return;
+
+        upsertMission(mission);
+        setSelectedMission(mission);
+      } finally {
+        if (!aborted) clearRequestedOilMission?.();
+      }
+    })();
+
+    return () => {
+      aborted = true;
+    };
+  }, [
+    requestedOilMissionId,
+    requests,
+    token,
+    upsertMission,
+    clearRequestedOilMission,
+  ]);
+
+  const isOilServiceMission = useCallback((mission) => {
+    const normalized = String(mission?.service || mission?.service_type || "")
+      .trim()
+      .toLowerCase();
+    return normalized === "oil_service";
+  }, []);
+
+  const fetchOperators = useCallback(async () => {
+    const res = await fetch(apiUrl("/admin/operators"), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await fetchJsonSafe(res);
+    if (!res.ok) {
+      throw new Error(data?.error || "Impossible de charger les opérateurs");
+    }
+    return Array.isArray(data?.data) ? data.data : [];
+  }, [token]);
+
+  const reloadDashboard = useCallback(async () => {
+    await fetchData();
+  }, [token]);
+
+  const closeAssignModal = useCallback(() => {
+    setAssignModalOpen(false);
+    setAssignMission(null);
+    setAssignOperators([]);
+    setAssignSearch("");
+    setAssignLoading(false);
+    setAssignSubmittingId(null);
+  }, []);
+
+  const submitAssignMission = useCallback(
+    async (mission, operatorId) => {
+      if (!mission?.id || !operatorId) return;
+      try {
+        setAssignSubmittingId(operatorId);
+
+        const endpoint = isOilServiceMission(mission)
+          ? apiUrl(`/admin/oil-service-requests/${mission.id}/assign`)
+          : `${ADMIN_API.requests()}/${mission.id}/assigner`;
+        const method = isOilServiceMission(mission) ? "POST" : "PATCH";
+
+        const res = await fetch(endpoint, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ operator_id: operatorId }),
+        });
+        const data = await fetchJsonSafe(res);
+        if (!res.ok) {
+          throw new Error(data?.error || "Échec assignation");
+        }
+
+        toast.success(`Mission #${mission.id} assignée ✅`);
+        closeAssignModal();
+        setSelectedMission(null);
+        await reloadDashboard();
+      } catch (err) {
+        toast.error(err?.message || "Erreur assignation");
+      } finally {
+        setAssignSubmittingId(null);
+      }
+    },
+    [isOilServiceMission, token, closeAssignModal, reloadDashboard]
+  );
+
+  const handleAssignMission = useCallback(
+    async (mission) => {
+      if (!mission?.id) return;
+      try {
+        setAssignLoading(true);
+        const allOperators = await fetchOperators();
+        const assignable = allOperators.filter(
+          (o) => Number(o?.is_internal) === 1
+        );
+
+        if (!assignable.length) {
+          toast.error("Aucun opérateur interne disponible");
+          setAssignLoading(false);
+          return;
+        }
+
+        setAssignMission(mission);
+        setAssignOperators(assignable);
+        setAssignSearch("");
+        setAssignModalOpen(true);
+      } catch (err) {
+        toast.error(err?.message || "Erreur assignation");
+      } finally {
+        setAssignLoading(false);
+      }
+    },
+    [fetchOperators, isOilServiceMission]
+  );
+
+  const visibleAssignOperators = useMemo(() => {
+    const q = assignSearch.trim().toLowerCase();
+    if (!q) return assignOperators;
+    return assignOperators.filter((o) => {
+      const name = String(o?.name || "").toLowerCase();
+      const phone = String(o?.phone || "").toLowerCase();
+      const city = String(o?.ville || "").toLowerCase();
+      const id = String(o?.id || "");
+      return (
+        name.includes(q) ||
+        phone.includes(q) ||
+        city.includes(q) ||
+        id.includes(q)
+      );
+    });
+  }, [assignOperators, assignSearch]);
+
+  const handleCancelMission = useCallback(
+    async (id) => {
+      try {
+        const res = await fetch(`${ADMIN_API.requests()}/${id}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "annulee_admin" }),
+        });
+        const data = await fetchJsonSafe(res);
+        if (!res.ok) throw new Error(data?.error || "Échec annulation");
+        toast.success(`Mission #${id} annulée ✅`);
+        setSelectedMission(null);
+        await reloadDashboard();
+      } catch (err) {
+        toast.error(err?.message || "Erreur annulation");
+      }
+    },
+    [token, reloadDashboard]
+  );
+
+  const handleUpdateStatus = useCallback(
+    async (id, status) => {
+      try {
+        const res = await fetch(`${ADMIN_API.requests()}/${id}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status }),
+        });
+        const data = await fetchJsonSafe(res);
+        if (!res.ok) throw new Error(data?.error || "Échec mise à jour statut");
+        toast.success(`Mission #${id} → ${status} ✅`);
+        setSelectedMission(null);
+        await reloadDashboard();
+      } catch (err) {
+        toast.error(err?.message || "Erreur mise à jour statut");
+      }
+    },
+    [token, reloadDashboard]
+  );
+
+  const handleDeleteMission = useCallback(
+    async (id) => {
+      if (!window.confirm(`Supprimer définitivement la mission #${id} ?`)) return;
+      try {
+        const res = await fetch(`${ADMIN_API.requests()}/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await fetchJsonSafe(res);
+        if (!res.ok) throw new Error(data?.error || "Échec suppression");
+        toast.success(`Mission #${id} supprimée ✅`);
+        setSelectedMission(null);
+        await reloadDashboard();
+      } catch (err) {
+        toast.error(err?.message || "Erreur suppression");
+      }
+    },
+    [token, reloadDashboard]
+  );
+
+  const handlePublishMission = useCallback(
+    async (id) => {
+      await handleUpdateStatus(id, "publiee");
+    },
+    [handleUpdateStatus]
+  );
+
   if (!user) return null;
 
   return (
@@ -432,8 +677,91 @@ const fetchData = async (signal) => {
         <DashboardDetailsModal
           mission={selectedMission}
           onClose={() => setSelectedMission(null)}
-          navigate={navigate}
+          onAssign={handleAssignMission}
+          onCancel={handleCancelMission}
+          onUpdateStatus={handleUpdateStatus}
+          onDelete={handleDeleteMission}
+          onPublish={handlePublishMission}
         />
+      )}
+
+      {assignModalOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center px-4"
+          onClick={closeAssignModal}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border shadow-2xl p-5"
+            style={{
+              background: "var(--bg-card)",
+              borderColor: "var(--border-color)",
+              color: "var(--text-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold">
+                Assigner la mission #{assignMission?.id}
+              </h3>
+              <button
+                onClick={closeAssignModal}
+                className="h-8 w-8 rounded-full border text-sm"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <input
+              value={assignSearch}
+              onChange={(e) => setAssignSearch(e.target.value)}
+              placeholder="Rechercher un opérateur (nom, téléphone, ville, id)"
+              className="w-full rounded-lg border px-3 py-2 mb-3"
+              style={{
+                background: "var(--bg-main)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-color)",
+              }}
+            />
+
+            <div className="max-h-[52vh] overflow-auto rounded-lg border" style={{ borderColor: "var(--border-color)" }}>
+              {assignLoading ? (
+                <p className="p-4 text-sm text-[var(--muted)]">Chargement des opérateurs...</p>
+              ) : visibleAssignOperators.length === 0 ? (
+                <p className="p-4 text-sm text-[var(--muted)]">Aucun opérateur trouvé.</p>
+              ) : (
+                <div className="divide-y" style={{ borderColor: "var(--border-color)" }}>
+                  {visibleAssignOperators.map((op) => (
+                    <div
+                      key={op.id}
+                      className="flex items-center justify-between gap-3 p-3"
+                      style={{ background: "var(--bg-card)" }}
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {op.name || "Opérateur"} <span className="opacity-70">#{op.id}</span>
+                        </p>
+                        <p className="text-sm opacity-80">
+                          {op.phone || "—"}
+                          {op.ville ? ` • ${op.ville}` : ""}
+                          {Number(op.is_internal) === 1 ? " • Interne" : ""}
+                        </p>
+                      </div>
+                      <button
+                        disabled={assignSubmittingId === op.id}
+                        onClick={() => submitAssignMission(assignMission, op.id)}
+                        className="px-3 py-1.5 rounded text-sm font-medium disabled:opacity-60"
+                        style={{ background: "var(--accent)", color: "#fff" }}
+                      >
+                        {assignSubmittingId === op.id ? "Assignation..." : "Assigner"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

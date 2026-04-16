@@ -61,6 +61,25 @@ const normalizeImageUrl = (imageUrl) => {
   return `/uploads/vitrine-services/${raw.replace(/^\/+/, "")}`;
 };
 
+const normalizeServiceNameKey = (name = "") =>
+  String(name)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+
+const isPinnedProtectedServiceName = (name = "") => {
+  const key = normalizeServiceNameKey(name);
+  return (
+    key.includes("remorqu") ||
+    key.includes("domicile") ||
+    key.includes("huile") ||
+    key.includes("oil") ||
+    key.includes("vidange")
+  );
+};
+
 export default (db) => {
   router.use((req, _res, next) => {
     req.db = db;
@@ -207,10 +226,16 @@ export default (db) => {
     try {
       await ensureTable(req.db);
       const [[row]] = await req.db.query(
-        "SELECT id, icon_url, image_url FROM vitrine_services WHERE id = ?",
+        "SELECT id, name, icon_url, image_url FROM vitrine_services WHERE id = ?",
         [Number(req.params.id)]
       );
       if (!row) return res.status(404).json({ error: "Service introuvable" });
+
+      if (isPinnedProtectedServiceName(row?.name)) {
+        return res.status(403).json({
+          error: "Les services Remorquage et Service à Domicile sont protégés et ne peuvent pas être supprimés",
+        });
+      }
 
       for (const fileUrl of [row.icon_url, row.image_url]) {
         if (typeof fileUrl === "string" && fileUrl.startsWith("/uploads/vitrine-services/")) {

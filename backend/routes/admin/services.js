@@ -36,16 +36,41 @@ const ensureServiceColumns = async (db) => {
     const [rows] = await db.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'services'
-         AND COLUMN_NAME IN ('icon_url','icon','description','subtitle','image_url')`
+         AND COLUMN_NAME IN ('icon_url','icon','description','subtitle','image_url','is_active')`
     );
     const hasIconUrlColumn = rows.some((r) => r.COLUMN_NAME === "icon_url");
     const hasIconNameColumn = rows.some((r) => r.COLUMN_NAME === "icon");
     const hasDescriptionColumn = rows.some((r) => r.COLUMN_NAME === "description");
     const hasSubtitleColumn = rows.some((r) => r.COLUMN_NAME === "subtitle");
     const hasImageUrlColumn = rows.some((r) => r.COLUMN_NAME === "image_url");
-    return { hasIconUrlColumn, hasIconNameColumn, hasDescriptionColumn, hasSubtitleColumn, hasImageUrlColumn };
+    let hasIsActiveColumn = rows.some((r) => r.COLUMN_NAME === "is_active");
+
+    if (!hasIsActiveColumn) {
+      try {
+        await db.query(
+          "ALTER TABLE services ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1"
+        );
+        hasIsActiveColumn = true;
+      } catch {}
+    }
+
+    return {
+      hasIconUrlColumn,
+      hasIconNameColumn,
+      hasDescriptionColumn,
+      hasSubtitleColumn,
+      hasImageUrlColumn,
+      hasIsActiveColumn,
+    };
   } catch {
-    return { hasIconUrlColumn: false, hasIconNameColumn: false, hasDescriptionColumn: false, hasSubtitleColumn: false, hasImageUrlColumn: false };
+    return {
+      hasIconUrlColumn: false,
+      hasIconNameColumn: false,
+      hasDescriptionColumn: false,
+      hasSubtitleColumn: false,
+      hasImageUrlColumn: false,
+      hasIsActiveColumn: false,
+    };
   }
 };
 
@@ -74,6 +99,17 @@ const normalizeKey = (str = "") =>
     .replace(/[\u0300-\u036f]/g, "") // enlève les accents
     .replace(/[^a-z0-9]+/g, "")
     .trim();
+
+const isPinnedProtectedServiceName = (name = "") => {
+  const key = normalizeKey(name);
+  return (
+    key.includes("remorqu") ||
+    key.includes("domicile") ||
+    key.includes("huile") ||
+    key.includes("oil") ||
+    key.includes("vidange")
+  );
+};
 
 /**
  * 🔹 Mapping type de service -> icône par défaut
@@ -174,6 +210,7 @@ export default (db) => {
         hasDescriptionColumn,
         hasSubtitleColumn,
         hasImageUrlColumn,
+        hasIsActiveColumn,
       } = await ensureServiceColumns(req.db);
       const selectFields = [
         "id",
@@ -184,6 +221,7 @@ export default (db) => {
         hasImageUrlColumn ? "image_url" : null,
         iconUrlEnabled ? "icon_url" : null,
         hasIconNameColumn ? "icon" : null,
+        hasIsActiveColumn ? "is_active" : null,
       ]
         .filter(Boolean)
         .join(", ");
@@ -212,6 +250,7 @@ export default (db) => {
           image_url: hasImageUrlColumn ? s.image_url || null : null,
           icon_url: normUrl || virtualIcon || null,
           icon: virtualIcon,
+          is_active: hasIsActiveColumn ? Number(s.is_active) : 1,
         };
       });
 
@@ -231,6 +270,7 @@ export default (db) => {
         hasDescriptionColumn,
         hasSubtitleColumn,
         hasImageUrlColumn,
+        hasIsActiveColumn,
       } = await ensureServiceColumns(req.db);
       const selectFields = [
         "id",
@@ -241,14 +281,16 @@ export default (db) => {
         hasImageUrlColumn ? "image_url" : null,
         iconUrlEnabled ? "icon_url" : null,
         hasIconNameColumn ? "icon" : null,
+        hasIsActiveColumn ? "is_active" : null,
       ]
         .filter(Boolean)
         .join(", ");
       let rows = [];
       try {
-        [rows] = await req.db.query(
-          `SELECT ${selectFields} FROM services ORDER BY id ASC`
-        );
+        const sql = hasIsActiveColumn
+          ? `SELECT ${selectFields} FROM services WHERE is_active = 1 ORDER BY id ASC`
+          : `SELECT ${selectFields} FROM services ORDER BY id ASC`;
+        [rows] = await req.db.query(sql);
       } catch (e) {
         if (e?.code === "ER_NO_SUCH_TABLE") {
           rows = [];
@@ -273,6 +315,7 @@ export default (db) => {
           image_url: hasImageUrlColumn ? s.image_url || null : null,
           icon_url: normUrl || virtualIcon || null,
           icon: virtualIcon,
+          is_active: hasIsActiveColumn ? Number(s.is_active) : 1,
         };
       });
 
@@ -300,6 +343,7 @@ export default (db) => {
           hasDescriptionColumn,
           hasSubtitleColumn,
           hasImageUrlColumn,
+          hasIsActiveColumn,
         } = await ensureServiceColumns(req.db);
         const uploadedIcon = req.files?.icon?.[0]?.filename || null;
         const uploadedImage = req.files?.image?.[0]?.filename || null;
@@ -366,6 +410,11 @@ export default (db) => {
             placeholders.push("?");
             values.push(iconName);
           }
+          if (hasIsActiveColumn) {
+            fields.push("is_active");
+            placeholders.push("?");
+            values.push(1);
+          }
           [result] = await req.db.query(
             `INSERT INTO services (${fields.join(",")}) VALUES (${placeholders.join(",")})`,
             values
@@ -391,6 +440,7 @@ export default (db) => {
           image_url: serviceImage,
           icon_url: iconUrlEnabled ? autoIcon : null,
           icon: hasIconNameColumn ? iconName : null,
+          is_active: 1,
         };
 
         await logAdminEvent(req.db, req.user?.id, "service_cree", {
@@ -415,13 +465,14 @@ export default (db) => {
     validateUploadedFilesSignature,
     async (req, res) => {
     try {
-      const { price, name, description, subtitle, image_url, selected_icon, icon_name } = req.body;
+      const { price, name, description, subtitle, image_url, selected_icon, icon_name, is_active } = req.body;
       const {
         hasIconUrlColumn: iconUrlEnabled,
         hasIconNameColumn,
         hasDescriptionColumn,
         hasSubtitleColumn,
         hasImageUrlColumn,
+        hasIsActiveColumn,
       } = await ensureServiceColumns(req.db);
       const uploadedIcon = req.files?.icon?.[0]?.filename || null;
       const uploadedImage = req.files?.image?.[0]?.filename || null;
@@ -434,7 +485,8 @@ export default (db) => {
         !uploadedImage &&
         !uploadedIcon &&
         (!iconUrlEnabled || !selected_icon) &&
-        (!hasIconNameColumn || !icon_name)
+        (!hasIconNameColumn || !icon_name) &&
+        (!hasIsActiveColumn || is_active == null)
       )
         return res
           .status(400)
@@ -499,6 +551,11 @@ export default (db) => {
         values.push(price);
       }
 
+      if (hasIsActiveColumn && is_active != null) {
+        fields.push("is_active = ?");
+        values.push(Number(is_active) === 1 ? 1 : 0);
+      }
+
       if (!fields.length) {
         return res
           .status(400)
@@ -537,6 +594,7 @@ export default (db) => {
           image_url: hasImageUrlColumn ? updated.image_url || null : null,
           icon_url: iconUrlEnabled ? updated.icon_url || null : null,
           icon: hasIconNameColumn ? updated.icon || null : null,
+          is_active: hasIsActiveColumn ? Number(updated.is_active) : 1,
         },
       });
     } catch (err) {
@@ -562,6 +620,12 @@ export default (db) => {
         );
         if (!service)
           return res.status(404).json({ error: "Service introuvable" });
+
+        if (isPinnedProtectedServiceName(service?.name)) {
+          return res.status(403).json({
+            error: "Les services Remorquage et Service à Domicile sont protégés et ne peuvent pas être supprimés",
+          });
+        }
 
         // On supprime aussi le fichier d'icône si présent
         if (iconEnabled && service.icon_url && service.icon_url.startsWith("/uploads/services/")) {

@@ -231,6 +231,18 @@ html.dark button:hover, html.dark a:hover {
   filter: brightness(1.2);
 }
 
+/* Hide numeric input increment/decrement arrows globally */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* ==========================
    📍 ANIMATIONS DES PINS LEAFLET
 ========================== */

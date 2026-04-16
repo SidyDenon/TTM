@@ -238,7 +238,7 @@ function HomeContent() {
           style={styles.helpBtn}
           onPress={() => router.push("/user/request")}
         >
-          <Text style={styles.helpText}>🚨DEMANDER UNE DÉPANNEUSE</Text>
+          <Text style={styles.helpText}>🚨DEMANDER UNE ASSISTANCE</Text>
         </TouchableOpacity>
       </View>
 

@@ -40,8 +40,8 @@ export function FitBounds({ requests }) {
   useEffect(() => {
     if (didFit.current) return;
     const coords = (requests || [])
-      .filter(r => r.lat && r.lng)
-      .map(r => [Number(r.lat), Number(r.lng)]);
+      .map((r) => [Number(r.lat), Number(r.lng)])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
     if (coords.length) {
       map.fitBounds(coords, { padding: [50, 50] });
       didFit.current = true;

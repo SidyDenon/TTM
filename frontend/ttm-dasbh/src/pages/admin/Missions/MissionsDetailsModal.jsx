@@ -17,6 +17,12 @@ export default function MissionsDetailsModal({
   const photoRef = useModalOrigin(!!photoView);
 
   const parsePhotos = (photos) => (Array.isArray(photos) ? photos : []);
+  const missionPosition = (() => {
+    const lat = Number(mission?.lat);
+    const lng = Number(mission?.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  })();
+
   const normalizePhotoUrl = (p) => {
     if (!p) return null;
     const raw = typeof p === "object" && "url" in p ? p.url : p;
@@ -64,16 +70,16 @@ export default function MissionsDetailsModal({
         </h2>
 
         {/* 🗺️ Carte */}
-        {mission.lat && mission.lng && (
+        {missionPosition && (
           <div className="mb-4 h-56 rounded overflow-hidden">
             <MapContainer
-              center={[mission.lat, mission.lng]}
+              center={missionPosition}
               zoom={14}
               className="w-full h-full"
               whenCreated={(map) => setTimeout(() => map.invalidateSize(), 0)}
             >
               <TileLayer url={MAP_TILES.DEFAULT} />
-              <Marker position={[mission.lat, mission.lng]} />
+              <Marker position={missionPosition} />
             </MapContainer>
           </div>
         )}

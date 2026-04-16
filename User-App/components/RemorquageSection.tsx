@@ -272,7 +272,7 @@ export const RemorquageSection: React.FC<Props> = ({
             styles.input,
             { borderColor: colors.border, color: colors.text },
           ]}
-          placeholder="Ex : Aéroport, Kita, Garage Diarra..."
+          placeholder="Ex : Aéroport,Garage Diarra..."
           placeholderTextColor="#999"
           value={query}
           onChangeText={(text) => {

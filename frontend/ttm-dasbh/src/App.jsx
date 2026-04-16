@@ -4,7 +4,7 @@ import Header from "./components/Header";
 import usePushNotifications from "./hooks/usePushNotifications";
 import { useAuth } from "./context/AuthContext";
 import { useEffect, useRef, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import Dashboard from "./pages/admin/dashboard/Dashboard";
 import Missions from "./pages/admin/Missions/Missions";
@@ -60,7 +60,9 @@ function PrivateRoute({ children }) {
 function Layout() {
   const { supported, permission, requestPermission, sendNotification } = usePushNotifications();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [requestedOilMissionId, setRequestedOilMissionId] = useState(null);
   const welcomeNotifiedRef = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (supported && permission === "default") requestPermission();
@@ -93,6 +95,13 @@ function Layout() {
     });
   }, [permission, sendNotification]);
 
+  const handleOpenOilMissionDetail = (missionId) => {
+    const id = Number(missionId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    setRequestedOilMissionId(id);
+    navigate("/dashboard");
+  };
+
   return (
     <div
       className="layout-shell flex min-h-screen transition-all"
@@ -109,7 +118,10 @@ function Layout() {
         />
       )}
       <div className="flex-1 flex flex-col min-w-0">
-        <Header onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+        <Header
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+          onOpenOilMissionDetail={handleOpenOilMissionDetail}
+        />
         <main
           className="flex-1 p-6 overflow-y-auto transition-all"
           style={{
@@ -117,7 +129,12 @@ function Layout() {
             color: "var(--text-color)",
           }}
         >
-          <Outlet />
+          <Outlet
+            context={{
+              requestedOilMissionId,
+              clearRequestedOilMission: () => setRequestedOilMissionId(null),
+            }}
+          />
         </main>
       </div>
     </div>

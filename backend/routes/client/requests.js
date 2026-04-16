@@ -500,7 +500,11 @@ export default (db, notifyOperators, emitMissionEvent) => {
       }
 
       const [active] = await req.db.query(
-        "SELECT id FROM requests WHERE user_id = ? AND status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage')",
+        `SELECT id
+         FROM requests
+         WHERE user_id = ?
+           AND LOWER(REPLACE(status, ' ', '_')) NOT IN ('terminee','annulee','annulee_client','annulee_admin')
+         LIMIT 1`,
         [req.user.id]
       );
       if (active.length > 0) {
@@ -658,7 +662,11 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
 
     // 🔒 Vérifier mission en cours
     const [active] = await req.db.query(
-      "SELECT id FROM requests WHERE user_id = ? AND status IN ('publiee','assignee','acceptee','en_route','sur_place')",
+      `SELECT id
+       FROM requests
+       WHERE user_id = ?
+         AND LOWER(REPLACE(status, ' ', '_')) NOT IN ('terminee','annulee','annulee_client','annulee_admin')
+       LIMIT 1`,
       [req.user.id]
     );
     if (active.length > 0) {

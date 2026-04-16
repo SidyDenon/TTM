@@ -44,6 +44,8 @@ import directionsRoutes from "./routes/directions.js";
 import adminDebugRoutes from "./routes/admin/debug.js";
 import debugRoutes from "./routes/debug.js";
 import { loadAdminPermissions } from "./middleware/checkPermission.js";
+import clientOilServiceRoutes from "./routes/client/oilService.js";
+import adminOilServiceRoutes from "./routes/admin/oilService.js";
 
 const app = express();
 app.use(express.json());
@@ -94,6 +96,9 @@ app.use("/api/admin/requests", requestsRoutes(db, io, emitMissionEvent));
 app.use("/api/requests", clientRequestsRoutes(db, notifyOperators, emitMissionEvent));
 app.use("/api/operator/wallet", walletRoutes(db));
 app.use("/api/admin/transactions", transactionsRoutes(db));
+app.use("/api/oil-models", clientOilServiceRoutes(db));
+app.use("/api/requests", clientOilServiceRoutes(db));
+app.use("/api/admin", adminOilServiceRoutes(db));
 app.use("/api/user", userPushTokenRoutes(db));
 app.use("/api/admin/withdrawals", adminWithdrawalsRoutes(db));
 app.use("/api/admin/settings", settingsRoutes(db));

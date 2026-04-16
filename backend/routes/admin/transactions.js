@@ -85,6 +85,50 @@ export default (db) => {
         } else { throw e; }
       }
 
+      // Résout le nom de l'admin qui a confirmé la transaction à partir des logs admin_events.
+      try {
+        const confirmedIds = rows
+          .filter((r) => String(r?.status || "").toLowerCase() === "confirmée")
+          .map((r) => Number(r.id))
+          .filter((id) => Number.isFinite(id));
+
+        if (confirmedIds.length > 0) {
+          const placeholders = confirmedIds.map(() => "?").join(",");
+          const [confirmLogs] = await req.db.query(
+            `SELECT
+               CAST(JSON_UNQUOTE(JSON_EXTRACT(ae.meta, '$.transaction_id')) AS UNSIGNED) AS tx_id,
+               u.name AS admin_name,
+               ae.created_at
+             FROM admin_events ae
+             LEFT JOIN users u ON u.id = ae.admin_id
+             WHERE ae.action = 'transaction_confirmee'
+               AND CAST(JSON_UNQUOTE(JSON_EXTRACT(ae.meta, '$.transaction_id')) AS UNSIGNED) IN (${placeholders})
+             ORDER BY ae.created_at DESC`,
+            confirmedIds
+          );
+
+          const adminByTx = new Map();
+          for (const log of confirmLogs || []) {
+            const txId = Number(log?.tx_id);
+            if (!Number.isFinite(txId) || adminByTx.has(txId)) continue;
+            adminByTx.set(txId, log?.admin_name || null);
+          }
+
+          rows = rows.map((r) => ({
+            ...r,
+            confirmed_by_admin:
+              String(r?.status || "").toLowerCase() === "confirmée"
+                ? adminByTx.get(Number(r.id)) || null
+                : null,
+          }));
+        } else {
+          rows = rows.map((r) => ({ ...r, confirmed_by_admin: null }));
+        }
+      } catch (e) {
+        // Ne bloque pas l'écran transactions si la lecture des logs échoue.
+        rows = rows.map((r) => ({ ...r, confirmed_by_admin: null }));
+      }
+
       // Statistiques globales
       let statsRows = [{ total: 0, total_confirme: 0, total_attente: 0 }];
       try {
@@ -265,6 +309,7 @@ export default (db) => {
         amount: txAmount,
         netAmount,
         commission,
+        confirmed_by_admin: req.user?.name || null,
         message: `Transaction #${id} confirmée ✅`,
       });
 
@@ -304,7 +349,15 @@ export default (db) => {
 
       res.json({
         message: `Transaction #${id} confirmée ✅`,
-        data: { id, operator_id: tx.operator_id, amount: txAmount, netAmount, commission, status: "confirmée" },
+        data: {
+          id,
+          operator_id: tx.operator_id,
+          amount: txAmount,
+          netAmount,
+          commission,
+          status: "confirmée",
+          confirmed_by_admin: req.user?.name || null,
+        },
       });
 
       await logAdminEvent(req.user?.id, "transaction_confirmee", {

@@ -32,6 +32,7 @@ import { API_BASE } from "../../utils/api";
 import DepanneuseIcon from "../../assets/images/depanneuse.png";
 import { RemorquageSection } from "../../components/RemorquageSection";
 import Loader from "../../components/Loader";
+import { isHomeOilService, isTowingService } from "../../utils/services";
 
 type Service = {
   id: number;
@@ -39,6 +40,17 @@ type Service = {
   price: number;
   icon_url?: string | null;
   icon?: string | null;
+};
+
+type OilModel = {
+  id: number;
+  name: string;
+  description?: string;
+  price_1l?: number | string | null;
+  price_4l?: number | string | null;
+  price_5l?: number | string | null;
+  price_20l?: number | string | null;
+  unit_price?: number | string | null;
 };
 
 const COLORS = {
@@ -49,6 +61,59 @@ const COLORS = {
   text: "#333",
   textMuted: "#555",
   border: "#ddd",
+};
+
+const VEHICLE_TYPES = [
+  "SUV",
+  "Berline",
+  "Bolide",
+  "Moto",
+  "Pick-up",
+  "Camion",
+  "4x4",
+  "Minibus",
+];
+
+const OIL_LITER_OPTIONS = [1, 4, 5, 20];
+
+const sortPinnedServices = (list: Service[]) => {
+  const arr = Array.isArray(list) ? [...list] : [];
+  const priority = (service: Service) => {
+    if (isTowingService(service?.name)) return 0;
+    if (isHomeOilService(service?.name)) return 1;
+    return 2;
+  };
+  return arr.sort((a, b) => {
+    const pa = priority(a);
+    const pb = priority(b);
+    if (pa !== pb) return pa - pb;
+    return String(a?.name || "").localeCompare(String(b?.name || ""), "fr");
+  });
+};
+
+const getOilModelPriceByLiters = (model: OilModel | undefined, liters: number) => {
+  if (!model) return null;
+  const byLiters =
+    liters === 1
+      ? model.price_1l
+      : liters === 4
+      ? model.price_4l
+      : liters === 5
+      ? model.price_5l
+      : liters === 20
+      ? model.price_20l
+      : null;
+
+  const parsed = byLiters == null || byLiters === "" ? NaN : Number(byLiters);
+  if (Number.isFinite(parsed)) return parsed;
+
+  const fallbackUnit =
+    model.unit_price == null || model.unit_price === ""
+      ? NaN
+      : Number(model.unit_price);
+  if (Number.isFinite(fallbackUnit)) return fallbackUnit * liters;
+
+  return null;
 };
 
 // 💰 Formatage des prix en FCFA, sans .00
@@ -64,8 +129,7 @@ const formatPrice = (price: number | string): string => {
 
 // Fallback icône: uniquement pour remorquage
 const getServiceIcon = (serviceName: string): string => {
-  const name = serviceName.toLowerCase();
-  if (name.includes("remorqu")) return "truck";
+  if (isTowingService(serviceName)) return "truck";
   return "";
 };
 
@@ -89,6 +153,13 @@ export default function RequestScreen() {
   const [loadingServices, setLoadingServices] = useState(true);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingLocation, setLoadingLocation] = useState(true);
+  const [oilModels, setOilModels] = useState<OilModel[]>([]);
+  const [loadingOilModels, setLoadingOilModels] = useState(false);
+  const [vehicleType, setVehicleType] = useState("");
+  const [oilLiters, setOilLiters] = useState(4);
+  const [oilModelId, setOilModelId] = useState<number | null>(null);
+  const [oilModalVisible, setOilModalVisible] = useState(false);
+  const [towingModalVisible, setTowingModalVisible] = useState(false);
 
   const router = useRouter();
   const { photos, setPhotos } = useRequest();
@@ -150,7 +221,7 @@ export default function RequestScreen() {
         const json = await res.json();
 
         if (res.ok) {
-          setServices(json.data || []);
+          setServices(sortPinnedServices(json.data || []));
         } else {
           setError(json.error || "Impossible de charger les services.");
         }
@@ -162,6 +233,24 @@ export default function RequestScreen() {
       }
     };
     fetchServices();
+  }, []);
+
+  useEffect(() => {
+    const fetchOilModels = async () => {
+      try {
+        setLoadingOilModels(true);
+        const res = await fetch(`${API_BASE}/api/oil-models/public`);
+        const json = await res.json();
+        if (res.ok) {
+          setOilModels(json.data || []);
+        }
+      } catch (err) {
+        console.error("Erreur chargement modèles d'huile:", err);
+      } finally {
+        setLoadingOilModels(false);
+      }
+    };
+    fetchOilModels();
   }, []);
 
   // Petite utilité pour ajouter une photo
@@ -229,6 +318,20 @@ export default function RequestScreen() {
     setPhotos(photos.filter((_, i) => i !== index));
   };
 
+  const handleSelectService = (srv: Service) => {
+    setSelectedService(srv.id);
+    if (isHomeOilService(srv.name)) {
+      setOilModalVisible(true);
+      setTowingModalVisible(false);
+    } else if (isTowingService(srv.name)) {
+      setTowingModalVisible(true);
+      setOilModalVisible(false);
+    } else {
+      setOilModalVisible(false);
+      setTowingModalVisible(false);
+    }
+  };
+
   // ─────────────── 🧭 Suivant ───────────────
   const goToResume = useCallback(() => {
     if (selectedService === null) {
@@ -242,19 +345,42 @@ export default function RequestScreen() {
       return;
     }
 
-    const isRemorquage = chosenService.name.toLowerCase().includes("remorqu");
+    const isRemorquage = isTowingService(chosenService.name);
+    const isOilService = isHomeOilService(chosenService.name);
 
     if (isRemorquage && !destination.trim()) {
       setError("Veuillez indiquer la destination finale pour le remorquage.");
       return;
     }
 
+    if (isOilService) {
+      if (!vehicleType.trim()) {
+        setError("Veuillez renseigner le type de véhicule.");
+        return;
+      }
+      if (!oilLiters || oilLiters <= 0) {
+        setError("Veuillez renseigner le nombre de litres.");
+        return;
+      }
+      if (!oilModelId) {
+        setError("Veuillez sélectionner un modèle d'huile.");
+        return;
+      }
+    }
+
+    const selectedOilModel = oilModels.find((m) => m.id === oilModelId);
+    const oilModelPrice = getOilModelPriceByLiters(selectedOilModel, oilLiters);
+    const baseServicePrice = Number(chosenService.price || 0);
+    const computedServicePrice = isOilService
+      ? baseServicePrice + (Number.isFinite(Number(oilModelPrice)) ? Number(oilModelPrice) : 0)
+      : baseServicePrice;
+
     router.push({
       pathname: "/user/resume",
       params: {
         service: chosenService.id,
         serviceLabel: chosenService.name,
-        servicePrice: chosenService.price,
+        servicePrice: String(computedServicePrice),
         address,
         destination: isRemorquage ? destination.trim() : "",
         destLat: destinationCoords?.latitude
@@ -263,16 +389,39 @@ export default function RequestScreen() {
         destLng: destinationCoords?.longitude
           ? String(destinationCoords.longitude)
           : "",
+        vehicleType: isOilService ? vehicleType.trim() : "",
+        oilLiters: isOilService ? String(oilLiters) : "",
+        oilModelId: isOilService ? String(oilModelId || "") : "",
+        oilModelName: isOilService ? selectedOilModel?.name || "" : "",
       },
     });
-  }, [selectedService, services, address, destination, destinationCoords, router]);
+  }, [
+    selectedService,
+    services,
+    address,
+    destination,
+    destinationCoords,
+    router,
+    vehicleType,
+    oilLiters,
+    oilModelId,
+    oilModels,
+  ]);
 
   const isNextDisabled = selectedService === null;
 
   const currentService = services.find((s) => s.id === selectedService);
-  const isCurrentRemorquage = currentService
-    ? currentService.name.toLowerCase().includes("remorqu")
-    : false;
+  const isCurrentRemorquage = currentService ? isTowingService(currentService.name) : false;
+  const isCurrentOilService = currentService ? isHomeOilService(currentService.name) : false;
+  const selectedOilModel = oilModels.find((m) => m.id === oilModelId);
+  const selectedOilModelPrice = getOilModelPriceByLiters(selectedOilModel, oilLiters);
+  const currentServiceBasePrice = Number(currentService?.price || 0);
+  const estimatedOilServicePrice =
+    isCurrentOilService && Number.isFinite(Number(selectedOilModelPrice))
+      ? currentServiceBasePrice + Number(selectedOilModelPrice)
+      : isCurrentOilService
+      ? currentServiceBasePrice
+      : 0;
 
   // Map icon names (kebab from admin) to Expo icon sets for best fidelity
   const mapIconNameToExpo = (name: string | null | undefined) => {
@@ -613,7 +762,7 @@ const renderServiceIcon = (
             <View style={styles.servicesGrid}>
           {services.map((srv) => {
   const isSelected = selectedService === srv.id;
-  const isRemorquage = srv.name.toLowerCase().includes("remorqu");
+  const isRemorquage = isTowingService(srv.name);
  
   const baseHost = API_BASE.replace(/\/api$/, "");
  
@@ -638,7 +787,7 @@ const renderServiceIcon = (
         styles.serviceCard,
         isSelected && styles.serviceCardSelected,
       ]}
-      onPress={() => setSelectedService(srv.id)}
+      onPress={() => handleSelectService(srv)}
       activeOpacity={0.8}
     >
       {renderServiceIcon(
@@ -670,16 +819,51 @@ const renderServiceIcon = (
             </View>
           )}
 
-          {/* Remorquage : destination + carte (composant séparé) */}
-          <RemorquageSection
-            visible={isCurrentRemorquage}
-            destination={destination}
-            setDestination={setDestination}
-            destinationCoords={destinationCoords}
-            setDestinationCoords={setDestinationCoords}
-            userLocation={userLocation}
-            colors={COLORS}
-          />
+          {isCurrentRemorquage && (
+            <View style={styles.oilSection}>
+              <View style={styles.oilHeaderRow}>
+                <Text style={styles.oilSectionTitle}>Remorquage</Text>
+                <TouchableOpacity
+                  style={styles.configBtn}
+                  onPress={() => setTowingModalVisible(true)}
+                >
+                  <Text style={styles.configBtnText}>Configurer</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.summaryText}>
+                Destination: {destination?.trim() ? destination : "-"}
+              </Text>
+              <Text style={styles.summaryText}>
+                Coordonnées: {destinationCoords
+                  ? `${destinationCoords.latitude.toFixed(5)}, ${destinationCoords.longitude.toFixed(5)}`
+                  : "-"}
+              </Text>
+            </View>
+          )}
+
+          {isCurrentOilService && (
+            <View style={styles.oilSection}>
+              <View style={styles.oilHeaderRow}>
+                <Text style={styles.oilSectionTitle}>Service a Domicile</Text>
+                <TouchableOpacity
+                  style={styles.configBtn}
+                  onPress={() => setOilModalVisible(true)}
+                >
+                  <Text style={styles.configBtnText}>Configurer</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.summaryText}>Type: {vehicleType || "-"}</Text>
+              <Text style={styles.summaryText}>Litres: {oilLiters} L</Text>
+              <Text style={styles.summaryText}>
+                Huile: {oilModels.find((m) => m.id === oilModelId)?.name || "-"}
+              </Text>
+              <Text style={styles.summaryPriceText}>
+                Prix estime: {formatPrice(estimatedOilServicePrice)}
+              </Text>
+            </View>
+          )}
 
           {/* Photos */}
           <View style={styles.uploadBox}>
@@ -753,6 +937,131 @@ const renderServiceIcon = (
             </View>
           </View>
         </Modal>
+
+        <Modal visible={oilModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.oilModalBox}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>Service a Domicile</Text>
+                <TouchableOpacity onPress={() => setOilModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.fieldLabel}>Type de vehicule</Text>
+                <View style={styles.vehicleWrap}>
+                  {VEHICLE_TYPES.map((type) => {
+                    const selected = vehicleType === type;
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        style={[styles.modelChip, selected && styles.modelChipSelected]}
+                        onPress={() => setVehicleType(type)}
+                      >
+                        <Text style={[styles.modelChipText, selected && styles.modelChipTextSelected]}>
+                          {type}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.fieldLabel}>Nombre de litres</Text>
+                <View style={styles.literOptionsWrap}>
+                  {OIL_LITER_OPTIONS.map((lit) => {
+                    const selected = oilLiters === lit;
+                    return (
+                      <TouchableOpacity
+                        key={lit}
+                        style={[styles.modelChip, selected && styles.modelChipSelected]}
+                        onPress={() => setOilLiters(lit)}
+                      >
+                        <Text style={[styles.modelChipText, selected && styles.modelChipTextSelected]}>
+                          {lit}L
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.fieldLabel}>Modele d&apos;huile</Text>
+                {loadingOilModels ? (
+                  <Loader size={26} />
+                ) : (
+                  <View style={styles.modelsWrap}>
+                    {oilModels.map((model) => {
+                      const selected = oilModelId === model.id;
+                      return (
+                        <TouchableOpacity
+                          key={model.id}
+                          style={[styles.modelChip, selected && styles.modelChipSelected]}
+                          onPress={() => setOilModelId(model.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.modelChipText,
+                              selected && styles.modelChipTextSelected,
+                            ]}
+                          >
+                            {model.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <View style={styles.priceBox}>
+                  <Text style={styles.priceLabel}>Prix estime</Text>
+                  <Text style={styles.priceValue}>{formatPrice(estimatedOilServicePrice)}</Text>
+                  <Text style={styles.priceHint}>
+                    Selon modèle d&apos;huile + quantité ({oilLiters}L)
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.popupValidateBtn]}
+                  onPress={() => setOilModalVisible(false)}
+                >
+                  <Text style={styles.modalBtnText}>Valider</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={towingModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.oilModalBox}>
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>Remorquage</Text>
+                <TouchableOpacity onPress={() => setTowingModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <RemorquageSection
+                  visible={true}
+                  destination={destination}
+                  setDestination={setDestination}
+                  destinationCoords={destinationCoords}
+                  setDestinationCoords={setDestinationCoords}
+                  userLocation={userLocation}
+                  colors={COLORS}
+                />
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, styles.popupValidateBtn]}
+                  onPress={() => setTowingModalVisible(false)}
+                >
+                  <Text style={styles.modalBtnText}>Valider</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -799,6 +1108,162 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     marginBottom: 6,
+  },
+  oilSection: {
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    marginTop: 10,
+  },
+  oilHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  oilSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.primaryDark,
+    marginBottom: 8,
+  },
+  configBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  configBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  summaryText: {
+    color: COLORS.text,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  summaryPriceText: {
+    color: COLORS.primaryDark,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: "600",
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  literRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginTop: 2,
+  },
+  literOptionsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  literBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+  },
+  literBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 18,
+  },
+  literValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  modelsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  modelChip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: "#fff",
+  },
+  modelChipSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  modelChipText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  modelChipTextSelected: {
+    color: "#fff",
+  },
+  oilModalBox: {
+    backgroundColor: COLORS.card,
+    padding: 18,
+    borderRadius: 15,
+    width: "90%",
+    maxHeight: "80%",
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  vehicleWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  priceBox: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: "#fafafa",
+  },
+  priceLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+  },
+  priceValue: {
+    fontSize: 18,
+    color: COLORS.primaryDark,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  priceHint: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 3,
   },
   uploadBox: {
     backgroundColor: COLORS.card,
@@ -863,6 +1328,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 8,
+  },
+  popupValidateBtn: {
+    alignSelf: "center",
+    minWidth: 170,
+    alignItems: "center",
+    marginTop: 10,
   },
   modalBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });

@@ -9,14 +9,13 @@ import * as AiIcons from "react-icons/ai";      // AntDesign
 import * as MdIcons from "react-icons/md";      // Material Icons
 import * as GoIcons from "react-icons/go";      // Octicons
 import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
-import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane } from "react-icons/fa";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane, FaEye, FaEyeSlash } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE, buildAssetUrl } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
-import { EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 
 export default function Settings() {
   const { user, token, updateUser } = useAuth();
@@ -56,11 +55,33 @@ export default function Settings() {
   const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(true);
   const [inlineSaving, setInlineSaving] = useState(null);
+  const [togglingVisibilityServiceId, setTogglingVisibilityServiceId] = useState(null);
+  const [openServiceActionMenuId, setOpenServiceActionMenuId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", price: "", icon: "" });
   const [servicesOpen, setServicesOpen] = useState(true);
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [closingAddServiceModal, setClosingAddServiceModal] = useState(false);
+  const [showOilManagerModal, setShowOilManagerModal] = useState(false);
+  const [closingOilManagerModal, setClosingOilManagerModal] = useState(false);
+  const [oilManagerService, setOilManagerService] = useState(null);
+  const [showTowingManagerModal, setShowTowingManagerModal] = useState(false);
+  const [closingTowingManagerModal, setClosingTowingManagerModal] = useState(false);
+  const [towingManagerService, setTowingManagerService] = useState(null);
+  const [oilModels, setOilModels] = useState([]);
+  const [loadingOilModels, setLoadingOilModels] = useState(false);
+  const [inlineOilSaving, setInlineOilSaving] = useState(null);
+  const [deletingOilModel, setDeletingOilModel] = useState(null);
+  const [openOilActionMenuId, setOpenOilActionMenuId] = useState(null);
+  const [addingOilModel, setAddingOilModel] = useState(false);
+  const [newOilModel, setNewOilModel] = useState({
+    name: "",
+    price_1l: "",
+    price_4l: "",
+    price_5l: "",
+    price_20l: "",
+    is_active: true,
+  });
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
   const [iconList, setIconList] = useState([]);
@@ -69,7 +90,6 @@ export default function Settings() {
   const [confirmService, setConfirmService] = useState(null);
   const [closingConfirmService, setClosingConfirmService] = useState(false);
   const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
-  const [openServiceMenuId, setOpenServiceMenuId] = useState(null);
   const [showTestSmsModal, setShowTestSmsModal] = useState(false);
   const [closingTestSmsModal, setClosingTestSmsModal] = useState(false);
   const [testSmsPhone, setTestSmsPhone] = useState("");
@@ -78,17 +98,31 @@ export default function Settings() {
   const editProfileModalRef = useModalOrigin(showEditProfile);
   const passwordModalRef = useModalOrigin(showPasswordModal);
   const addServiceModalRef = useModalOrigin(showAddServiceModal);
+  const oilManagerModalRef = useModalOrigin(showOilManagerModal);
+  const towingManagerModalRef = useModalOrigin(showTowingManagerModal);
   const testSmsModalRef = useModalOrigin(showTestSmsModal);
 
-  // Ferme le menu ... quand on clique en dehors
   useEffect(() => {
-    if (!openServiceMenuId) return;
+    if (!openServiceActionMenuId) return;
     const handler = (e) => {
-      if (!e.target.closest(".srv-actions-menu")) setOpenServiceMenuId(null);
+      if (!e.target.closest(".service-row-actions-menu")) {
+        setOpenServiceActionMenuId(null);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [openServiceMenuId]);
+  }, [openServiceActionMenuId]);
+
+  useEffect(() => {
+    if (!openOilActionMenuId) return;
+    const handler = (e) => {
+      if (!e.target.closest(".oil-row-actions-menu")) {
+        setOpenOilActionMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openOilActionMenuId]);
 
   // ─────────── Business config
   const [commission, setCommission] = useState("");              // %
@@ -227,6 +261,56 @@ export default function Settings() {
     return matches.slice(0, 200);
   }, [iconList, iconSearch, addForm.icon]);
 
+  const isHomeOilService = (name) => {
+    const key = String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return (
+      key.includes("domicile") ||
+      key.includes("huile") ||
+      key.includes("oil") ||
+      key.includes("vidange")
+    );
+  };
+
+  const isTowingService = (name) => {
+    const key = String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return key.includes("remorqu") || key.includes("tow");
+  };
+
+  const isPinnedProtectedService = (name) => {
+    const key = String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return key.includes("remorqu") || isHomeOilService(name);
+  };
+
+  const sortPinnedServices = (list = []) => {
+    const arr = Array.isArray(list) ? [...list] : [];
+    const isTowingLike = (name) =>
+      String(name || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .includes("remorqu");
+    const priority = (srv) => {
+      if (isTowingLike(srv?.name)) return 0;
+      if (isHomeOilService(srv?.name)) return 1;
+      return 2;
+    };
+    return arr.sort((a, b) => {
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
+      return String(a?.name || "").localeCompare(String(b?.name || ""), "fr");
+    });
+  };
+
   // ─────────── Fetchers
   const loadServices = async () => {
     if (!canViewServices) return; // RBAC
@@ -237,7 +321,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur chargement services");
-      setServices(data.data || []);
+      setServices(sortPinnedServices(data.data || []));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -407,12 +491,61 @@ export default function Settings() {
     }
   };
 
+  const toggleServiceVisibility = async (srv) => {
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour masquer/afficher un service."
+      );
+    }
+
+    const current = Number(srv?.is_active) === 1 ? 1 : 0;
+    const next = current === 1 ? 0 : 1;
+
+    try {
+      setTogglingVisibilityServiceId(srv.id);
+      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_active: next }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur mise à jour visibilité service");
+
+      toast.success(
+        next === 1
+          ? `Service "${srv.name}" affiché ✅`
+          : `Service "${srv.name}" masqué ✅`
+      );
+
+      setServices((prev) =>
+        sortPinnedServices(
+          prev.map((s) =>
+            s.id === srv.id ? { ...s, is_active: Number(next) } : s
+          )
+        )
+      );
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setTogglingVisibilityServiceId(null);
+    }
+  };
+
   const performDeleteService = async (srv) => {
     if (!canManageServices) {
       return toast.error(
         "Vous n’avez pas les droits pour supprimer un service."
       );
     }
+    if (isPinnedProtectedService(srv?.name)) {
+      toast.error('Les services "Remorquage" et "Service à Domicile" sont protégés.');
+      return false;
+    }
+
     try {
       setConfirmServiceLoading(true);
       const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
@@ -423,7 +556,7 @@ export default function Settings() {
       if (!res.ok)
         throw new Error(data.error || "Erreur suppression service");
       toast.success(`Service "${srv.name}" supprimé ✅`);
-      setServices((prev) => prev.filter((s) => s.id !== srv.id));
+      setServices((prev) => sortPinnedServices(prev.filter((s) => s.id !== srv.id)));
       return true;
     } catch (e) {
       toast.error(e.message);
@@ -434,6 +567,10 @@ export default function Settings() {
   };
 
   const deleteService = (srv) => {
+    if (isPinnedProtectedService(srv?.name)) {
+      toast.error('Les services "Remorquage" et "Service à Domicile" sont protégés.');
+      return;
+    }
     setClosingConfirmService(false);
     setConfirmService(srv);
   };
@@ -473,7 +610,7 @@ export default function Settings() {
         setShowAddServiceModal(false);
         setClosingAddServiceModal(false);
       }, 180);
-      setServices((prev) => [data.data, ...prev]);
+      setServices((prev) => sortPinnedServices([data.data, ...prev]));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -481,12 +618,179 @@ export default function Settings() {
     }
   };
 
+  const loadOilModels = async () => {
+    try {
+      setLoadingOilModels(true);
+      const res = await fetch(`${API_BASE}/api/admin/oil-models`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur chargement modèles d'huile");
+      setOilModels(data.data || []);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoadingOilModels(false);
+    }
+  };
+
+  const openOilManager = async (srv) => {
+    setOilManagerService(srv);
+    setClosingOilManagerModal(false);
+    setShowOilManagerModal(true);
+    await loadOilModels();
+  };
+
+  const openTowingManager = (srv) => {
+    setTowingManagerService(srv);
+    setClosingTowingManagerModal(false);
+    setShowTowingManagerModal(true);
+  };
+
+  const saveOilModel = async (model) => {
+    try {
+      setInlineOilSaving(model.id);
+      const payload = {
+        name: model.name,
+        price_1l:
+          model.price_1l === "" || model.price_1l == null
+            ? null
+            : Number(model.price_1l),
+        price_4l:
+          model.price_4l === "" || model.price_4l == null
+            ? null
+            : Number(model.price_4l),
+        price_5l:
+          model.price_5l === "" || model.price_5l == null
+            ? null
+            : Number(model.price_5l),
+        price_20l:
+          model.price_20l === "" || model.price_20l == null
+            ? null
+            : Number(model.price_20l),
+        is_active: model.is_active ? 1 : 0,
+      };
+      const res = await fetch(`${API_BASE}/api/admin/oil-models/${model.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour modèle d'huile");
+      toast.success("Modèle d'huile mis à jour ✅");
+      setOilModels((prev) =>
+        prev.map((m) =>
+          m.id === model.id
+            ? {
+                ...m,
+                name: data.data?.name ?? m.name,
+                price_1l:
+                  data.data?.price_1l ?? payload.price_1l,
+                price_4l:
+                  data.data?.price_4l ?? payload.price_4l,
+                price_5l:
+                  data.data?.price_5l ?? payload.price_5l,
+                price_20l:
+                  data.data?.price_20l ?? payload.price_20l,
+                is_active: Number(data.data?.is_active ?? payload.is_active),
+              }
+            : m
+        )
+      );
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setInlineOilSaving(null);
+    }
+  };
+
+  const removeOilModel = async (id) => {
+    try {
+      setDeletingOilModel(id);
+      const res = await fetch(`${API_BASE}/api/admin/oil-models/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur suppression modèle d'huile");
+      toast.success("Modèle d'huile supprimé ✅");
+      setOilModels((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeletingOilModel(null);
+    }
+  };
+
+  const addOilModel = async () => {
+    if (!newOilModel.name.trim()) return toast.error("Nom du modèle requis");
+    const p1 =
+      newOilModel.price_1l === "" || newOilModel.price_1l == null
+        ? null
+        : Number(newOilModel.price_1l);
+    const p4 =
+      newOilModel.price_4l === "" || newOilModel.price_4l == null
+        ? null
+        : Number(newOilModel.price_4l);
+    const p5 =
+      newOilModel.price_5l === "" || newOilModel.price_5l == null
+        ? null
+        : Number(newOilModel.price_5l);
+    const p20 =
+      newOilModel.price_20l === "" || newOilModel.price_20l == null
+        ? null
+        : Number(newOilModel.price_20l);
+
+    if ([p1, p4, p5, p20].some((v) => v != null && (Number.isNaN(v) || v < 0))) {
+      return toast.error("Prix invalide");
+    }
+
+    try {
+      setAddingOilModel(true);
+      const res = await fetch(`${API_BASE}/api/admin/oil-models`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newOilModel.name.trim(),
+          price_1l: p1,
+          price_4l: p4,
+          price_5l: p5,
+          price_20l: p20,
+          is_active: newOilModel.is_active ? 1 : 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur ajout modèle d'huile");
+      toast.success("Modèle d'huile ajouté ✅");
+      setNewOilModel({
+        name: "",
+        price_1l: "",
+        price_4l: "",
+        price_5l: "",
+        price_20l: "",
+        is_active: true,
+      });
+      await loadOilModels();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setAddingOilModel(false);
+    }
+  };
+
   // ─────────── Handlers (config business)
   const saveBusinessConfig = async () => {
     if (!canManageConfig) {
-      return toast.error(
+      toast.error(
         "Vous n’avez pas les droits pour modifier les paramètres business."
       );
+      return false;
     }
 
     const pct = Number(commission);
@@ -496,19 +800,24 @@ export default function Settings() {
     const towingRadius = Number(operatorTowingRadius);
 
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      return toast.error("Pourcentage invalide (0–100)");
+      toast.error("Pourcentage invalide (0–100)");
+      return false;
     }
     if (isNaN(priceKm) || priceKm < 0) {
-      return toast.error("Prix par km invalide");
+      toast.error("Prix par km invalide");
+      return false;
     }
     if (isNaN(basePrice) || basePrice < 0) {
-      return toast.error("Prix de base invalide");
+      toast.error("Prix de base invalide");
+      return false;
     }
     if (isNaN(missionRadius) || missionRadius <= 0 || missionRadius > 200) {
-      return toast.error("Rayon missions standard invalide (1–200 km)");
+      toast.error("Rayon missions standard invalide (1–200 km)");
+      return false;
     }
     if (isNaN(towingRadius) || towingRadius <= 0 || towingRadius > 200) {
-      return toast.error("Rayon remorquage invalide (1–200 km)");
+      toast.error("Rayon remorquage invalide (1–200 km)");
+      return false;
     }
 
     const curr =
@@ -533,8 +842,10 @@ export default function Settings() {
       setCurrency(curr);
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
+      return true;
     } catch (e) {
       toast.error(e.message);
+      return false;
     } finally {
       setSavingBusinessConfig(false);
     }
@@ -984,7 +1295,22 @@ export default function Settings() {
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-2">{s.name}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span>{s.name}</span>
+                          {Number(s?.is_active) !== 1 && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full"
+                              style={{
+                                background: "rgba(239,68,68,0.15)",
+                                color: "#ef4444",
+                              }}
+                            >
+                              Masqué
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-2">
                         <input
                           type="number"
@@ -1010,39 +1336,108 @@ export default function Settings() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         {canManageServices && (
-                          <div className="relative srv-actions-menu inline-block">
+                          <div className="relative inline-block service-row-actions-menu">
                             <button
-                              onClick={() => setOpenServiceMenuId(openServiceMenuId === s.id ? null : s.id)}
-                              className="p-2 rounded-full text-white shadow-md transition"
+                              onClick={() =>
+                                setOpenServiceActionMenuId(
+                                  openServiceActionMenuId === s.id ? null : s.id
+                                )
+                              }
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-md transition"
                               style={{ background: "var(--accent)" }}
                               title="Actions"
                             >
-                              <EllipsisHorizontalIcon className="w-5 h-5" />
+                              <span className="inline-flex items-center justify-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                              </span>
                             </button>
-                            {openServiceMenuId === s.id && (
+
+                            {openServiceActionMenuId === s.id && (
                               <div
-                                className="absolute right-0 mt-2 w-44 rounded shadow-lg border srv-actions-menu"
-                                style={{ background: "var(--bg-card)", borderColor: "var(--border-color)", zIndex: 20 }}
+                                className="absolute right-0 mt-2 w-48 rounded shadow-lg border service-row-actions-menu"
+                                style={{
+                                  background: "var(--bg-card)",
+                                  borderColor: "var(--border-color)",
+                                  zIndex: 30,
+                                }}
                               >
+                                {isHomeOilService(s.name) && (
+                                  <button
+                                    onClick={() => {
+                                      openOilManager(s);
+                                      setOpenServiceActionMenuId(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                                    style={{ color: "var(--text-color)" }}
+                                  >
+                                    <FaWrench className="w-4 h-4 text-blue-400" />
+                                    Gérer
+                                  </button>
+                                )}
+
+                                {isTowingService(s.name) && (
+                                  <button
+                                    onClick={() => {
+                                      openTowingManager(s);
+                                      setOpenServiceActionMenuId(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                                    style={{ color: "var(--text-color)" }}
+                                  >
+                                    <FaWrench className="w-4 h-4 text-blue-400" />
+                                    Gérer
+                                  </button>
+                                )}
+
                                 <button
-                                  onClick={() => { saveInlinePrice(s); setOpenServiceMenuId(null); }}
+                                  onClick={() => {
+                                    saveInlinePrice(s);
+                                    setOpenServiceActionMenuId(null);
+                                  }}
                                   disabled={inlineSaving === s.id}
                                   className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
                                   style={{ color: "var(--text-color)" }}
                                 >
-                                  {inlineSaving === s.id
-                                    ? <AiOutlineLoading3Quarters className="animate-spin w-4 h-4 text-green-400" />
-                                    : <FaSave className="w-4 h-4 text-green-400" />}
+                                  {inlineSaving === s.id ? (
+                                    <AiOutlineLoading3Quarters className="animate-spin w-4 h-4 text-green-400" />
+                                  ) : (
+                                    <FaSave className="w-4 h-4 text-green-400" />
+                                  )}
                                   Enregistrer
                                 </button>
+
                                 <button
-                                  onClick={() => { deleteService(s); setOpenServiceMenuId(null); }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                                  onClick={() => {
+                                    toggleServiceVisibility(s);
+                                    setOpenServiceActionMenuId(null);
+                                  }}
+                                  disabled={togglingVisibilityServiceId === s.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
                                   style={{ color: "var(--text-color)" }}
                                 >
-                                  <FaTrash className="w-4 h-4 text-red-500" />
-                                  Supprimer
+                                  {Number(s?.is_active) === 1 ? (
+                                    <FaEyeSlash className="w-4 h-4 text-amber-500" />
+                                  ) : (
+                                    <FaEye className="w-4 h-4 text-blue-400" />
+                                  )}
+                                  {Number(s?.is_active) === 1 ? "Masquer" : "Afficher"}
                                 </button>
+
+                                {!isPinnedProtectedService(s.name) && (
+                                  <button
+                                    onClick={() => {
+                                      deleteService(s);
+                                      setOpenServiceActionMenuId(null);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)]"
+                                    style={{ color: "var(--text-color)" }}
+                                  >
+                                    <FaTrash className="w-4 h-4 text-red-500" />
+                                    Supprimer
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1137,48 +1532,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Prix remorquage / km */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Prix remorquage par km
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={towingPricePerKm}
-                    onChange={(e) => setTowingPricePerKm(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 500"
-                  />
-                </div>
-
-                {/* Prix de base remorquage */}
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Prix de base remorquage
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={towingBasePrice}
-                    onChange={(e) => setTowingBasePrice(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 3000"
-                  />
-                </div>
-
                 {/* Devise */}
                 <div>
                   <label className="block text-sm opacity-70 mb-1">
@@ -1218,24 +1571,7 @@ export default function Settings() {
                     placeholder="Ex: 5"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm opacity-70 mb-1">
-                    Rayon remorquage (km)
-                  </label>
-                  <input
-                    type="number"
-                    value={operatorTowingRadius}
-                    onChange={(e) => setOperatorTowingRadius(e.target.value)}
-                    disabled={!canManageConfig}
-                    className="w-full p-2 rounded border"
-                    style={{
-                      background: "var(--bg-card)",
-                      color: "var(--text-color)",
-                      borderColor: "var(--border-color)",
-                    }}
-                    placeholder="Ex: 100"
-                  />
-                </div>
+                <div />
               </div>
 
               <div className="mt-4">
@@ -1470,6 +1806,522 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {showVitrineSections && showOilManagerModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingOilManagerModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (addingOilModel || inlineOilSaving || deletingOilModel) return;
+            setClosingOilManagerModal(true);
+            setTimeout(() => {
+              setShowOilManagerModal(false);
+              setClosingOilManagerModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={oilManagerModalRef}
+            className={`p-6 rounded shadow w-full max-w-5xl modal-panel ${closingOilManagerModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "86vh",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <FaWrench />
+                Gérer Service à Domicile
+              </h3>
+              <span className="text-sm opacity-70">{oilManagerService?.name || "Service"}</span>
+            </div>
+
+            <div className="overflow-auto max-h-[56vh] rounded border" style={{ borderColor: "var(--border-color)" }}>
+              <table className="w-full text-sm border-collapse">
+                <thead style={{ color: "var(--muted)", borderColor: "var(--border-color)" }}>
+                  <tr>
+                    <th className="px-3 py-2 text-left">Modèle d'huile</th>
+                    <th className="px-3 py-2 text-left">1L</th>
+                    <th className="px-3 py-2 text-left">4L</th>
+                    <th className="px-3 py-2 text-left">5L</th>
+                    <th className="px-3 py-2 text-left">20L</th>
+                    <th className="px-3 py-2 text-center">Actif</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingOilModels ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-5 text-center opacity-70">
+                        <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
+                        Chargement des modèles...
+                      </td>
+                    </tr>
+                  ) : oilModels.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-5 text-center opacity-70">
+                        Aucun modèle d'huile.
+                      </td>
+                    </tr>
+                  ) : (
+                    oilModels.map((m) => (
+                      <tr key={m.id} style={{ borderColor: "var(--border-color)" }}>
+                        <td className="px-3 py-2">
+                          <input
+                            type="text"
+                            value={m.name || ""}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id ? { ...x, name: e.target.value } : x
+                                )
+                              )
+                            }
+                            className="w-full p-2 rounded border"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={m.price_1l ?? ""}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? { ...x, price_1l: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-24 p-2 rounded border"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={m.price_4l ?? ""}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? { ...x, price_4l: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-24 p-2 rounded border"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={m.price_5l ?? ""}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? { ...x, price_5l: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-24 p-2 rounded border"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={m.price_20l ?? ""}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? { ...x, price_20l: e.target.value }
+                                    : x
+                                )
+                              )
+                            }
+                            className="w-24 p-2 rounded border"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={Number(m.is_active) === 1}
+                            onChange={(e) =>
+                              setOilModels((prev) =>
+                                prev.map((x) =>
+                                  x.id === m.id
+                                    ? { ...x, is_active: e.target.checked ? 1 : 0 }
+                                    : x
+                                )
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="relative inline-block oil-row-actions-menu">
+                            <button
+                              onClick={() =>
+                                setOpenOilActionMenuId(
+                                  openOilActionMenuId === m.id ? null : m.id
+                                )
+                              }
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-md transition"
+                              style={{ background: "var(--accent)" }}
+                              title="Actions"
+                            >
+                              <span className="inline-flex items-center justify-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                              </span>
+                            </button>
+
+                            {openOilActionMenuId === m.id && (
+                              <div
+                                className="absolute right-0 mt-2 w-44 rounded shadow-lg border oil-row-actions-menu"
+                                style={{
+                                  background: "var(--bg-card)",
+                                  borderColor: "var(--border-color)",
+                                  zIndex: 30,
+                                }}
+                              >
+                                <button
+                                  onClick={() => {
+                                    saveOilModel(m);
+                                    setOpenOilActionMenuId(null);
+                                  }}
+                                  disabled={inlineOilSaving === m.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
+                                  style={{ color: "var(--text-color)" }}
+                                >
+                                  {inlineOilSaving === m.id ? (
+                                    <AiOutlineLoading3Quarters className="animate-spin w-4 h-4 text-green-400" />
+                                  ) : (
+                                    <FaSave className="w-4 h-4 text-green-400" />
+                                  )}
+                                  Enregistrer
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    removeOilModel(m.id);
+                                    setOpenOilActionMenuId(null);
+                                  }}
+                                  disabled={deletingOilModel === m.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
+                                  style={{ color: "var(--text-color)" }}
+                                >
+                                  {deletingOilModel === m.id ? (
+                                    <AiOutlineLoading3Quarters className="animate-spin w-4 h-4 text-red-400" />
+                                  ) : (
+                                    <FaTrash className="w-4 h-4 text-red-500" />
+                                  )}
+                                  Supprimer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 p-4 rounded border" style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}>
+              <h4 className="font-semibold mb-2">Ajouter un modèle d'huile</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  value={newOilModel.name}
+                  onChange={(e) =>
+                    setNewOilModel((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  placeholder="Nom du modèle"
+                  className="p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={newOilModel.price_1l}
+                  onChange={(e) =>
+                    setNewOilModel((prev) => ({ ...prev, price_1l: e.target.value }))
+                  }
+                  placeholder="Prix 1L"
+                  className="p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={newOilModel.price_4l}
+                  onChange={(e) =>
+                    setNewOilModel((prev) => ({ ...prev, price_4l: e.target.value }))
+                  }
+                  placeholder="Prix 4L"
+                  className="p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={newOilModel.price_5l}
+                  onChange={(e) =>
+                    setNewOilModel((prev) => ({ ...prev, price_5l: e.target.value }))
+                  }
+                  placeholder="Prix 5L"
+                  className="p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={newOilModel.price_20l}
+                  onChange={(e) =>
+                    setNewOilModel((prev) => ({ ...prev, price_20l: e.target.value }))
+                  }
+                  placeholder="Prix 20L"
+                  className="p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newOilModel.is_active}
+                    onChange={(e) =>
+                      setNewOilModel((prev) => ({ ...prev, is_active: e.target.checked }))
+                    }
+                  />
+                  Actif
+                </label>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={addOilModel}
+                  disabled={addingOilModel}
+                  className="px-4 py-2 rounded text-white disabled:opacity-60 flex items-center gap-2"
+                  style={{ background: "var(--accent)" }}
+                >
+                  {addingOilModel ? <AiOutlineLoading3Quarters className="animate-spin" /> : <FaPlus />}
+                  Ajouter
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setClosingOilManagerModal(true);
+                  setTimeout(() => {
+                    setShowOilManagerModal(false);
+                    setClosingOilManagerModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-color)",
+                }}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVitrineSections && showTowingManagerModal && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingTowingManagerModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={() => {
+            if (savingBusinessConfig) return;
+            setClosingTowingManagerModal(true);
+            setTimeout(() => {
+              setShowTowingManagerModal(false);
+              setClosingTowingManagerModal(false);
+            }, 180);
+          }}
+        >
+          <div
+            ref={towingManagerModalRef}
+            className={`p-6 rounded shadow w-full max-w-2xl modal-panel ${closingTowingManagerModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <FaWrench />
+                Gérer Remorquage
+              </h3>
+              <span className="text-sm opacity-70">{towingManagerService?.name || "Service"}</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm opacity-70 mb-1">Prix remorquage par km</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={towingPricePerKm}
+                  onChange={(e) => setTowingPricePerKm(e.target.value)}
+                  disabled={!canManageConfig}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Ex: 500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm opacity-70 mb-1">Prix de base remorquage</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={towingBasePrice}
+                  onChange={(e) => setTowingBasePrice(e.target.value)}
+                  disabled={!canManageConfig}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Ex: 3000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm opacity-70 mb-1">Rayon remorquage (km)</label>
+                <input
+                  type="number"
+                  value={operatorTowingRadius}
+                  onChange={(e) => setOperatorTowingRadius(e.target.value)}
+                  disabled={!canManageConfig}
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-card)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  placeholder="Ex: 100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setClosingTowingManagerModal(true);
+                  setTimeout(() => {
+                    setShowTowingManagerModal(false);
+                    setClosingTowingManagerModal(false);
+                  }, 180);
+                }}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  const ok = await saveBusinessConfig();
+                  if (!ok) return;
+                  setClosingTowingManagerModal(true);
+                  setTimeout(() => {
+                    setShowTowingManagerModal(false);
+                    setClosingTowingManagerModal(false);
+                  }, 180);
+                }}
+                disabled={savingBusinessConfig || !canManageConfig}
+                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+                style={{ background: "var(--accent)", color: "#fff" }}
+                title={canManageConfig ? "" : "Droit requis: config_manage"}
+              >
+                {savingBusinessConfig ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaSave />
+                )}
+                Mettre à jour
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showVitrineSections && confirmService && (
         <div
           className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingConfirmService ? "closing" : ""}`}

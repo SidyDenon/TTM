@@ -577,6 +577,8 @@ export default (db) => {
               JOIN users u ON u.id = r.user_id
               WHERE r.lat IS NOT NULL
                 AND r.lng IS NOT NULL
+                AND COALESCE(r.service_type, '') <> 'oil_service'
+                AND COALESCE(r.service, '') <> 'oil_service'
                 AND (
                   (r.status = 'publiee' AND r.operator_id IS NULL)
                   OR (r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage'))
@@ -647,8 +649,10 @@ export default (db) => {
     try {
       const { id } = req.params;
 
+      const { operatorInternal } = await getSchemaColumns(req.db);
+      const internalSel = operatorInternal ? `, ${operatorInternal} AS is_internal` : "";
       const [[profile]] = await req.db.query(
-        "SELECT lat, lng FROM operators WHERE user_id = ?",
+        `SELECT lat, lng${internalSel} FROM operators WHERE user_id = ?`,
         [req.user.id]
       );
       if (!profile || profile.lat == null || profile.lng == null) {
@@ -687,12 +691,25 @@ export default (db) => {
              q.status = 'publiee'
              AND q.operator_id IS NULL
              AND (
+               ? = 1
+               OR (COALESCE(q.service_type, '') <> 'oil_service' AND COALESCE(q.service, '') <> 'oil_service')
+             )
+             AND (
                q.distance <= ?
                OR (LOWER(q.service) LIKE '%remorqu%' AND q.distance <= ?)
              )
            )
          LIMIT 1`,
-        [profile.lat, profile.lng, profile.lat, id, req.user.id, radiusKm, towingRadiusKm]
+        [
+          profile.lat,
+          profile.lng,
+          profile.lat,
+          id,
+          req.user.id,
+          Number(profile.is_internal) === 1 ? 1 : 0,
+          radiusKm,
+          towingRadiusKm,
+        ]
       );
 
       if (rows.length === 0) {
@@ -774,7 +791,11 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       `SELECT r.*, u.name AS client_name, u.phone AS client_phone
        FROM requests r
        JOIN users u ON u.id = r.user_id
-       WHERE r.id = ? AND r.status = 'publiee' AND (r.operator_id IS NULL OR r.operator_id = ?)
+       WHERE r.id = ?
+         AND (
+           (r.status = 'publiee' AND r.operator_id IS NULL)
+           OR (r.status IN ('publiee','assignee') AND r.operator_id = ?)
+         )
        FOR UPDATE`,
       [id, req.user.id]
     );
@@ -785,6 +806,18 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       return res
         .status(409)
         .json({ error: "Mission introuvable ou déjà prise" });
+    }
+
+    const isOilService =
+      String(missionBefore.service_type || "").toLowerCase() === "oil_service" ||
+      String(missionBefore.service || "").toLowerCase() === "oil_service";
+
+    if (isOilService && Number(missionBefore.operator_id) !== Number(req.user.id)) {
+      await connection.rollback();
+      connection.release();
+      return res.status(403).json({
+        error: "Mission domicile réservée: seul l'opérateur désigné par l'admin peut l'accepter",
+      });
     }
 
     const isTow =

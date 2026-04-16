@@ -262,6 +262,46 @@ export default function SiteVitrine() {
     return matches.slice(0, 200);
   }, [iconList, iconSearch, addForm.icon]);
 
+  const isHomeOilService = (name) => {
+    const key = String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return (
+      key.includes("domicile") ||
+      key.includes("huile") ||
+      key.includes("oil") ||
+      key.includes("vidange")
+    );
+  };
+
+  const isPinnedProtectedService = (name) => {
+    const key = String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return key.includes("remorqu") || isHomeOilService(name);
+  };
+
+  const sortPinnedServices = (list = []) => {
+    const arr = Array.isArray(list) ? [...list] : [];
+    const priority = (srv) => {
+      const key = String(srv?.name || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      if (key.includes("remorqu")) return 0;
+      if (isHomeOilService(srv?.name)) return 1;
+      return 2;
+    };
+    return arr.sort((a, b) => {
+      const pa = priority(a);
+      const pb = priority(b);
+      if (pa !== pb) return pa - pb;
+      return String(a?.name || "").localeCompare(String(b?.name || ""), "fr");
+    });
+  };
+
   // ─────────── Fetchers
   const loadServices = async () => {
     if (!canViewServices) return; // RBAC
@@ -272,7 +312,7 @@ export default function SiteVitrine() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur chargement services");
-      setServices(data.data || []);
+      setServices(sortPinnedServices(data.data || []));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -536,6 +576,11 @@ export default function SiteVitrine() {
         "Vous n’avez pas les droits pour supprimer un service."
       );
     }
+    if (isPinnedProtectedService(srv?.name)) {
+      toast.error('Les services "Remorquage" et "Service à Domicile" sont protégés.');
+      return false;
+    }
+
     try {
       setConfirmServiceLoading(true);
       const res = await fetch(`${API_BASE}/api/admin/vitrine/services/${srv.id}`, {
@@ -546,7 +591,7 @@ export default function SiteVitrine() {
       if (!res.ok)
         throw new Error(data.error || "Erreur suppression service");
       toast.success(`Service "${srv.name}" supprimé ✅`);
-      setServices((prev) => prev.filter((s) => s.id !== srv.id));
+      setServices((prev) => sortPinnedServices(prev.filter((s) => s.id !== srv.id)));
       return true;
     } catch (e) {
       toast.error(e.message);
@@ -557,6 +602,10 @@ export default function SiteVitrine() {
   };
 
   const deleteService = (srv) => {
+    if (isPinnedProtectedService(srv?.name)) {
+      toast.error('Les services "Remorquage" et "Service à Domicile" sont protégés.');
+      return;
+    }
     setClosingConfirmService(false);
     setConfirmService(srv);
   };
@@ -599,7 +648,7 @@ export default function SiteVitrine() {
         setShowAddServiceModal(false);
         setClosingAddServiceModal(false);
       }, 180);
-      setServices((prev) => [data.data, ...prev]);
+      setServices((prev) => sortPinnedServices([data.data, ...prev]));
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -1130,17 +1179,19 @@ export default function SiteVitrine() {
                             <FaSave className="inline" />
                           )}
                         </button>
-                        <button
-                          onClick={() => deleteService(s)}
-                          disabled={!canManageServices}
-                          className="px-3 py-1 rounded"
-                          style={{ background: "#e5372e", color: "#fff" }}
-                          title={
-                            canManageServices ? "" : "Droit requis: services_manage"
-                          }
-                        >
-                          <FaTrash />
-                        </button>
+                        {!isPinnedProtectedService(s.name) && (
+                          <button
+                            onClick={() => deleteService(s)}
+                            disabled={!canManageServices}
+                            className="px-3 py-1 rounded"
+                            style={{ background: "#e5372e", color: "#fff" }}
+                            title={
+                              canManageServices ? "" : "Droit requis: services_manage"
+                            }
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))

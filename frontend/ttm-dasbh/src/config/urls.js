@@ -89,11 +89,37 @@ export const apiUrl = (path = "") => {
   return `${base}${p.startsWith("/") ? p : "/" + p}`;
 };
 
+const LOCAL_ASSET_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+const normalizeAbsoluteAssetUrl = (raw) => {
+  try {
+    const value = String(raw || "").trim();
+    if (!value) return "";
+
+    const api = new URL(getApiBase());
+    const u = new URL(value);
+
+    // If backend stored a local upload URL, rewrite it against the current API origin.
+    if (u.pathname.startsWith("/uploads/") && LOCAL_ASSET_HOSTS.has(u.hostname)) {
+      return `${api.origin}${u.pathname}${u.search}`;
+    }
+
+    // In HTTPS pages, avoid mixed content for upload URLs when protocol is http.
+    if (u.pathname.startsWith("/uploads/") && api.protocol === "https:" && u.protocol === "http:") {
+      return `${api.origin}${u.pathname}${u.search}`;
+    }
+
+    return value;
+  } catch {
+    return String(raw || "").trim();
+  }
+};
+
 // URLs pour les assets uploadés (/uploads/…)
 export const buildAssetUrl = (path = "") => {
   const p = String(path || "");
   if (!p) return "";
-  if (p.startsWith("http")) return p;
+  if (p.startsWith("http")) return normalizeAbsoluteAssetUrl(p);
   const base = getApiBase();
   return `${base}${p.startsWith("/") ? "" : "/"}${p}`;
 };

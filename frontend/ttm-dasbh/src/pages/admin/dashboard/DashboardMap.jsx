@@ -6,6 +6,13 @@ import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
 import { MAP_TILES } from "../../../config/urls";
 
+const toFiniteLatLng = (lat, lng) => {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+  return [latNum, lngNum];
+};
+
 export default function DashboardMap({
   requests,
   fetchData,
@@ -115,21 +122,27 @@ export default function DashboardMap({
         attributionControl={false}
       >
         <TileLayer url={MAP_TILES.DEFAULT} />
-        {userLocation && (
-          <CircleMarker
-            center={[Number(userLocation.lat), Number(userLocation.lng)]}
-            radius={6}
-            pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
-          >
-            <Popup>Votre position</Popup>
-          </CircleMarker>
-        )}
+        {(() => {
+          const center = userLocation
+            ? toFiniteLatLng(userLocation.lat, userLocation.lng)
+            : null;
+          if (!center) return null;
+          return (
+            <CircleMarker
+              center={center}
+              radius={6}
+              pathOptions={{ color: "#1d4ed8", fillColor: "#3b82f6", fillOpacity: 0.9 }}
+            >
+              <Popup>Votre position</Popup>
+            </CircleMarker>
+          );
+        })()}
         {active
-          .filter((r) => r.lat && r.lng)
+          .filter((r) => toFiniteLatLng(r.lat, r.lng))
           .map((r) => (
             <Marker
               key={`${r.id}-${r.status}`}
-              position={[Number(r.lat), Number(r.lng)]}
+              position={toFiniteLatLng(r.lat, r.lng)}
               icon={getServiceIcon(r.service, r.status)}
             >
               <Popup>
@@ -157,9 +170,10 @@ export default function DashboardMap({
         {/* Positions opérateurs (live) */}
         {active.map((r) => {
           const pos = operatorPositions?.[r.id];
-          if (!pos || !Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return null;
+          const position = pos ? toFiniteLatLng(pos.lat, pos.lng) : null;
+          if (!position) return null;
           return (
-            <Marker key={`op-${r.id}-${pos.timestamp}`} position={[Number(pos.lat), Number(pos.lng)]}>
+            <Marker key={`op-${r.id}-${pos.timestamp}`} position={position}>
               <Popup>
                 <div className="space-y-1">
                   <p><strong>Opérateur:</strong> {pos.operatorId}</p>
@@ -181,8 +195,11 @@ function AutoCenterOnUser({ userLocation, hasActive }) {
   const didCenter = useRef(false);
 
   useEffect(() => {
-    if (!userLocation || hasActive || didCenter.current) return;
-    map.setView([Number(userLocation.lat), Number(userLocation.lng)], 12, { animate: true });
+    const center = userLocation
+      ? toFiniteLatLng(userLocation.lat, userLocation.lng)
+      : null;
+    if (!center || hasActive || didCenter.current) return;
+    map.setView(center, 12, { animate: true });
     didCenter.current = true;
   }, [map, userLocation, hasActive]);
 

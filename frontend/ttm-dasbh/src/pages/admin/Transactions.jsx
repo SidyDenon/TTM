@@ -197,6 +197,7 @@ export default function Transactions() {
             <td>${t.request_id ? `#${t.request_id}` : "—"}</td>
             <td>${formatAmount(t.amount)} ${t.currency || ""}</td>
             <td>${t.status || ""}</td>
+            <td>${t.confirmed_by_admin || "—"}</td>
             <td>${t.created_at ? new Date(t.created_at).toLocaleString() : ""}</td>
           </tr>`
       )
@@ -219,7 +220,7 @@ export default function Transactions() {
           <table>
             <thead>
               <tr>
-                <th>#ID</th><th>Opérateur</th><th>Mission</th><th>Montant</th><th>Statut</th><th>Date</th>
+                <th>#ID</th><th>Opérateur</th><th>Mission</th><th>Montant</th><th>Statut</th><th>Confirmée par</th><th>Date</th>
               </tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
@@ -412,6 +413,7 @@ export default function Transactions() {
                 <th className="px-3 py-2 text-left">Mission</th>
                 <th className="px-3 py-2 text-left">Montant</th>
                 <th className="px-3 py-2 text-left">Statut</th>
+                <th className="px-3 py-2 text-left">Confirmée par</th>
                 <th className="px-3 py-2 text-left">Date</th>
                 <th className="px-3 py-2 text-center">Actions</th>
               </tr>
@@ -446,6 +448,9 @@ export default function Transactions() {
                     }}
                   >
                     {t.status}
+                  </td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>
+                    {t.confirmed_by_admin || "—"}
                   </td>
                   <td className="px-3 py-2">
                     {new Date(t.created_at).toLocaleString()}

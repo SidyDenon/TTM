@@ -20,8 +20,12 @@ import Toast from "react-native-toast-message";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import Loader from "../../components/Loader";
-
-const SERVICE_CLIENT_NUMBER = "+22300000000"; // 👉 remplace par ton vrai numéro
+import {
+  getResponderLabel,
+  getRespondersLabel,
+  isTowingService,
+} from "../../utils/services";
+import { SUPPORT_PHONE, fetchPublicSupportConfig } from "../../config/support";
 
 type MissionUpdatePayload = {
   id: number | string;
@@ -58,6 +62,7 @@ export default function SearchingOperatorsScreen() {
   const [quote, setQuote] = useState<{ amount: number; currency?: string | null } | null>(null);
   const [service, setService] = useState<string | null>(null);
   const [totalKm, setTotalKm] = useState<number | null>(null);
+  const [supportPhone, setSupportPhone] = useState(SUPPORT_PHONE);
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const cancellationNotifiedRef = useRef(false);
@@ -80,6 +85,18 @@ export default function SearchingOperatorsScreen() {
   const goToTracking = () => {
     router.replace("/user/SuiviMissionScreen");
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cfg = await fetchPublicSupportConfig();
+      if (cancelled) return;
+      setSupportPhone(cfg.support_phone || SUPPORT_PHONE);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /* ------- MAP / LOCALISATION (juste pour le fond) ------- */
   useEffect(() => {
@@ -173,7 +190,8 @@ export default function SearchingOperatorsScreen() {
       if (Number(data.id) !== idNum) return;
 
       if (data.status === "acceptee") {
-        const name = data.operator_name ?? "Un dépanneur";
+        const responderLabel = getResponderLabel(data.service);
+        const name = data.operator_name ?? `Un ${responderLabel}`;
         const amount =
           typeof data.final_price === "number"
             ? data.final_price
@@ -186,7 +204,7 @@ export default function SearchingOperatorsScreen() {
         Toast.show({
           type: "success",
           text1: "Mission acceptée",
-          text2: `${name} a accepté ta mission et se dirige vers toi.`,
+            text2: `${name} a accepté ta mission et se dirige vers toi.`,
         });
 
         setStatus("accepted");
@@ -355,7 +373,8 @@ export default function SearchingOperatorsScreen() {
   });
 
   const callServiceClient = () => {
-    Linking.openURL(`tel:${SERVICE_CLIENT_NUMBER}`);
+    if (!supportPhone) return;
+    Linking.openURL(`tel:${supportPhone}`);
   };
 
   const isPending = status === "pending";
@@ -388,20 +407,18 @@ export default function SearchingOperatorsScreen() {
       <View style={styles.contentWrapper}>
         <View style={styles.topTextBlock}>
           <Text style={styles.title}>
-            {isPending && "Nous cherchons un dépanneur"}
+            {isPending && "Nous cherchons un intervenant"}
             {isAccepted &&
-              (service && service.toLowerCase().includes("remorqu")
-                ? "Un remorqueur arrive"
-                : "Un dépanneur arrive")}
-            {isTimeout && "Aucun dépanneur disponible"}
+              `Un ${getResponderLabel(service)} arrive`}
+            {isTimeout && "Aucun intervenant disponible"}
           </Text>
           <Text style={styles.subtitle}>
             {isPending &&
-              "Les dépanneurs les plus proches reçoivent ta demande. Merci de patienter…"}
+              `Les ${getRespondersLabel(service)} les plus proches recoivent ta demande. Merci de patienter...`}
             {isAccepted &&
               (operatorName
                 ? `${operatorName} a accepté ta mission. Redirection vers le suivi en direct.`
-                : "Un dépanneur a accepté ta mission. Redirection vers le suivi…")}
+                : `Un ${getResponderLabel(service)} a accepté ta mission. Redirection vers le suivi...`)}
             {isTimeout &&
               "Personne n’a pu accepter ta demande. Réessaie dans quelques minutes."}
           </Text>
@@ -428,7 +445,7 @@ export default function SearchingOperatorsScreen() {
             <View style={styles.statusRow}>
               <View style={styles.statusChip}>
                 <View style={[styles.statusDot, { backgroundColor: "#4CAF50" }]} />
-                <Text style={styles.statusText}>Dépanneur trouvé</Text>
+                <Text style={styles.statusText}>Intervenant trouvé</Text>
               </View>
               {numericId && (
                 <View style={styles.refBadge}>
@@ -445,13 +462,13 @@ export default function SearchingOperatorsScreen() {
               <Text style={styles.quoteAmount}>
                 {quote ? formatAmount(quote.amount, quote.currency) : "—"}
               </Text>
-              {service && service.toLowerCase().includes("remorqu") && (
+              {isTowingService(service) && (
                 <Text style={styles.quoteHint}>
                   Montant recalculé selon la distance réelle du remorquage.
                 </Text>
               )}
               {service &&
-                service.toLowerCase().includes("remorqu") &&
+                isTowingService(service) &&
                 typeof totalKm === "number" && (
                   <Text style={styles.quoteHint}>
                     Distance totale estimée : {totalKm.toFixed(1)} km

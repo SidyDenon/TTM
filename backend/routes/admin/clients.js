@@ -240,7 +240,7 @@ Dépannage express – 24h/24
           .json({ error: "Ce client a encore des missions actives" });
       }
 
-      // Récupérer toutes les demandes du client (terminées/annulées)
+      // Récupérer toutes les demandes du client
       const [allRequests] = await req.db.query(
         "SELECT id FROM requests WHERE user_id = ?",
         [id]
@@ -249,7 +249,17 @@ Dépannage express – 24h/24
         const requestIds = allRequests.map((r) => r.id);
         const placeholders = requestIds.map(() => "?").join(",");
 
-        // Supprimer les événements liés (request_events → requests)
+        // 1) transactions (réf → requests)
+        try {
+          await req.db.query(
+            `DELETE FROM transactions WHERE request_id IN (${placeholders})`,
+            requestIds
+          );
+        } catch (e) {
+          if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
+        }
+
+        // 2) request_events (réf → requests)
         try {
           await req.db.query(
             `DELETE FROM request_events WHERE request_id IN (${placeholders})`,
@@ -259,25 +269,28 @@ Dépannage express – 24h/24
           if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
         }
 
-        // Supprimer les demandes elles-mêmes
+        // 3) requests eux-mêmes (réf → users)
         await req.db.query(
           `DELETE FROM requests WHERE id IN (${placeholders})`,
           requestIds
         );
       }
 
-      // Supprimer les tokens push
+      // 4) tokens push (réf → users)
       try {
         await req.db.query("DELETE FROM device_tokens WHERE user_id = ?", [id]);
       } catch (e) {
         if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
       }
 
+      // 5) profil client (réf → users)
       try {
         await req.db.query("DELETE FROM clients WHERE user_id = ?", [id]);
       } catch (e) {
         if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
       }
+
+      // 6) utilisateur
       await req.db.query("DELETE FROM users WHERE id = ?", [id]);
 
       await logAdminEvent(req.db, req.user.id, "client_supprime", {
@@ -286,8 +299,8 @@ Dépannage express – 24h/24
 
       res.json({ message: `Client #${id} supprimé ✅` });
     } catch (err) {
-      console.error("❌ Erreur DELETE /clients/:id:", err);
-      res.status(500).json({ error: "Erreur serveur" });
+      console.error("❌ Erreur DELETE /clients/:id:", err?.message || err, err?.code);
+      res.status(500).json({ error: "Erreur serveur", detail: err?.message });
     }
   });
 

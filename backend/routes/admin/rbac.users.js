@@ -6,6 +6,7 @@ import { loadAdminPermissions, checkPermission } from "../../middleware/checkPer
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendMail } from "../../utils/mailer.js";
+import { findIdentityConflict } from "../../utils/identityUniqueness.js";
 
 const router = express.Router();
 const columnCache = new Map();
@@ -182,8 +183,10 @@ router.post("/", superOnly, checkPermission("rbac_users_manage"), async (req, re
     const { name, email, phone, role_id, permissions = [] } = req.body || {};
     if (!name || !email) return res.status(400).json({ error: "Nom et email requis" });
 
-    const [existing] = await req.db.query("SELECT id FROM admin_users WHERE email = ?", [email]);
-    if (existing.length > 0) return res.status(400).json({ error: "Email déjà utilisé" });
+    const conflict = await findIdentityConflict(req.db, { email, phone });
+    if (conflict) {
+      return res.status(400).json({ error: "Téléphone ou email déjà utilisé" });
+    }
 
     // Normaliser permissions (tableau)
     const perms = Array.isArray(permissions) ? permissions : [];
@@ -377,13 +380,15 @@ Important : changez votre mot de passe à la première connexion.`,
         return res.status(400).json({ error: "Nom et email requis" });
       }
 
-      if (nextEmail !== admin.email) {
-        const [existing] = await req.db.query(
-          "SELECT id FROM admin_users WHERE email = ? AND id <> ?",
-          [nextEmail, id]
-        );
-        if (existing.length > 0) {
-          return res.status(400).json({ error: "Email déjà utilisé" });
+      if (nextEmail !== admin.email || nextPhone !== admin.phone) {
+        const conflict = await findIdentityConflict(req.db, {
+          email: nextEmail,
+          phone: nextPhone,
+          excludeAdminId: Number(id),
+          excludeUserId: Number(id),
+        });
+        if (conflict) {
+          return res.status(400).json({ error: "Téléphone ou email déjà utilisé" });
         }
       }
 

@@ -7,6 +7,7 @@ import { getSchemaColumns } from "../utils/schema.js";
 import { sendMail } from "../utils/mailer.js";
 import { sendSMS } from "../utils/sms.js";
 import { blacklistToken } from "../utils/tokenBlacklist.js";
+import { findIdentityConflict } from "../utils/identityUniqueness.js";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -73,9 +74,14 @@ export default (db) => {
         return res.status(400).json({ error: "Tous les champs sont obligatoires" });
       }
 
-      const [rows] = await req.db.query("SELECT * FROM users WHERE phone = ?", [phone]);
-      if (rows.length > 0) {
-        return res.status(400).json({ error: "Numéro déjà utilisé" });
+      const conflict = await findIdentityConflict(req.db, { email, phone });
+      if (conflict) {
+        return res.status(400).json({
+          error:
+            conflict.field === "phone"
+              ? "Numéro déjà utilisé"
+              : "Email déjà utilisé",
+        });
       }
 
       const hashed = await bcrypt.hash(password, 10);

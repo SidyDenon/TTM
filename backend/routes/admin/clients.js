@@ -5,6 +5,7 @@ import authMiddleware from "../../middleware/auth.js";
 import { sendMail } from "../../utils/mailer.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
+import { findIdentityConflict } from "../../utils/identityUniqueness.js";
 
 const router = express.Router();
 
@@ -62,12 +63,8 @@ export default (db) => {
         return res.status(400).json({ error: "Nom et téléphone requis" });
       }
 
-      //  unicité phone/email 
-      const [exists] = await req.db.query(
-        "SELECT id FROM users WHERE phone = ? OR (email IS NOT NULL AND email = ?)",
-        [phone, email || null]
-      );
-      if (exists.length > 0) {
+      const conflict = await findIdentityConflict(req.db, { email, phone });
+      if (conflict) {
         return res
           .status(400)
           .json({ error: "Téléphone ou email déjà utilisé" });
@@ -160,16 +157,15 @@ Dépannage express – 24h/24
       const { id } = req.params;
       const { name, phone, email, adresse } = req.body;
 
-      // 🔎 unicité phone/email
+      // 🔎 unicité globale phone/email (users + admin_users)
       if (phone || email !== undefined) {
-        const [exists] = await req.db.query(
-          "SELECT id FROM users WHERE (phone = ? OR (email IS NOT NULL AND email = ?)) AND id != ?",
-          [phone || "", email || "", id]
-        );
-        if (exists.length > 0) {
-          return res
-            .status(400)
-            .json({ error: "Téléphone ou email déjà utilisé" });
+        const conflict = await findIdentityConflict(req.db, {
+          email,
+          phone,
+          excludeUserId: Number(id),
+        });
+        if (conflict) {
+          return res.status(400).json({ error: "Téléphone ou email déjà utilisé" });
         }
       }
 
@@ -240,6 +236,12 @@ Dépannage express – 24h/24
           .status(400)
           .json({ error: "Ce client a encore des missions actives" });
       }
+
+      // Détacher les missions terminées/annulées pour respecter la FK
+      await req.db.query(
+        "UPDATE requests SET user_id = NULL WHERE user_id = ? AND status IN ('terminee','annulee_client','annulee_admin')",
+        [id]
+      );
 
       try {
         await req.db.query("DELETE FROM clients WHERE user_id = ?", [id]);

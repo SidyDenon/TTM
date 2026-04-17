@@ -6,6 +6,7 @@ import authMiddleware from "../../middleware/auth.js";
 import { sendMail } from "../../utils/mailer.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
+import { findIdentityConflict } from "../../utils/identityUniqueness.js";
 
 const router = express.Router();
 
@@ -78,12 +79,8 @@ export default (db) => {
             .json({ error: "Nom et téléphone sont requis" });
         }
 
-        // unicité phone/email (email peut être null)
-        const [rows] = await req.db.query(
-          "SELECT id FROM users WHERE phone = ? OR (email IS NOT NULL AND email = ?)",
-          [phone, email || null]
-        );
-        if (rows.length > 0) {
+        const conflict = await findIdentityConflict(req.db, { email, phone });
+        if (conflict) {
           return res
             .status(400)
             .json({ error: "Téléphone ou email déjà utilisé" });
@@ -169,13 +166,14 @@ export default (db) => {
         const { name, phone, email, password, ville, quartier, dispo, is_internal } =
           req.body;
 
-        // unicité phone/email
-        if (phone || email) {
-          const [exists] = await req.db.query(
-            "SELECT id FROM users WHERE (phone = ? OR (email IS NOT NULL AND email = ?)) AND id != ?",
-            [phone || "", email || "", id]
-          );
-          if (exists.length > 0) {
+        // unicité globale phone/email (users + admin_users)
+        if (phone || email !== undefined) {
+          const conflict = await findIdentityConflict(req.db, {
+            email,
+            phone,
+            excludeUserId: Number(id),
+          });
+          if (conflict) {
             return res
               .status(400)
               .json({ error: "Téléphone ou email déjà utilisé" });

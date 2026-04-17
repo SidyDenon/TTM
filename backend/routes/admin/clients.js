@@ -227,8 +227,11 @@ Dépannage express – 24h/24
         return res.status(404).json({ error: "Client introuvable" });
       }
 
+      // Bloquer si missions encore en cours (non terminées/annulées)
       const [missions] = await req.db.query(
-        "SELECT id FROM requests WHERE user_id = ? AND status NOT IN ('terminee','annulee_client','annulee_admin')",
+        `SELECT id FROM requests WHERE user_id = ? AND status IN (
+          'en_attente','publiee','assignee','acceptee','en_route','sur_place'
+        )`,
         [id]
       );
       if (missions.length > 0) {
@@ -237,11 +240,38 @@ Dépannage express – 24h/24
           .json({ error: "Ce client a encore des missions actives" });
       }
 
-      // Détacher les missions terminées/annulées pour respecter la FK
-      await req.db.query(
-        "UPDATE requests SET user_id = NULL WHERE user_id = ? AND status IN ('terminee','annulee_client','annulee_admin')",
+      // Récupérer toutes les demandes du client (terminées/annulées)
+      const [allRequests] = await req.db.query(
+        "SELECT id FROM requests WHERE user_id = ?",
         [id]
       );
+      if (allRequests.length > 0) {
+        const requestIds = allRequests.map((r) => r.id);
+        const placeholders = requestIds.map(() => "?").join(",");
+
+        // Supprimer les événements liés (request_events → requests)
+        try {
+          await req.db.query(
+            `DELETE FROM request_events WHERE request_id IN (${placeholders})`,
+            requestIds
+          );
+        } catch (e) {
+          if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
+        }
+
+        // Supprimer les demandes elles-mêmes
+        await req.db.query(
+          `DELETE FROM requests WHERE id IN (${placeholders})`,
+          requestIds
+        );
+      }
+
+      // Supprimer les tokens push
+      try {
+        await req.db.query("DELETE FROM device_tokens WHERE user_id = ?", [id]);
+      } catch (e) {
+        if (e?.code !== "ER_NO_SUCH_TABLE") throw e;
+      }
 
       try {
         await req.db.query("DELETE FROM clients WHERE user_id = ?", [id]);

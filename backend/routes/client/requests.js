@@ -514,13 +514,16 @@ export default (db, notifyOperators, emitMissionEvent) => {
       const currency = existing.currency || "FCFA";
       const [result] = await req.db.query(
         `INSERT INTO requests
-         (user_id, service, description, lat, lng, address, zone,
+         (user_id, service, service_type, description, lat, lng, address, zone,
           destination, dest_lat, dest_lng, estimated_price,
           currency, status, published_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'publiee', NOW(), NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'publiee', NOW(), NOW())`,
         [
           req.user.id,
           existing.service,
+          existing.service_type && String(existing.service_type).trim()
+            ? existing.service_type
+            : "standard",
           existing.description || "",
           existing.lat,
           existing.lng,
@@ -711,13 +714,14 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
 
     const [result] = await req.db.query(
       `INSERT INTO requests 
-       (user_id, service, description, lat, lng, address, zone,
+       (user_id, service, service_type, description, lat, lng, address, zone,
         destination, dest_lat, dest_lng, estimated_price,
         currency, status, published_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'publiee', NOW(), NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'publiee', NOW(), NOW())`,
       [
         req.user.id,
         srv.name,
+        "standard",
         description || "",
         latNum,
         lngNum,

@@ -577,8 +577,10 @@ export default (db) => {
               JOIN users u ON u.id = r.user_id
               WHERE r.lat IS NOT NULL
                 AND r.lng IS NOT NULL
-                AND COALESCE(r.service_type, '') <> 'oil_service'
-                AND COALESCE(r.service, '') <> 'oil_service'
+                AND NOT (
+                  COALESCE(r.service_type, '') = 'oil_service'
+                  AND COALESCE(r.service, '') = 'oil_service'
+                )
                 AND (
                   (r.status = 'publiee' AND r.operator_id IS NULL)
                   OR (r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage'))
@@ -692,7 +694,10 @@ export default (db) => {
              AND q.operator_id IS NULL
              AND (
                ? = 1
-               OR (COALESCE(q.service_type, '') <> 'oil_service' AND COALESCE(q.service, '') <> 'oil_service')
+               OR NOT (
+                 COALESCE(q.service_type, '') = 'oil_service'
+                 AND COALESCE(q.service, '') = 'oil_service'
+               )
              )
              AND (
                q.distance <= ?
@@ -809,7 +814,7 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     }
 
     const isOilService =
-      String(missionBefore.service_type || "").toLowerCase() === "oil_service" ||
+      String(missionBefore.service_type || "").toLowerCase() === "oil_service" &&
       String(missionBefore.service || "").toLowerCase() === "oil_service";
 
     if (isOilService && Number(missionBefore.operator_id) !== Number(req.user.id)) {

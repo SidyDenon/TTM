@@ -1,14 +1,21 @@
 // utils/mailer.js
 import { SendMailClient } from "zeptomail";
 
-// ================== ZEPTOMAIL API (PROD) ==================
-
 const zeptoUrl = process.env.ZEPTO_URL || "https://api.zeptomail.com/v1.1/email";
 const zeptoToken = process.env.ZEPTO_TOKEN || "";
 
 const zeptoClient = zeptoToken
   ? new SendMailClient({ url: zeptoUrl, token: zeptoToken })
   : null;
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
 async function sendMailViaZepto(to, subject, text = "", html = "", toName = "") {
   if (!zeptoClient) throw new Error("Missing ZEPTO_TOKEN (ZeptoMail API)");
@@ -30,18 +37,6 @@ async function sendMailViaZepto(to, subject, text = "", html = "", toName = "") 
   });
 }
 
-
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-
-
 export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = "", toNameArg = "") {
   const isObjectPayload =
     toOrOptions && typeof toOrOptions === "object" && !Array.isArray(toOrOptions);
@@ -56,13 +51,13 @@ export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = 
   if (!subject) throw new Error("Subject cannot be empty.");
 
   if (!zeptoClient) {
-    console.warn("⚠️ ZEPTO_TOKEN manquant: envoi email ignore");
+    console.warn("⚠️ ZEPTO_TOKEN manquant: envoi email ignoré");
     return;
   }
 
   try {
     const resp = await sendMailViaZepto(to, subject, text, html, toName);
-    console.log(`📧 Email envoye a ${to} via ZeptoMail API`);
+    console.log(`📧 Email envoyé à ${to} via ZeptoMail`);
     return resp;
   } catch (err) {
     const zeptoErr = err?.error || err?.response?.data?.error;
@@ -70,21 +65,9 @@ export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = 
       err?.message ||
       zeptoErr?.message ||
       err?.response?.data?.message ||
-      err?.response?.data?.error ||
       (typeof err === "string" ? err : "") ||
       "Erreur ZeptoMail inconnue";
-    console.error("❌ Envoi via ZeptoMail API echoue", {
-      message,
-      zepto_code: zeptoErr?.code,
-      zepto_details: zeptoErr?.details,
-      code: err?.code,
-      status: err?.response?.status,
-      data: err?.response?.data,
-      name: err?.name,
-      cause: err?.cause,
-      stack: err?.stack,
-      raw: err,
-    });
+    console.error("❌ Envoi ZeptoMail échoué:", message, zeptoErr?.details || "");
     const wrapped = new Error(message);
     wrapped.cause = err;
     throw wrapped;

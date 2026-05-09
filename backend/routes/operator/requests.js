@@ -19,6 +19,11 @@ const TOWING_RADIUS_KM = Number(process.env.TOWING_RADIUS_KM || 100);
 let alertsColumnCache = null;
 async function ensureOperatorAlertsColumn(db) {
   if (alertsColumnCache !== null) return alertsColumnCache;
+  const { operatorAlerts } = await getSchemaColumns(db);
+  if (operatorAlerts) {
+    alertsColumnCache = operatorAlerts;
+    return alertsColumnCache;
+  }
   try {
     const [[row]] = await db.query(
       "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'operators' AND COLUMN_NAME = 'pending_alerts_enabled'"
@@ -325,8 +330,99 @@ const computeFallbackPrice = (basePrice, operator, client, destination) => {
   };
 };
 
+const computeOilModelPriceByLiters = (model = {}, liters = 0) => {
+  const qty = Number(liters);
+  if (!Number.isFinite(qty) || qty <= 0) return null;
+
+  const byLiters =
+    qty === 1
+      ? model.price_1l
+      : qty === 4
+      ? model.price_4l
+      : qty === 5
+      ? model.price_5l
+      : qty === 20
+      ? model.price_20l
+      : null;
+
+  const parsedByLiters = byLiters == null || byLiters === "" ? NaN : Number(byLiters);
+  if (Number.isFinite(parsedByLiters)) return parsedByLiters;
+
+  const unitPrice =
+    model.unit_price == null || model.unit_price === "" ? NaN : Number(model.unit_price);
+  if (Number.isFinite(unitPrice)) return unitPrice * qty;
+
+  return null;
+};
+
+const normalizeServiceNameKey = (name = "") =>
+  String(name)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+
+const isOilServiceName = (name = "") => {
+  const key = normalizeServiceNameKey(name);
+  return (
+    key.includes("domicile") ||
+    key.includes("huile") ||
+    key.includes("oil") ||
+    key.includes("vidange")
+  );
+};
+
+const getOilServiceBasePrice = async (db) => {
+  try {
+    const [rows] = await db.query("SELECT name, price FROM services ORDER BY id ASC");
+    const oilService = (rows || []).find((row) => isOilServiceName(row?.name));
+    const parsed = Number(oilService?.price);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const computeOilPreviewPrice = async (db, mission) => {
+  if (!mission) return null;
+  const isOilMission =
+    String(mission.service_type || "").toLowerCase() === "oil_service" &&
+    String(mission.service || "").toLowerCase() === "oil_service";
+
+  if (!isOilMission) return null;
+
+  const estimated = Number(mission.estimated_price);
+  if (Number.isFinite(estimated) && estimated > 0) {
+    return { finalPrice: estimated, totalKm: null };
+  }
+
+  const oilModelId = Number(mission.oil_model_id);
+  const liters = Number(mission.oil_liters);
+  if (!Number.isFinite(oilModelId) || oilModelId <= 0) return null;
+  if (!Number.isFinite(liters) || liters <= 0) return null;
+
+  const [[oilModel]] = await db.query(
+    "SELECT unit_price, price_1l, price_4l, price_5l, price_20l FROM oil_models WHERE id = ? LIMIT 1",
+    [oilModelId]
+  );
+  const oilPart = oilModel ? computeOilModelPriceByLiters(oilModel, liters) : null;
+  const basePart = await getOilServiceBasePrice(db);
+
+  const hasOilPart = Number.isFinite(Number(oilPart));
+  const hasBasePart = Number.isFinite(Number(basePart));
+  if (!hasOilPart && !hasBasePart) return null;
+
+  const price = Number(hasOilPart ? oilPart : 0) + Number(hasBasePart ? basePart : 0);
+
+  return { finalPrice: Number(price), totalKm: null };
+};
+
 // Calcule un tarif prévisionnel pour affichage (avant acceptation)
 const computePreviewPricing = async (db, mission, operatorCoords, preloadedConfig = null) => {
+  const oilPreview = await computeOilPreviewPrice(db, mission);
+  if (oilPreview) return oilPreview;
+
   if (!operatorCoords || operatorCoords.lat == null || operatorCoords.lng == null) return null;
   const isTow =
     typeof mission?.service === "string" &&
@@ -533,11 +629,13 @@ export default (db) => {
     }
 
     try {
-      const { operatorInternal } = await getSchemaColumns(req.db);
+      const { operatorInternal, operatorAlerts } = await getSchemaColumns(req.db);
       const internalSel = operatorInternal ? operatorInternal : null;
 
       const [[profile]] = await req.db.query(
-        `SELECT lat, lng${internalSel ? `, ${internalSel} AS is_internal` : ""} FROM operators WHERE user_id = ?`,
+        `SELECT lat, lng${internalSel ? `, ${internalSel} AS is_internal` : ""}${
+          operatorAlerts ? `, ${operatorAlerts} AS pending_alerts_enabled` : ""
+        } FROM operators WHERE user_id = ?`,
         [req.user.id]
       );
 
@@ -552,6 +650,8 @@ export default (db) => {
       const towingRadiusKm = await getOperatorTowingRadiusKm(req.db);
       let rows;
       const towingConfig = await loadTowingConfig(req.db);
+      const alertsEnabled =
+        profile.pending_alerts_enabled == null ? 1 : Number(profile.pending_alerts_enabled);
 
       if (profile.is_internal) {
         [rows] = await req.db.query(
@@ -559,6 +659,15 @@ export default (db) => {
            FROM requests r
            JOIN users u ON u.id = r.user_id
            WHERE r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage')
+           ORDER BY r.created_at DESC`,
+          [req.user.id]
+        );
+      } else if (alertsEnabled === 0) {
+        [rows] = await req.db.query(
+          `SELECT r.*, u.name AS client_name, u.phone AS client_phone
+           FROM requests r
+           JOIN users u ON u.id = r.user_id
+           WHERE r.operator_id = ? AND r.status IN ('assignee','acceptee','en_route','sur_place','remorquage')
            ORDER BY r.created_at DESC`,
           [req.user.id]
         );

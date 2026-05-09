@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useAuth } from "../../context/AuthContext";
+import { useSocket } from "../../context/SocketContext";
+import { API_URL } from "../../utils/api";
 
 const COLORS = {
   primary: "#E53935",
@@ -16,9 +19,84 @@ const getFirst = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v ?? "");
 
 export default function ServiceRequestSentScreen() {
   const router = useRouter();
+  const { token } = useAuth();
+  const { socket } = useSocket();
   const params = useLocalSearchParams<{ requestId?: string | string[]; serviceLabel?: string | string[] }>();
   const requestId = getFirst(params.requestId);
   const serviceLabel = getFirst(params.serviceLabel) || "Service à Domicile";
+
+  const [watching, setWatching] = useState(true);
+  const redirectedRef = useRef(false);
+  const numericRequestId = useMemo(() => Number(requestId), [requestId]);
+
+  const canRedirectToTracking = (status: string | null | undefined) => {
+    const s = String(status || "").toLowerCase();
+    return ["acceptee", "en_route", "sur_place", "remorquage"].includes(s);
+  };
+
+  const goToTracking = () => {
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    setWatching(false);
+    router.replace("/user/SuiviMissionScreen");
+  };
+
+  useEffect(() => {
+    if (!requestId || !token) return;
+
+    let cancelled = false;
+    const checkMissionStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/requests/${requestId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) return;
+        const status = data?.data?.status;
+        if (!cancelled && canRedirectToTracking(status)) {
+          goToTracking();
+        }
+      } catch {
+        // keep silent: next poll/socket event will retry
+      }
+    };
+
+    checkMissionStatus();
+    const interval = setInterval(checkMissionStatus, 6000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [requestId, token]);
+
+  useEffect(() => {
+    if (!socket || !token || !Number.isFinite(numericRequestId)) return;
+
+    const onConnect = () => {
+      socket.emit("register", { token });
+      socket.emit("join_request", { requestId: numericRequestId });
+    };
+
+    const onMissionUpdate = (payload: any) => {
+      if (Number(payload?.id) !== numericRequestId) return;
+      if (canRedirectToTracking(payload?.status)) {
+        goToTracking();
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("mission:updated", onMissionUpdate);
+    socket.on("mission:status_changed", onMissionUpdate);
+
+    if (socket.connected) onConnect();
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("mission:updated", onMissionUpdate);
+      socket.off("mission:status_changed", onMissionUpdate);
+    };
+  }, [socket, token, numericRequestId]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -36,6 +114,9 @@ export default function ServiceRequestSentScreen() {
           <Text style={styles.message}>
             Nous allons vous contacter très rapidement pour la prise en charge.
           </Text>
+          {watching ? (
+            <Text style={styles.waiting}>En attente d’acceptation opérateur... redirection automatique dès confirmation.</Text>
+          ) : null}
           {requestId ? <Text style={styles.ref}>Référence: #{requestId}</Text> : null}
         </View>
 
@@ -106,6 +187,14 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: "center",
     fontWeight: "600",
+  },
+  waiting: {
+    marginTop: 6,
+    marginBottom: 2,
+    color: "#1D9E48",
+    textAlign: "center",
+    fontWeight: "600",
+    fontSize: 13,
   },
   primaryBtn: {
     width: "100%",

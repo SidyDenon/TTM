@@ -36,6 +36,62 @@ export default (db) => {
     }
   };
 
+  const getOilModelPriceByLiters = (model = {}, liters = 0, quantity = 1) => {
+    const packLiters = Number(liters);
+    const packQty = Number(quantity);
+    if (!Number.isFinite(packLiters) || packLiters <= 0) return null;
+    if (!Number.isFinite(packQty) || packQty <= 0) return null;
+
+    const byLiters =
+      packLiters === 1
+        ? model.price_1l
+        : packLiters === 4
+        ? model.price_4l
+        : packLiters === 5
+        ? model.price_5l
+        : packLiters === 20
+        ? model.price_20l
+        : null;
+
+    const parsedByLiters = byLiters == null || byLiters === "" ? NaN : Number(byLiters);
+    if (Number.isFinite(parsedByLiters)) return parsedByLiters * packQty;
+
+    const unitPrice =
+      model.unit_price == null || model.unit_price === "" ? NaN : Number(model.unit_price);
+    if (Number.isFinite(unitPrice)) return unitPrice * packLiters * packQty;
+
+    return null;
+  };
+
+  const normalizeServiceNameKey = (name = "") =>
+    String(name)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "")
+      .trim();
+
+  const isOilServiceName = (name = "") => {
+    const key = normalizeServiceNameKey(name);
+    return (
+      key.includes("domicile") ||
+      key.includes("huile") ||
+      key.includes("oil") ||
+      key.includes("vidange")
+    );
+  };
+
+  const getOilServiceBasePrice = async () => {
+    try {
+      const [rows] = await db.query("SELECT name, price FROM services ORDER BY id ASC");
+      const oilService = (rows || []).find((row) => isOilServiceName(row?.name));
+      const parsed = Number(oilService?.price);
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
   // ✅ Passer db à req
   router.use((req, res, next) => {
     req.db = db;
@@ -83,7 +139,8 @@ export default (db) => {
     validateUploadedFilesSignature,
     async (req, res) => {
       try {
-        const { vehicle_type, oil_liters, oil_model_id, description, lat, lng, address, zone } = req.body;
+        await ensureOilModelColumns();
+        const { vehicle_type, oil_liters, oil_quantity, oil_model_id, description, lat, lng, address, zone } = req.body;
         const userId = req.user?.id;
 
         if (!userId) {
@@ -112,9 +169,16 @@ export default (db) => {
           return res.status(400).json({ error: "oil_liters doit être un nombre positif" });
         }
 
+        const oilQuantity = Number(oil_quantity ?? 1);
+        if (!Number.isFinite(oilQuantity) || oilQuantity <= 0) {
+          return res.status(400).json({ error: "oil_quantity doit être un nombre positif" });
+        }
+
+        const totalOilLiters = oilLiters * oilQuantity;
+
     // ✅ Vérifier que le modèle d'huile existe et est actif
         const [[oilModel]] = await req.db.query(
-          "SELECT id FROM oil_models WHERE id = ? AND is_active = 1",
+          "SELECT id, unit_price, price_1l, price_4l, price_5l, price_20l FROM oil_models WHERE id = ? AND is_active = 1",
           [oil_model_id]
         );
 
@@ -142,24 +206,33 @@ export default (db) => {
           .map((f) => `/uploads/requests/${f.filename}`)
           .filter(Boolean);
 
+        const oilPart = getOilModelPriceByLiters(oilModel, oilLiters, oilQuantity);
+        const basePart = await getOilServiceBasePrice();
+        const hasOilPart = Number.isFinite(Number(oilPart));
+        const hasBasePart = Number.isFinite(Number(basePart));
+        const estimatedPrice = hasOilPart || hasBasePart
+          ? Number(hasOilPart ? oilPart : 0) + Number(hasBasePart ? basePart : 0)
+          : null;
+
     // ✅ Créer la mission
         const [result] = await req.db.query(
           `INSERT INTO requests 
            (user_id, service, service_type, vehicle_type, oil_liters, oil_model_id, 
-            description, lat, lng, address, zone, status, published_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            description, lat, lng, address, zone, estimated_price, status, published_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
           [
             userId,
             "oil_service",
             "oil_service",
             vehicle_type,
-            oilLiters,
+            totalOilLiters,
             oil_model_id,
             description || null,
             latNum,
             lngNum,
             address || null,
             zone || null,
+            estimatedPrice,
             "publiee",
           ]
         );
@@ -200,7 +273,10 @@ export default (db) => {
             id: requestId,
             service: "oil_service",
             vehicle_type,
-            oil_liters: oilLiters,
+            oil_liters: totalOilLiters,
+            oil_pack_liters: oilLiters,
+            oil_quantity: oilQuantity,
+            estimated_price: estimatedPrice,
             status: "publiee",
           },
         });

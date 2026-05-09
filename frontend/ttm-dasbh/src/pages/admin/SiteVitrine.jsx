@@ -845,6 +845,9 @@ export default function SiteVitrine() {
             <p className="opacity-70">Chargement contenu…</p>
           ) : (
             <div className="space-y-3">
+              <p className="text-xs opacity-70">
+                Mise en forme disponible: **gras** et *italique*.
+              </p>
               <input
                 className="w-full p-2 rounded border"
                 style={{ borderColor: "var(--border-color)", background: "var(--bg-card)", color: "var(--text-color)" }}
@@ -1107,8 +1110,11 @@ export default function SiteVitrine() {
                             color: "var(--text-color)",
                             borderColor: "var(--border-color)",
                           }}
-                          placeholder="Texte de la carte service"
+                          placeholder="Texte de la carte service (**gras** / *italique*)"
                         />
+                        <p className="mt-1 text-[11px] opacity-60">
+                          Astuce: utilisez **mot** pour gras et *mot* pour italique.
+                        </p>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-2">
@@ -1384,8 +1390,11 @@ export default function SiteVitrine() {
                     color: "var(--text-color)",
                     borderColor: "var(--border-color)",
                   }}
-                  placeholder="Texte affiché dans la carte service"
+                  placeholder="Texte affiché dans la carte service (**gras** / *italique*)"
                 />
+                <p className="mt-1 text-[11px] opacity-60">
+                  Astuce: utilisez **mot** pour gras et *mot* pour italique.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm opacity-70 mb-1">Photo de la carte</label>

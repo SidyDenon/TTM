@@ -39,13 +39,14 @@ export default (db) => {
     checkPermission("operators_view"),
     async (req, res) => {
       try {
-        const { operatorDispo, operatorInternal } = await getSchemaColumns(req.db);
+        const { operatorDispo, operatorInternal, operatorAlerts } = await getSchemaColumns(req.db);
         const dispoSel = operatorDispo ? `o.${operatorDispo}` : "NULL";
         const internalSel = operatorInternal ? `o.${operatorInternal}` : "NULL";
+        const alertsSel = operatorAlerts ? `o.${operatorAlerts}` : "NULL";
         const sql = `
           SELECT u.id, u.name, u.phone, u.email, u.created_at,
                  o.ville, o.quartier, o.vehicle_type, o.lat, o.lng, o.balance, o.pending_balance,
-                 ${dispoSel} AS dispo, ${internalSel} AS is_internal,
+                 ${dispoSel} AS dispo, ${internalSel} AS is_internal, ${alertsSel} AS pending_alerts_enabled,
                  (
                    SELECT COUNT(*)
                    FROM requests r

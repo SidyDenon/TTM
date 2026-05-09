@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
 import { fetchSiteContent } from "./config/siteContent";
+import { markdownToSafeHtml, toPlainText } from "./utils/markdownLite";
 /* ---------- Variants (Framer Motion) ---------- */
 const overlayVariants = {
   hidden: { opacity: 0 },
@@ -39,6 +40,10 @@ function Modal({ open, onClose, service, onWhatsApp }) {
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
+
+  const renderMarkdown = (text) => ({
+    __html: markdownToSafeHtml(String(text || "")),
+  });
 
   return (
     <AnimatePresence>
@@ -83,7 +88,10 @@ function Modal({ open, onClose, service, onWhatsApp }) {
                 <h2 id="service-title" className="text-xl font-semibold text-zinc-900">
                   {service.title}
                 </h2>
-                <p className="mt-1 text-zinc-600 text-lg/7">{service.desc}</p>
+                <p
+                  className="mt-1 text-zinc-600 text-lg/7"
+                  dangerouslySetInnerHTML={renderMarkdown(service.desc)}
+                />
               </div>
               <button
                 onClick={onClose}
@@ -95,9 +103,10 @@ function Modal({ open, onClose, service, onWhatsApp }) {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5 sm:pb-5">
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50 p-4 text-sm leading-7 tracking-widest whitespace-pre-line text-zinc-900">
-                {service.details}
-              </div>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50 p-4 text-sm leading-7 tracking-widest text-zinc-900"
+                dangerouslySetInnerHTML={renderMarkdown(service.details)}
+              />
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
@@ -123,8 +132,9 @@ function Modal({ open, onClose, service, onWhatsApp }) {
 
 /* ---------- Card (révélation au scroll + hover overlay) ---------- */
 function ServiceCard({ icon, iconImage, iconAlt, title, desc, onMore, index }) {
+  const plainDesc = toPlainText(desc || "");
   const shortDesc =
-    typeof desc === "string" && desc.length > 80 ? `${desc.slice(0, 80).trim()}…` : desc;
+    plainDesc.length > 80 ? `${plainDesc.slice(0, 80).trim()}…` : plainDesc;
   return (
     <motion.div
       className="group relative overflow-hidden rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-zinc-200"

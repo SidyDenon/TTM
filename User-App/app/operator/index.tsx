@@ -148,6 +148,8 @@ const BOTTOM_SHEET_HEIGHT = SHEET_OPEN_HEIGHT; // 60% écran
 export default function OperatorScreen() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [alertsLoading, setAlertsLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<string>("Tous");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeMissionId, setActiveMissionId] = useState<number | null>(null);
@@ -158,7 +160,7 @@ export default function OperatorScreen() {
   useNotifications();
 
   const router = useRouter();
-  const { token, logout, user } = useAuth();
+  const { token, logout, user, apiFetch } = useAuth();
   const mapRef = useRef<MapView>(null);
   const animateList = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -295,6 +297,39 @@ const closeMenu = () => {
     }, [token, router])
   );
 
+  // ✅ Recharge le statut des alertes à chaque retour sur l'écran
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+
+      const loadAlertsPreference = async () => {
+        try {
+          setAlertsLoading(true);
+          const data: any = await apiFetch("/operator/profile");
+          const enabledRaw =
+            data?.data?.pending_alerts_enabled == null
+              ? 1
+              : Number(data.data.pending_alerts_enabled);
+          if (!cancelled) {
+            setAlertsEnabled(enabledRaw !== 0);
+          }
+        } catch {
+          // Conserve l'état actuel en cas d'erreur réseau
+        } finally {
+          if (!cancelled) {
+            setAlertsLoading(false);
+          }
+        }
+      };
+
+      loadAlertsPreference();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [apiFetch])
+  );
+
   // util clamp pour rester dans les bornes
   const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
@@ -352,6 +387,7 @@ useEffect(() => {
   };
 
   const onMissionsPending = (payload: any) => {
+    if (!alertsEnabled) return;
     const count = Number(payload?.count || 0);
     if (!Number.isFinite(count) || count <= 0) return;
     const title = "Missions en attente";
@@ -399,6 +435,7 @@ useEffect(() => {
   // 📩 HANDLERS UNIFIÉS
   // -------------------------------
   const onMissionCreated = (mission: any) => {
+    if (!alertsEnabled) return;
     const normalized = normalizeMissionPayload(mission);
     if (!normalized) return;
 
@@ -409,6 +446,7 @@ useEffect(() => {
   };
 
   const onMissionUpdated = (mission: any) => {
+    if (!alertsEnabled) return;
     const normalized = normalizeMissionPayload(mission);
     if (!normalized) return;
 
@@ -427,6 +465,7 @@ useEffect(() => {
   };
 
   const onMissionStatus = (payload: any) => {
+    if (!alertsEnabled) return;
     const id = Number(payload?.id);
     const status = String(payload?.status || "").toLowerCase();
 
@@ -442,6 +481,7 @@ useEffect(() => {
   };
 
   const onMissionDeleted = (data: any) => {
+    if (!alertsEnabled) return;
     const id = Number(data?.id || data);
 
     console.log("📩 mission:deleted", id);
@@ -469,7 +509,14 @@ useEffect(() => {
     socket.off("mission:deleted", onMissionDeleted);
     socket.off("missions_pending", onMissionsPending);
   };
-}, [socket]);
+}, [socket, alertsEnabled]);
+
+useEffect(() => {
+  if (!alertsEnabled) {
+    animateList();
+    setMissions([]);
+  }
+}, [alertsEnabled, animateList]);
 
 // 🎯 Gesture Bottom Sheet (SNAP 10% / 60%)
 const panGesture = React.useMemo(
@@ -499,7 +546,7 @@ const panGesture = React.useMemo(
   if (!mapRef.current) return;
 
   try {
-    const coords = filteredMissions
+    const coords = visibleMissions
     .map((m) => ({
       latitude: Number(m.lat),
       longitude: Number(m.lng),
@@ -548,6 +595,16 @@ const panGesture = React.useMemo(
   useEffect(() => {
     let interval: number;
 
+    if (alertsLoading) {
+      return;
+    }
+
+    if (!alertsEnabled) {
+      setLoading(false);
+      setMissions([]);
+      return;
+    }
+
     const fetchMissions = async () => {
       try {
         const res = await fetch(
@@ -589,7 +646,7 @@ const panGesture = React.useMemo(
     interval = setInterval(fetchMissions, 10000);
 
     return () => clearInterval(interval);
-  }, [token, user?.id]);
+  }, [token, user?.id, alertsEnabled, alertsLoading, animateList]);
 
 useEffect(() => {
   (async () => {
@@ -704,7 +761,7 @@ useEffect(() => {
   if (!mapRef.current) return;
 
   // Conversion en nombres + filtrage des coordonnées invalides
-  const coords = filteredMissions
+  const coords = visibleMissions
     .map((m) => ({
       latitude: Number(m.lat),
       longitude: Number(m.lng),
@@ -742,7 +799,7 @@ useEffect(() => {
       animated: true,
     });
   }
-}, [missions, location]);
+}, [visibleMissions, location]);
 
   const types = ["Tous", ...new Set(missions.map((m) => m.type).filter(Boolean))];
 
@@ -750,6 +807,8 @@ const filteredMissions = missions.filter((m) => {
   const matchType = typeFilter === "Tous" || m.type === typeFilter;
   return matchType;
 });
+
+const visibleMissions = alertsEnabled ? filteredMissions : [];
 
   const accepterMission = (id: number) => {
     Alert.alert("Confirmation", "Voulez-vous accepter cette mission ?", [
@@ -798,7 +857,7 @@ const filteredMissions = missions.filter((m) => {
     ]);
   };
 
-  if (loading || checkingActiveMission) {
+  if (loading || checkingActiveMission || alertsLoading) {
     return (
       <View style={styles.loader}>
         <Loader />
@@ -861,7 +920,7 @@ const filteredMissions = missions.filter((m) => {
 )}
 
 {/* 📍 Marqueurs des missions disponibles */}
-{filteredMissions.map((mission) => (
+{visibleMissions.map((mission) => (
   <Marker
     key={mission.id}
     anchor={{ x: 0.5, y: 1 }} // callout bien au-dessus du pin
@@ -902,7 +961,7 @@ const filteredMissions = missions.filter((m) => {
       <View style={styles.handle} />
       <View style={styles.headerCard}>
         <Text style={styles.headerText}>
-          {filteredMissions.length} missions disponibles
+          {visibleMissions.length} missions disponibles
         </Text>
         <TouchableOpacity onPress={recentrerCarte} style={styles.recenterBtn}>
           <MaterialIcons name="my-location" size={22} color="#E53935" />
@@ -930,13 +989,15 @@ const filteredMissions = missions.filter((m) => {
 
       {/* Liste des missions */}
       <View style={{ flex: 100, minHeight: 0}}>
-        {filteredMissions.length === 0 ? (
+        {visibleMissions.length === 0 ? (
           <View style={styles.noMissionContainer}>
-            <Text style={styles.noMissionText}> Aucune mission trouvée</Text>
+            <Text style={styles.noMissionText}>
+              {alertsEnabled ? "Aucune mission trouvée" : "Aucune mission disponible"}
+            </Text>
           </View>
         ) : (
           <FlatList
-            data={filteredMissions}
+            data={visibleMissions}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={{
               paddingBottom: 30,

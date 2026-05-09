@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { DEFAULT_SERVICES, fetchPublicServices } from "./config/services";
 import { fetchSiteContent } from "./config/siteContent";
+import { markdownToSafeHtml, toPlainText } from "./utils/markdownLite";
 import "./App.css";
 
 /* ---------- Utils ---------- */
@@ -37,6 +38,10 @@ function TarifModal({ open, onClose, item, onWhatsApp }) {
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
+
+  const renderMarkdown = (text) => ({
+    __html: markdownToSafeHtml(String(text || "")),
+  });
 
   return (
     <AnimatePresence>
@@ -90,9 +95,10 @@ function TarifModal({ open, onClose, item, onWhatsApp }) {
 
             {/* Corps scrollable – même hauteur que Services */}
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-5 sm:pb-5">
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50 p-4 text-sm leading-7 tracking-widest whitespace-pre-line text-zinc-900">
-                {item.details || item.description}
-              </div>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto rounded-lg bg-zinc-50 p-4 text-sm leading-7 tracking-widest text-zinc-900"
+                dangerouslySetInnerHTML={renderMarkdown(item.details || item.description)}
+              />
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
@@ -118,6 +124,9 @@ function TarifModal({ open, onClose, item, onWhatsApp }) {
 
 /* ---------- Carte ---------- */
 function Card({ item, onMore, onWhatsApp }) {
+  const previewText = item.subtitle
+    ? toPlainText(item.subtitle)
+    : excerpt(toPlainText(item.description || ""), 70);
   return (
     <motion.article
       layout
@@ -145,9 +154,7 @@ function Card({ item, onMore, onWhatsApp }) {
         <p className="text-[11px] text-zinc-500 -mt-1">À partir de</p>
         <p className="font-bold text-[#800E08]">{formatPrice(item.amount)}</p>
 
-        <p className="text-[12px] text-zinc-600">
-          {item.subtitle || excerpt(item.description || "", 70)}
-        </p>
+        <p className="text-[12px] text-zinc-600">{previewText}</p>
 
         <div className="flex items-center justify-center gap-2">
           <button
@@ -277,6 +284,9 @@ export default function Tarifs() {
   const sectionSubtitle =
     sectionContent?.subtitle || "NOS TARIFS LES MEILLEURS SUR LE MARCHÉ";
   const sectionLogo = sectionContent?.logoImage || "/assets/logoApp2.png";
+  const sectionSubtitleHtml = markdownToSafeHtml(String(sectionSubtitle || ""), {
+    preserveLineBreaks: false,
+  });
 
   return (
     <section className="w-full min-h-screen flex">
@@ -310,9 +320,8 @@ export default function Tarifs() {
     whileInView={{ opacity: 1, x: 0 }}
     viewport={{ once: true, amount: 0.4 }}
     transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-  >
-    {sectionSubtitle}
-  </motion.p>
+    dangerouslySetInnerHTML={{ __html: sectionSubtitleHtml }}
+  />
 </header>
 
 

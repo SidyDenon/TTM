@@ -212,6 +212,23 @@ export default function SuiviMissionScreen() {
     callSupport();
   };
 
+  const missionPrice =
+    typeof mission.final_price === "number"
+      ? mission.final_price
+      : typeof mission.estimated_price === "number"
+      ? mission.estimated_price
+      : null;
+
+  const missionCurrency = mission.currency || "FCFA";
+
+  const formattedMissionPrice =
+    typeof missionPrice === "number"
+      ? `${new Intl.NumberFormat("fr-FR", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(missionPrice)} ${missionCurrency}`
+      : null;
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       {/* HEADER */}
@@ -559,6 +576,15 @@ export default function SuiviMissionScreen() {
                 <MaterialIcons name="map" size={18} color="#E53935" />
                 <Text style={styles.operatorInfoText}>
                   Distance estimée : {distance.toFixed(1)} km
+                </Text>
+              </View>
+            )}
+
+            {formattedMissionPrice && (
+              <View style={styles.operatorInfoRow}>
+                <MaterialIcons name="payments" size={18} color="#E53935" />
+                <Text style={styles.operatorInfoText}>
+                  {typeof mission.final_price === "number" ? "Prix final" : "Prix estimé"} : {formattedMissionPrice}
                 </Text>
               </View>
             )}

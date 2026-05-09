@@ -4,8 +4,20 @@ import authMiddleware from "../../middleware/auth.js";
 import { loadAdminPermissions, checkPermission } from "../../middleware/checkPermission.js";
 import { sendPushNotification } from "../../utils/sendPush.js";
 import { buildPublicUrl } from "../../config/links.js";
+import { getSchemaColumns } from "../../utils/schema.js";
 
 const router = express.Router();
+
+async function operatorAllowsMissionAlerts(db, operatorId) {
+  const { operatorAlerts } = await getSchemaColumns(db);
+  if (!operatorAlerts) return true;
+  const [[row]] = await db.query(
+    `SELECT ${operatorAlerts} AS alerts_enabled FROM operators WHERE user_id = ? LIMIT 1`,
+    [operatorId]
+  );
+  if (!row) return false;
+  return Number(row.alerts_enabled ?? 1) !== 0;
+}
 
 const formatMissionForSocket = (row = {}) => {
   const toNumber = (value) =>
@@ -410,6 +422,12 @@ export default (db, io, emitMissionEvent) => {
     try {
       const { operator_id } = req.body;
       if (!operator_id) return res.status(400).json({ error: "Opérateur requis" });
+
+      if (!(await operatorAllowsMissionAlerts(req.db, operator_id))) {
+        return res.status(403).json({
+          error: "Cet opérateur a désactivé la réception des missions",
+        });
+      }
 
       await req.db.query(
         "UPDATE requests SET operator_id = ?, status = 'publiee' WHERE id = ?",

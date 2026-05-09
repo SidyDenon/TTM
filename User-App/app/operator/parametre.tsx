@@ -92,13 +92,13 @@ export default function ParametreScreen() {
           <View style={styles.optionLeft}>
             <MaterialIcons name="notifications-active" size={22} color="#E53935" />
             <View>
-              <Text style={styles.optionText}>Alertes missions en attente</Text>
+              <Text style={styles.optionText}>Recevoir les missions</Text>
               <Text style={styles.optionSub}>
                 {alertsLoading
                   ? "Chargement…"
                   : alertsEnabled
-                  ? "Activées"
-                  : "Désactivées"}
+                  ? "L’opérateur reçoit les nouvelles missions"
+                  : "Aucune mission ne sera envoyée"}
               </Text>
             </View>
           </View>

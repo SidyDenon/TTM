@@ -732,30 +732,52 @@ const fetchData = async (signal) => {
               ) : (
                 <div className="divide-y" style={{ borderColor: "var(--border-color)" }}>
                   {visibleAssignOperators.map((op) => (
+                    (() => {
+                      const alertsEnabled = Number(op?.pending_alerts_enabled ?? 1) !== 0;
+                      return (
                     <div
                       key={op.id}
-                      className="flex items-center justify-between gap-3 p-3"
+                      className={`flex items-center justify-between gap-3 p-3 transition ${
+                        alertsEnabled ? "" : "opacity-60 grayscale"
+                      }`}
                       style={{ background: "var(--bg-card)" }}
                     >
                       <div>
-                        <p className="font-medium">
+                        <p className="font-medium flex items-center gap-2">
+                          <span style={{ fontSize: 18 }}>
+                            {alertsEnabled ? "🟢" : "🔴"}
+                          </span>
                           {op.name || "Opérateur"} <span className="opacity-70">#{op.id}</span>
+                          {!alertsEnabled && (
+                            <span className="text-xs ml-2 px-2 py-1 rounded bg-red-100 text-red-700 border border-red-200">
+                              Indisponible
+                            </span>
+                          )}
                         </p>
                         <p className="text-sm opacity-80">
                           {op.phone || "—"}
                           {op.ville ? ` • ${op.ville}` : ""}
                           {Number(op.is_internal) === 1 ? " • Interne" : ""}
                         </p>
+                        {!alertsEnabled && (
+                          <p className="mt-1 inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-500 border border-red-500/20">
+                            Alertes missions désactivées
+                          </p>
+                        )}
                       </div>
                       <button
                         disabled={assignSubmittingId === op.id}
                         onClick={() => submitAssignMission(assignMission, op.id)}
-                        className="px-3 py-1.5 rounded text-sm font-medium disabled:opacity-60"
-                        style={{ background: "var(--accent)", color: "#fff" }}
+                        className="px-3 py-1.5 rounded text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ background: alertsEnabled ? "var(--accent)" : "#6b7280", color: "#fff" }}
+                        title={alertsEnabled ? "Assigner" : "Opérateur indisponible pour réception des missions"}
+                        disabled={assignSubmittingId === op.id || !alertsEnabled}
                       >
-                        {assignSubmittingId === op.id ? "Assignation..." : "Assigner"}
+                        {assignSubmittingId === op.id ? "Assignation..." : alertsEnabled ? "Assigner" : "Indisponible"}
                       </button>
                     </div>
+                      );
+                    })()
                   ))}
                 </div>
               )}

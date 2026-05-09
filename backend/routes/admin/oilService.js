@@ -15,6 +15,18 @@ const hasColumn = async (db, table, column) => {
   return Number(rows?.[0]?.cnt || 0) > 0;
 };
 
+
+async function operatorAllowsMissionAlerts(db, operatorId) {
+  const { operatorAlerts } = await getSchemaColumns(db);
+  if (!operatorAlerts) return true;
+  const [[row]] = await db.query(
+    `SELECT ${operatorAlerts} AS alerts_enabled FROM operators WHERE user_id = ? LIMIT 1`,
+    [operatorId]
+  );
+  if (!row) return false;
+  return Number(row.alerts_enabled ?? 1) !== 0;
+}
+
 const ensureOilModelColumns = async (db) => {
   const unitPriceExists = await hasColumn(db, "oil_models", "unit_price");
   if (!unitPriceExists) {
@@ -23,7 +35,6 @@ const ensureOilModelColumns = async (db) => {
     );
     console.log("🛢️ Migration runtime: oil_models.unit_price ajouté");
   }
-
   const pricingCols = ["price_1l", "price_4l", "price_5l", "price_20l"];
   for (const col of pricingCols) {
     const exists = await hasColumn(db, "oil_models", col);
@@ -292,6 +303,12 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
       return res.status(400).json({ error: "Cette mission est déjà assignée" });
     }
 
+      if (!(await operatorAllowsMissionAlerts(req.db, operator_id))) {
+        return res.status(403).json({
+          error: "Cet opérateur a désactivé la réception des missions",
+        });
+      }
+
     // ✅ Vérifier que l'opérateur est INTERNE uniquement
     const { operatorInternal } = await getSchemaColumns(req.db);
     const internalCol = operatorInternal || "is_internal";
@@ -313,10 +330,29 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
     }
 
     // ✅ Mettre à jour la mission
-    const [result] = await req.db.query(
-      "UPDATE requests SET operator_id = ?, status = 'assignee' WHERE id = ?",
-      [operator_id, requestId]
-    );
+    // Certaines bases n'acceptent pas 'assignee' dans l'enum status.
+    // On tente 'assignee' puis on fallback vers 'publiee' si nécessaire.
+    let assignedStatus = "assignee";
+    let result;
+    try {
+      [result] = await req.db.query(
+        "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+        [operator_id, assignedStatus, requestId]
+      );
+    } catch (e) {
+      const isStatusTruncation =
+        e?.code === "WARN_DATA_TRUNCATED" ||
+        e?.errno === 1265 ||
+        e?.code === "ER_TRUNCATED_WRONG_VALUE_FOR_FIELD";
+
+      if (!isStatusTruncation) throw e;
+
+      assignedStatus = "publiee";
+      [result] = await req.db.query(
+        "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+        [operator_id, assignedStatus, requestId]
+      );
+    }
 
     if (result.affectedRows === 0) {
       return res.status(400).json({ error: "Impossible de mettre à jour la mission" });
@@ -328,10 +364,10 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
        VALUES (?, ?, ?, NOW())`,
       [
         requestId,
-        "assignee",
+        assignedStatus,
         JSON.stringify({
           operator_id: Number(operator_id),
-          note: `Assignee a operateur interne #${operator_id}`,
+          note: `Mission assignee a operateur interne #${operator_id}`,
         }),
       ]
     );
@@ -351,7 +387,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
 
     return res.json({
       message: "✅ Mission Service à Domicile assignée à l'opérateur interne",
-      data: { requestId, operatorId: operator_id, status: "assignee" },
+      data: { requestId, operatorId: operator_id, status: assignedStatus },
     });
   } catch (err) {
     console.error("❌ POST /admin/oil-service-requests/:requestId/assign:", err);

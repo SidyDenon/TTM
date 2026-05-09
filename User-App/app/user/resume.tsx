@@ -29,6 +29,8 @@ type Params = {
   destLng?: string | string[];
   vehicleType?: string | string[];
   oilLiters?: string | string[];
+  oilQuantity?: string | string[];
+  oilTotalLiters?: string | string[];
   oilModelId?: string | string[];
   oilModelName?: string | string[];
 };
@@ -75,6 +77,8 @@ export default function Resume() {
   const destLng = getFirst(params.destLng);
   const vehicleType = getFirst(params.vehicleType);
   const oilLiters = getFirst(params.oilLiters);
+  const oilQuantity = getFirst(params.oilQuantity);
+  const oilTotalLiters = getFirst(params.oilTotalLiters);
   const oilModelId = getFirst(params.oilModelId);
   const oilModelName = getFirst(params.oilModelName);
 
@@ -154,11 +158,15 @@ export default function Resume() {
         if (!oilLiters || Number(oilLiters) <= 0) {
           throw new Error("Nombre de litres invalide");
         }
+        if (!oilQuantity || Number(oilQuantity) <= 0) {
+          throw new Error("Quantité de bidons invalide");
+        }
         if (!oilModelId) {
           throw new Error("Modèle d'huile manquant");
         }
         formData.append("vehicle_type", vehicleType);
         formData.append("oil_liters", oilLiters);
+        formData.append("oil_quantity", oilQuantity);
         formData.append("oil_model_id", oilModelId);
       } else {
         formData.append("service", String(service));
@@ -264,6 +272,12 @@ export default function Resume() {
 
               <Text style={styles.label}>Nombre de litres</Text>
               <Text style={styles.value}>{oilLiters ? `${oilLiters} L` : "-"}</Text>
+
+              <Text style={styles.label}>Quantité de bidons</Text>
+              <Text style={styles.value}>{oilQuantity || "-"}</Text>
+
+              <Text style={styles.label}>Total litres</Text>
+              <Text style={styles.value}>{oilTotalLiters ? `${oilTotalLiters} L` : "-"}</Text>
 
               <Text style={styles.label}>Modèle d&apos;huile</Text>
               <Text style={styles.value}>{oilModelName || "-"}</Text>

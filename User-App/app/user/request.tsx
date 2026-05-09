@@ -91,8 +91,13 @@ const sortPinnedServices = (list: Service[]) => {
   });
 };
 
-const getOilModelPriceByLiters = (model: OilModel | undefined, liters: number) => {
+const getOilModelPriceByLiters = (
+  model: OilModel | undefined,
+  liters: number,
+  quantity: number = 1
+) => {
   if (!model) return null;
+  const safeQty = Number.isFinite(Number(quantity)) && Number(quantity) > 0 ? Number(quantity) : 1;
   const byLiters =
     liters === 1
       ? model.price_1l
@@ -105,13 +110,13 @@ const getOilModelPriceByLiters = (model: OilModel | undefined, liters: number) =
       : null;
 
   const parsed = byLiters == null || byLiters === "" ? NaN : Number(byLiters);
-  if (Number.isFinite(parsed)) return parsed;
+  if (Number.isFinite(parsed)) return parsed * safeQty;
 
   const fallbackUnit =
     model.unit_price == null || model.unit_price === ""
       ? NaN
       : Number(model.unit_price);
-  if (Number.isFinite(fallbackUnit)) return fallbackUnit * liters;
+  if (Number.isFinite(fallbackUnit)) return fallbackUnit * liters * safeQty;
 
   return null;
 };
@@ -157,6 +162,7 @@ export default function RequestScreen() {
   const [loadingOilModels, setLoadingOilModels] = useState(false);
   const [vehicleType, setVehicleType] = useState("");
   const [oilLiters, setOilLiters] = useState(4);
+  const [oilQuantity, setOilQuantity] = useState(1);
   const [oilModelId, setOilModelId] = useState<number | null>(null);
   const [oilModalVisible, setOilModalVisible] = useState(false);
   const [towingModalVisible, setTowingModalVisible] = useState(false);
@@ -362,6 +368,10 @@ export default function RequestScreen() {
         setError("Veuillez renseigner le nombre de litres.");
         return;
       }
+      if (!oilQuantity || oilQuantity <= 0) {
+        setError("Veuillez renseigner la quantité de bidons.");
+        return;
+      }
       if (!oilModelId) {
         setError("Veuillez sélectionner un modèle d'huile.");
         return;
@@ -369,7 +379,11 @@ export default function RequestScreen() {
     }
 
     const selectedOilModel = oilModels.find((m) => m.id === oilModelId);
-    const oilModelPrice = getOilModelPriceByLiters(selectedOilModel, oilLiters);
+    const oilModelPrice = getOilModelPriceByLiters(
+      selectedOilModel,
+      oilLiters,
+      oilQuantity
+    );
     const baseServicePrice = Number(chosenService.price || 0);
     const computedServicePrice = isOilService
       ? baseServicePrice + (Number.isFinite(Number(oilModelPrice)) ? Number(oilModelPrice) : 0)
@@ -391,6 +405,8 @@ export default function RequestScreen() {
           : "",
         vehicleType: isOilService ? vehicleType.trim() : "",
         oilLiters: isOilService ? String(oilLiters) : "",
+        oilQuantity: isOilService ? String(oilQuantity) : "",
+        oilTotalLiters: isOilService ? String(oilLiters * oilQuantity) : "",
         oilModelId: isOilService ? String(oilModelId || "") : "",
         oilModelName: isOilService ? selectedOilModel?.name || "" : "",
       },
@@ -404,6 +420,7 @@ export default function RequestScreen() {
     router,
     vehicleType,
     oilLiters,
+    oilQuantity,
     oilModelId,
     oilModels,
   ]);
@@ -414,7 +431,12 @@ export default function RequestScreen() {
   const isCurrentRemorquage = currentService ? isTowingService(currentService.name) : false;
   const isCurrentOilService = currentService ? isHomeOilService(currentService.name) : false;
   const selectedOilModel = oilModels.find((m) => m.id === oilModelId);
-  const selectedOilModelPrice = getOilModelPriceByLiters(selectedOilModel, oilLiters);
+  const selectedOilModelPrice = getOilModelPriceByLiters(
+    selectedOilModel,
+    oilLiters,
+    oilQuantity
+  );
+  const totalOilLiters = oilLiters * oilQuantity;
   const currentServiceBasePrice = Number(currentService?.price || 0);
   const estimatedOilServicePrice =
     isCurrentOilService && Number.isFinite(Number(selectedOilModelPrice))
@@ -855,7 +877,10 @@ const renderServiceIcon = (
               </View>
 
               <Text style={styles.summaryText}>Type: {vehicleType || "-"}</Text>
-              <Text style={styles.summaryText}>Litres: {oilLiters} L</Text>
+              <Text style={styles.summaryText}>
+                Quantité: {oilQuantity} bidon(s) de {oilLiters}L
+              </Text>
+              <Text style={styles.summaryText}>Total litres: {totalOilLiters} L</Text>
               <Text style={styles.summaryText}>
                 Huile: {oilModels.find((m) => m.id === oilModelId)?.name || "-"}
               </Text>
@@ -985,6 +1010,29 @@ const renderServiceIcon = (
                   })}
                 </View>
 
+                <Text style={styles.fieldLabel}>Quantité de bidons</Text>
+                <View style={styles.quantityRow}>
+                  <TouchableOpacity
+                    style={styles.qtyBtn}
+                    onPress={() => setOilQuantity((q) => Math.max(1, q - 1))}
+                  >
+                    <Ionicons name="remove" size={18} color={COLORS.primaryDark} />
+                  </TouchableOpacity>
+                  <View style={styles.qtyValueBox}>
+                    <Text style={styles.qtyValue}>{oilQuantity}</Text>
+                    <Text style={styles.qtySubtext}>bidon(s)</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.qtyBtn}
+                    onPress={() => setOilQuantity((q) => Math.min(50, q + 1))}
+                  >
+                    <Ionicons name="add" size={18} color={COLORS.primaryDark} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.priceHint}>
+                  Total: {oilQuantity} x {oilLiters}L = {totalOilLiters}L
+                </Text>
+
                 <Text style={styles.fieldLabel}>Modele d&apos;huile</Text>
                 {loadingOilModels ? (
                   <Loader size={26} />
@@ -1016,7 +1064,7 @@ const renderServiceIcon = (
                   <Text style={styles.priceLabel}>Prix estime</Text>
                   <Text style={styles.priceValue}>{formatPrice(estimatedOilServicePrice)}</Text>
                   <Text style={styles.priceHint}>
-                    Selon modèle d&apos;huile + quantité ({oilLiters}L)
+                    Selon modèle d&apos;huile + base service ({oilQuantity} x {oilLiters}L)
                   </Text>
                 </View>
 
@@ -1177,6 +1225,45 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginTop: 4,
+  },
+  quantityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  qtyBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  qtyValueBox: {
+    minWidth: 84,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: "#fff",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  qtyValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.text,
+    lineHeight: 22,
+  },
+  qtySubtext: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
   literBtn: {
     width: 34,

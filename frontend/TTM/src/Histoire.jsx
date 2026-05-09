@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DEFAULT_MESSAGES } from "./config/links";
 import { useSupportConfig } from "./context/SupportConfigContext";
 import { fetchSiteContent } from "./config/siteContent";
+import { markdownToSafeHtml } from "./utils/markdownLite";
 
 const fadeLeft  = { hidden: {opacity: 0, x: -24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
 const fadeRight = { hidden: {opacity: 0, x:  24}, show: {opacity: 1, x: 0, transition:{duration:.45, ease:"easeOut"}} };
@@ -90,6 +91,10 @@ Côté technologique, l’application TTM s’est construite autour de trois pro
 
 Notre objectif reste le même : réduire l’immobilisation et garantir la sécurité.`;
 
+  const renderMarkdown = (text) => ({
+    __html: markdownToSafeHtml(String(text || "")),
+  });
+
   return (
     <section className="w-full relative">
       <div className="bg-white/80 backdrop-blur-sm">
@@ -105,13 +110,15 @@ Notre objectif reste le même : réduire l’immobilisation et garantir la sécu
           >
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">{title}</h2>
 
-            <p className="mt-5 text-[15px] md:text-base leading-7 md:leading-8">
-              {intro1}
-            </p>
+            <p
+              className="mt-5 text-[15px] md:text-base leading-7 md:leading-8"
+              dangerouslySetInnerHTML={renderMarkdown(intro1)}
+            />
 
-            <p className="mt-4 text-[15px] md:text-base leading-7 md:leading-8">
-              {intro2}
-            </p>
+            <p
+              className="mt-4 text-[15px] md:text-base leading-7 md:leading-8"
+              dangerouslySetInnerHTML={renderMarkdown(intro2)}
+            />
 
             <div className="mt-6 flex flex-wrap gap-3">
               <button
@@ -173,7 +180,10 @@ Notre objectif reste le même : réduire l’immobilisation et garantir la sécu
                   <h3 id="histoire-title" className="text-xl font-semibold text-zinc-900">
                     {modalTitle}
                   </h3>
-                  <p className="text-sm text-zinc-500">{modalSubtitle}</p>
+                  <p
+                    className="text-sm text-zinc-500"
+                    dangerouslySetInnerHTML={renderMarkdown(modalSubtitle)}
+                  />
                 </div>
                 <button
                   onClick={() => setOpen(false)}
@@ -186,9 +196,10 @@ Notre objectif reste le même : réduire l’immobilisation et garantir la sécu
 
               {/* Contenu long */}
               <div className="px-5 pb-6">
-                <div className="rounded-lg bg-zinc-50 p-4 text-[15px] leading-7 text-zinc-800 max-h-[65vh] overflow-y-auto whitespace-pre-line">
-                  {modalBody}
-                </div>
+                <div
+                  className="rounded-lg bg-zinc-50 p-4 text-[15px] leading-7 text-zinc-800 max-h-[65vh] overflow-y-auto"
+                  dangerouslySetInnerHTML={renderMarkdown(modalBody)}
+                />
 
                 <div className="mt-4 flex flex-wrap gap-3">
                   <a

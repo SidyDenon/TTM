@@ -543,11 +543,13 @@ export default function Operators() {
               <td className="px-3 py-2">#{o.id}</td>
               <td className="px-3 py-2 flex items-center gap-2">
                 {o.name}
-                {Number(o.dispo) === 0 ? (
+                {(typeof o.pending_alerts_enabled !== "undefined"
+                  ? Number(o.pending_alerts_enabled) === 0
+                  : Number(o.dispo) === 0) && (
                   <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 border border-red-200">
-                    <LockClosedIcon className="w-4 h-4" />
+                    <LockClosedIcon className="w-4 h-4" /> Indisponible
                   </span>
-                ) : null}
+                )}
               </td>
               <td className="px-3 py-2 font-semibold" style={{ color: "var(--text-color)" }}>
                  {o.phone}
@@ -787,7 +789,7 @@ export default function Operators() {
               checked={form.is_available}
               onChange={(e) => setForm({ ...form, is_available: e.target.checked })}
             />
-            <span>Disponible</span>
+            <span>{form.is_available ? "Disponible" : "Indisponible"}</span>
           </label>
         </div>
 
@@ -889,7 +891,23 @@ export default function Operators() {
               <InfoCard label="Nom" value={detailOp.name} />
               <InfoCard label="Téléphone" value={detailOp.phone || "—"} accent />
               <InfoCard label="Email" value={detailOp.email || "—"} />
-              <InfoCard label="Disponibilité" value={detailOp.dispo ? "Disponible" : "Indisponible"} badgeColor={detailOp.dispo ? "#10b981" : "#9ca3af"} />
+              <InfoCard
+                label="Disponibilité"
+                value={
+                  (typeof detailOp.pending_alerts_enabled !== "undefined"
+                    ? Number(detailOp.pending_alerts_enabled) !== 0
+                    : Number(detailOp.dispo) !== 0)
+                    ? "Disponible"
+                    : "Indisponible"
+                }
+                badgeColor={
+                  (typeof detailOp.pending_alerts_enabled !== "undefined"
+                    ? Number(detailOp.pending_alerts_enabled) !== 0
+                    : Number(detailOp.dispo) !== 0)
+                    ? "#10b981"
+                    : "#9ca3af"
+                }
+              />
               <InfoCard
                 label="Créé le"
                 value={
@@ -1012,11 +1030,18 @@ export default function Operators() {
                         setDetailOp(o);
                       }, 180);
                     }}
-                    className="w-full text-left flex items-center gap-3 px-3 py-2 rounded border transition hover:brightness-105"
+                    className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded border transition hover:brightness-105 ${Number(o?.pending_alerts_enabled ?? 1) !== 0 ? '' : 'opacity-60 grayscale'}`}
                     style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}
                   >
-                    <span className="online-dot" aria-hidden="true" />
+                    <span style={{ fontSize: 18 }}>
+                      {Number(o?.pending_alerts_enabled ?? 1) !== 0 ? "🟢" : "🔴"}
+                    </span>
                     <span className="flex-1">{o.name}</span>
+                                        {Number(o?.pending_alerts_enabled ?? 1) === 0 && (
+                                          <span className="text-xs ml-2 px-2 py-1 rounded bg-red-100 text-red-700 border border-red-200">
+                                            Indisponible
+                                          </span>
+                                        )}
                     {onlineOperatorMeta?.[Number(o.id)]?.has_active_mission && (
                       <span
                         className="px-2 py-0.5 rounded-full text-xs font-semibold"

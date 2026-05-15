@@ -244,9 +244,44 @@ const toFaIconClass = (value = "") => {
 };
 
 export const DEFAULT_SERVICES = BASE_SERVICES;
-const SERVICES_CACHE_KEY = "ttm:public-services:v2";
+const SERVICES_CACHE_KEY = "ttm:public-services:v3";
 
-export function mergeServices(apiServices = []) {
+const LOCAL_ASSET_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+const normalizeAssetUrl = (raw, apiBase = "") => {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  const lower = value.toLowerCase();
+  if (lower === "null" || lower === "undefined" || lower === "none") return "";
+
+  try {
+    const apiOrigin = apiBase ? new URL(String(apiBase).replace(/\/+$/, "")).origin : "";
+    const u = new URL(value);
+
+    // Rewrite local upload URLs to the active API origin.
+    if (u.pathname.startsWith("/uploads/") && apiOrigin && LOCAL_ASSET_HOSTS.has(u.hostname)) {
+      return `${apiOrigin}${u.pathname}${u.search}`;
+    }
+
+    // Prevent mixed content when API is https and asset URL is http.
+    if (u.pathname.startsWith("/uploads/") && apiOrigin && u.protocol === "http:") {
+      const api = new URL(apiOrigin);
+      if (api.protocol === "https:") {
+        return `${apiOrigin}${u.pathname}${u.search}`;
+      }
+    }
+
+    return value;
+  } catch {
+    // Relative path fallback
+    if (value.startsWith("/uploads/") && apiBase) {
+      return `${String(apiBase).replace(/\/+$/, "")}${value}`;
+    }
+    return value;
+  }
+};
+
+export function mergeServices(apiServices = [], apiBase = "") {
   if (!Array.isArray(apiServices) || apiServices.length === 0) {
     return DEFAULT_SERVICES;
   }
@@ -259,11 +294,13 @@ export function mergeServices(apiServices = []) {
     const subtitle = svc?.subtitle || "";
     const desc = subtitle || svc?.description || meta.desc || meta.description || "";
     const rawIcon = svc?.icon || svc?.icon_url || "";
-    const iconImage =
-      (svc?.icon_url && !/^[a-z0-9]+:/i.test(String(svc.icon_url))
-        ? svc.icon_url
-        : null) || meta.iconImage;
-    const serviceImage = svc?.image_url || meta.img || DEFAULT_IMAGE;
+    const apiIconImage =
+      svc?.icon_url && !/^[a-z0-9]+:/i.test(String(svc.icon_url))
+        ? normalizeAssetUrl(svc.icon_url, apiBase)
+        : "";
+    const iconImage = apiIconImage || meta.iconImage;
+    const serviceImage =
+      normalizeAssetUrl(svc?.image_url, apiBase) || meta.img || DEFAULT_IMAGE;
     const dynamicFaIcon = toFaIconClass(rawIcon);
 
     return {
@@ -285,7 +322,7 @@ export function mergeServices(apiServices = []) {
 export async function fetchPublicServices(apiBase = "") {
   const cached = !apiBase ? readCache(SERVICES_CACHE_KEY) : null;
   if (Array.isArray(cached) && cached.length) {
-    return mergeServices(cached);
+    return mergeServices(cached, "");
   }
 
   const bases = apiBase ? [apiBase] : getBaseCandidates();
@@ -299,7 +336,7 @@ export async function fetchPublicServices(apiBase = "") {
         const data = json?.data || [];
         if (Array.isArray(data) && data.length) {
           writeCache(SERVICES_CACHE_KEY, data);
-          return mergeServices(data);
+          return mergeServices(data, normalized);
         }
       }
     } catch {

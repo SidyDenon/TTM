@@ -254,6 +254,14 @@ export default function SiteVitrine() {
     return `${base}${path}`;
   };
 
+  const normalizeOptionalValue = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    const lower = raw.toLowerCase();
+    if (lower === "null" || lower === "undefined" || lower === "none") return "";
+    return raw;
+  };
+
   const formatDescriptionPreview = (value) => {
     const escapeHtml = (input) =>
       String(input || "")
@@ -628,9 +636,12 @@ export default function SiteVitrine() {
   };
 
   const openServiceEditor = (srv) => {
-    const iconFromService = [srv.icon, srv.icon_url].find(
-      (value) => typeof value === "string" && /^[a-z0-9]+:/i.test(value)
-    ) || srv.icon || "";
+    const normalizedIcon = normalizeOptionalValue(srv.icon);
+    const normalizedIconUrl = normalizeOptionalValue(srv.icon_url);
+    const normalizedImageUrl = normalizeOptionalValue(srv.image_url);
+    const iconFromService = [normalizedIcon, normalizedIconUrl].find(
+      (value) => /^[a-z0-9]+:/i.test(value)
+    ) || normalizedIcon || "";
     setClosingEditServiceModal(false);
     setEditingService(srv);
     setEditServiceDraft({
@@ -647,7 +658,7 @@ export default function SiteVitrine() {
       description: srv.description || "",
       price: String(srv.price || ""),
       icon: iconFromService,
-      image_url: srv.image_url || "",
+      image_url: normalizedImageUrl,
     });
     setShowEditServicePreview(false);
     setEditServiceIconPickerOpen(false);
@@ -1968,12 +1979,12 @@ export default function SiteVitrine() {
                         borderColor: "var(--border-color)",
                       }}
                     >
-                      {editServiceDraft.image_file || editServiceOriginal?.image_url ? (
+                      {editServiceDraft.image_file || normalizeOptionalValue(editServiceOriginal?.image_url) ? (
                         <img
                           src={
                             editServiceDraft.image_file
                               ? URL.createObjectURL(editServiceDraft.image_file)
-                              : toAssetUrl(editServiceOriginal?.image_url)
+                              : toAssetUrl(normalizeOptionalValue(editServiceOriginal?.image_url))
                           }
                           alt="Aperçu"
                           className="w-full h-full object-cover"
@@ -1992,13 +2003,13 @@ export default function SiteVitrine() {
                     >
                       <FaEdit />
                     </button>
-                    {(editServiceDraft.image_file || editServiceOriginal?.image_url) && (
+                    {(editServiceDraft.image_file || normalizeOptionalValue(editServiceOriginal?.image_url)) && (
                       <button
                         type="button"
                         onClick={() => {
                           const src = editServiceDraft.image_file
                             ? URL.createObjectURL(editServiceDraft.image_file)
-                            : toAssetUrl(editServiceOriginal?.image_url);
+                            : toAssetUrl(normalizeOptionalValue(editServiceOriginal?.image_url));
                           setImageViewerUrl(src);
                           setImageViewerOpen(true);
                         }}

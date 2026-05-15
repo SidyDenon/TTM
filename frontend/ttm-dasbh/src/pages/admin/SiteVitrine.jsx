@@ -13,7 +13,7 @@ import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
 import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane, FaEye } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { API_BASE } from "../../config/urls";
+import { API_BASE, buildAssetUrl } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
@@ -247,11 +247,11 @@ export default function SiteVitrine() {
   };
 
   const toAssetUrl = (value) => {
-    if (!value) return "";
-    if (/^https?:\/\//i.test(value)) return value;
-    const base = API_BASE.replace(/\/api$/, "");
-    const path = String(value).startsWith("/") ? value : `/${value}`;
-    return `${base}${path}`;
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    const lower = raw.toLowerCase();
+    if (lower === "null" || lower === "undefined" || lower === "none") return "";
+    return buildAssetUrl(raw);
   };
 
   const normalizeOptionalValue = (value) => {
@@ -1293,7 +1293,7 @@ export default function SiteVitrine() {
                           if (s.icon_url && !isVirtual) {
                             return (
                               <img
-                                src={`${API_BASE.replace(/\/api$/, "")}${s.icon_url}`}
+                                src={toAssetUrl(s.icon_url)}
                                 alt=""
                                 className="w-7 h-7 object-contain"
                               />

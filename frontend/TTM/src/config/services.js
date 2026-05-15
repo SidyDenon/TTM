@@ -253,16 +253,13 @@ const normalizeAssetUrl = (raw, apiBase = "") => {
   if (!value) return "";
   const lower = value.toLowerCase();
   if (lower === "null" || lower === "undefined" || lower === "none") return "";
-
   try {
     const apiOrigin = apiBase ? new URL(String(apiBase).replace(/\/+$/, "")).origin : "";
     const u = new URL(value);
-
     // Rewrite local upload URLs to the active API origin.
     if (u.pathname.startsWith("/uploads/") && apiOrigin && LOCAL_ASSET_HOSTS.has(u.hostname)) {
       return `${apiOrigin}${u.pathname}${u.search}`;
     }
-
     // Prevent mixed content when API is https and asset URL is http.
     if (u.pathname.startsWith("/uploads/") && apiOrigin && u.protocol === "http:") {
       const api = new URL(apiOrigin);
@@ -270,20 +267,12 @@ const normalizeAssetUrl = (raw, apiBase = "") => {
         return `${apiOrigin}${u.pathname}${u.search}`;
       }
     }
-
     return value;
   } catch {
-    // Relative path fallback: support both /uploads/... and uploads/... variants.
-    if (apiBase) {
-      const base = String(apiBase).replace(/\/+$/, "");
-      if (/^\/?(uploads|service-icons|icons)\//i.test(value)) {
-        const normalizedPath = value.startsWith("/") ? value : `/${value}`;
-        return `${base}${normalizedPath}`;
-      }
+    // Relative path fallback
+    if (value.startsWith("/uploads/") && apiBase) {
+      return `${String(apiBase).replace(/\/+$/, "")}${value}`;
     }
-
-    // Local public assets fallback: support assets/... and /assets/...
-    if (/^assets\//i.test(value)) return `/${value}`;
     return value;
   }
 };

@@ -12,7 +12,6 @@ import "./App.css";
 const cx = (...c) => c.filter(Boolean).join(" ");
 const formatPrice = (p) => (p ? String(p).replace(/\s/g, "\u202F") : "—");
 const excerpt = (s, n = 120) => (s.length > n ? s.slice(0, n).trim() + "…" : s);
-const FALLBACK_TARIF_IMAGE = "/assets/accueil.png";
 
 const tarifModalVariants = {
   hidden: { opacity: 0 },
@@ -74,14 +73,10 @@ function TarifModal({ open, onClose, item, onWhatsApp }) {
               {item.img && (
                 <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#800E08]/10 overflow-hidden">
                   <img
-                    src={item.img || FALLBACK_TARIF_IMAGE}
+                    src={item.img}
                     alt={item.title}
                     className="h-full w-full object-cover"
                     loading="lazy"
-                    onError={(e) => {
-                      if (e.currentTarget.src.includes(FALLBACK_TARIF_IMAGE)) return;
-                      e.currentTarget.src = FALLBACK_TARIF_IMAGE;
-                    }}
                   />
                 </div>
               )}
@@ -147,14 +142,10 @@ function Card({ item, onMore, onWhatsApp }) {
     >
       <div className="aspect-[4/3] w-full overflow-hidden">
         <img
-          src={item.img || FALLBACK_TARIF_IMAGE}
+          src={item.img}
           alt={`${item.title} – illustration`}
           loading="lazy"
           className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
-          onError={(e) => {
-            if (e.currentTarget.src.includes(FALLBACK_TARIF_IMAGE)) return;
-            e.currentTarget.src = FALLBACK_TARIF_IMAGE;
-          }}
         />
       </div>
 

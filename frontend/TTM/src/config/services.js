@@ -235,12 +235,16 @@ const toFaIconClass = (value = "") => {
   const [pack, icon] = raw.split(":");
   if (!pack || !icon) return null;
   if (!pack.toLowerCase().startsWith("fa")) return null;
-  const clean = icon.replace(/[^a-z0-9-]/gi, "").toLowerCase();
+  const token = String(icon || "").trim();
+  const kebab = /^[A-Z][A-Za-z0-9]+$/.test(token)
+    ? token.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()
+    : token.toLowerCase();
+  const clean = kebab.replace(/[^a-z0-9-]/g, "");
   return clean ? `fa-${clean}` : null;
 };
 
 export const DEFAULT_SERVICES = BASE_SERVICES;
-const SERVICES_CACHE_KEY = "ttm:public-services";
+const SERVICES_CACHE_KEY = "ttm:public-services:v2";
 
 export function mergeServices(apiServices = []) {
   if (!Array.isArray(apiServices) || apiServices.length === 0) {
@@ -253,13 +257,12 @@ export function mergeServices(apiServices = []) {
     const priceLabel = formatPrice(svc?.price);
     const description = svc?.description || meta.description || meta.desc || "";
     const subtitle = svc?.subtitle || "";
-    const desc = subtitle || meta.desc || svc?.description || meta.description || "";
+    const desc = subtitle || svc?.description || meta.desc || meta.description || "";
     const rawIcon = svc?.icon || svc?.icon_url || "";
     const iconImage =
-      meta.iconImage ||
       (svc?.icon_url && !/^[a-z0-9]+:/i.test(String(svc.icon_url))
         ? svc.icon_url
-        : null);
+        : null) || meta.iconImage;
     const serviceImage = svc?.image_url || meta.img || DEFAULT_IMAGE;
     const dynamicFaIcon = toFaIconClass(rawIcon);
 
@@ -268,8 +271,8 @@ export function mergeServices(apiServices = []) {
       desc,
       description,
       subtitle,
-      details: meta.details || svc?.description || "",
-      icon: meta.icon || dynamicFaIcon || "fa-wrench",
+      details: svc?.description || meta.details || "",
+      icon: dynamicFaIcon || meta.icon || "fa-wrench",
       iconImage,
       iconAlt: meta.iconAlt,
       img: serviceImage,

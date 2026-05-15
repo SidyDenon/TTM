@@ -10,7 +10,7 @@ import * as AiIcons from "react-icons/ai";      // AntDesign
 import * as MdIcons from "react-icons/md";      // Material Icons
 import * as GoIcons from "react-icons/go";      // Octicons
 import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
-import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane } from "react-icons/fa";
+import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane, FaEye } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
@@ -90,6 +90,25 @@ export default function SiteVitrine() {
   const [confirmService, setConfirmService] = useState(null);
   const [closingConfirmService, setClosingConfirmService] = useState(false);
   const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
+  const [editingService, setEditingService] = useState(null);
+  const [closingEditServiceModal, setClosingEditServiceModal] = useState(false);
+  const [editServiceDraft, setEditServiceDraft] = useState({
+    name: "",
+    subtitle: "",
+    description: "",
+    price: "",
+    icon: "",
+    image_file: null,
+  });
+  const [editServiceOriginal, setEditServiceOriginal] = useState(null);
+  const [showEditServicePreview, setShowEditServicePreview] = useState(false);
+  const [editServiceIconPickerOpen, setEditServiceIconPickerOpen] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState("");
+  const [descriptionViewerOpen, setDescriptionViewerOpen] = useState(false);
+  const [descriptionViewerContent, setDescriptionViewerContent] = useState("");
+  const [descriptionEditorOpen, setDescriptionEditorOpen] = useState(false);
+  const [descriptionEditorDraft, setDescriptionEditorDraft] = useState("");
   const [showTestSmsModal, setShowTestSmsModal] = useState(false);
   const [closingTestSmsModal, setClosingTestSmsModal] = useState(false);
   const [testSmsPhone, setTestSmsPhone] = useState("");
@@ -133,6 +152,12 @@ export default function SiteVitrine() {
     faq: { title: "", subtitle: "", image: "" },
   });
   const [tarifsPhotosRaw, setTarifsPhotosRaw] = useState("{}");
+  const [histoireEditorOpen, setHistoireEditorOpen] = useState(false);
+  const [histoirePreviewOpen, setHistoirePreviewOpen] = useState(false);
+  const [histoireDraft, setHistoireDraft] = useState({
+    modalSubtitle: "",
+    modalBody: "",
+  });
 
   const isLogged = useMemo(() => Boolean(token), [token]);
 
@@ -151,9 +176,20 @@ export default function SiteVitrine() {
   const resolveIcon = (iconName) => {
     if (!iconName) return null;
     const raw = String(iconName).trim();
+    const normalizeIconToken = (token = "") => {
+      const cleaned = String(token || "").trim();
+      if (!cleaned) return "";
+      const withoutFaPrefix = cleaned.replace(/^fa[srlbd]?\s+/i, "").replace(/^fa-/i, "");
+      if (/^[A-Z][A-Za-z0-9]+$/.test(withoutFaPrefix)) {
+        return withoutFaPrefix
+          .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+          .toLowerCase();
+      }
+      return withoutFaPrefix.replace(/_/g, "-").toLowerCase();
+    };
     const [packPrefix, rawName] =
       raw.includes(":") ? raw.split(":") : [null, raw];
-    const key = (packPrefix ? rawName : raw).toLowerCase();
+    const key = normalizeIconToken(packPrefix ? rawName : raw);
     const cacheKey = `${packPrefix || "any"}:${key}`;
     if (iconCache.current[cacheKey]) return iconCache.current[cacheKey];
 
@@ -196,12 +232,16 @@ export default function SiteVitrine() {
 
   const renderIcon = (iconName, size = 24) => {
     let Comp = FaWrench;
-    if (iconList.length > 0) {
-      const found = iconList.find((i) => i.name === iconName);
+    const resolved = resolveIcon(iconName);
+    if (resolved) {
+      Comp = resolved;
+    } else if (iconList.length > 0) {
+      const raw = String(iconName || "").trim().toLowerCase();
+      const normalizedName = raw.includes(":") ? raw.split(":")[1] : raw;
+      const found = iconList.find(
+        (i) => i.name === normalizedName || `${i.pack}:${i.name}` === raw
+      );
       Comp = found?.Comp || FaWrench;
-    } else {
-      const resolved = resolveIcon(iconName);
-      if (resolved) Comp = resolved;
     }
     return <Comp style={{ fontSize: size }} />;
   };
@@ -212,6 +252,21 @@ export default function SiteVitrine() {
     const base = API_BASE.replace(/\/api$/, "");
     const path = String(value).startsWith("/") ? value : `/${value}`;
     return `${base}${path}`;
+  };
+
+  const formatDescriptionPreview = (value) => {
+    const escapeHtml = (input) =>
+      String(input || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+    return escapeHtml(value)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/\n/g, "<br />");
   };
 
   // Chargement paresseux de la grosse liste d'icônes (évite de bloquer au montage)
@@ -250,12 +305,14 @@ export default function SiteVitrine() {
 
   const filteredIcons = useMemo(() => {
     if (!iconList.length) return [];
-    const q = (iconSearch || addForm.icon || "").toLowerCase().trim();
+    const qRaw = (iconSearch || addForm.icon || "").toLowerCase().trim();
+    const q = qRaw.includes(":") ? qRaw.split(":")[1] : qRaw;
     const matches = iconList.filter((ico) => {
       if (!q) return true;
       return (
         ico.name.includes(q) ||
-        ico.label.toLowerCase().includes(q)
+        ico.label.toLowerCase().includes(q) ||
+        `${ico.pack}:${ico.name}`.includes(qRaw)
       );
     });
     // limiter l'affichage pour ne pas lagger l'UI
@@ -570,6 +627,84 @@ export default function SiteVitrine() {
     }
   };
 
+  const openServiceEditor = (srv) => {
+    const iconFromService = [srv.icon, srv.icon_url].find(
+      (value) => typeof value === "string" && /^[a-z0-9]+:/i.test(value)
+    ) || srv.icon || "";
+    setClosingEditServiceModal(false);
+    setEditingService(srv);
+    setEditServiceDraft({
+      name: srv.name || "",
+      subtitle: srv.subtitle || "",
+      description: srv.description || "",
+      price: String(srv.price || ""),
+      icon: iconFromService,
+      image_file: null,
+    });
+    setEditServiceOriginal({
+      name: srv.name || "",
+      subtitle: srv.subtitle || "",
+      description: srv.description || "",
+      price: String(srv.price || ""),
+      icon: iconFromService,
+      image_url: srv.image_url || "",
+    });
+    setShowEditServicePreview(false);
+    setEditServiceIconPickerOpen(false);
+    setIconSearch(iconFromService);
+  };
+
+  const closeServiceEditor = () => {
+    if (inlineSaving) return;
+    setClosingEditServiceModal(true);
+    setTimeout(() => {
+      setEditingService(null);
+      setClosingEditServiceModal(false);
+      setShowEditServicePreview(false);
+      setEditServiceIconPickerOpen(false);
+    }, 180);
+  };
+
+  const saveServiceFromModal = async () => {
+    if (!editingService || inlineSaving) return;
+    const price = Number(editServiceDraft.price);
+    if (!editServiceDraft.name) return toast.error("Nom du service requis");
+    if (isNaN(price) || price < 0) return toast.error("Prix invalide");
+
+    try {
+      setInlineSaving(editingService.id);
+      const payload = new FormData();
+      payload.append("name", String(editServiceDraft.name || "").trim());
+      payload.append("subtitle", String(editServiceDraft.subtitle || "").trim());
+      payload.append("description", String(editServiceDraft.description || "").trim());
+      payload.append("price", String(price));
+      payload.append("icon_name", editServiceDraft.icon || "");
+      if (editServiceDraft.image_file) {
+        payload.append("image", editServiceDraft.image_file);
+      }
+
+      const res = await fetch(`${API_BASE}/api/admin/vitrine/services/${editingService.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: payload,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
+
+      toast.success(`Service "${editServiceDraft.name}" mis à jour ✅`);
+      setServices((prev) =>
+        prev.map((s) => (s.id === editingService.id ? { ...s, ...(data?.data || {}) } : s))
+      );
+      closeServiceEditor();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  };
+
   const performDeleteService = async (srv) => {
     if (!canManageServices) {
       return toast.error(
@@ -845,24 +980,44 @@ export default function SiteVitrine() {
             <p className="opacity-70">Chargement contenu…</p>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs opacity-70">
-                Mise en forme disponible: **gras** et *italique*.
-              </p>
-              <input
-                className="w-full p-2 rounded border"
-                style={{ borderColor: "var(--border-color)", background: "var(--bg-card)", color: "var(--text-color)" }}
-                placeholder="Sous-titre histoire"
-                value={siteContent.histoire.modalSubtitle || ""}
-                onChange={(e) => updateSiteSection("histoire", "modalSubtitle", e.target.value)}
-              />
-              <textarea
-                className="w-full p-2 rounded border"
-                style={{ borderColor: "var(--border-color)", background: "var(--bg-card)", color: "var(--text-color)" }}
-                rows={10}
-                placeholder="Contenu histoire (texte long)"
-                value={siteContent.histoire.modalBody || ""}
-                onChange={(e) => updateSiteSection("histoire", "modalBody", e.target.value)}
-              />
+              <div className="rounded border p-3" style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}>
+                <div className="text-sm font-semibold mb-1">
+                  {siteContent.histoire.modalSubtitle || "Sous-titre non défini"}
+                </div>
+                <div
+                  className="text-sm overflow-hidden"
+                  style={{ maxHeight: "150px" }}
+                  dangerouslySetInnerHTML={{
+                    __html: formatDescriptionPreview(siteContent.histoire.modalBody || "Aucun contenu"),
+                  }}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoireDraft({
+                      modalSubtitle: siteContent.histoire.modalSubtitle || "",
+                      modalBody: siteContent.histoire.modalBody || "",
+                    });
+                    setHistoireEditorOpen(true);
+                  }}
+                  className="px-3 py-2 rounded border text-sm inline-flex items-center gap-2"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <FaEdit />
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoirePreviewOpen(true)}
+                  className="px-3 py-2 rounded border text-sm inline-flex items-center gap-2"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <FaEye />
+                  Visualiser
+                </button>
+              </div>
               <button
                 onClick={saveSiteContent}
                 disabled={siteContentSaving || !canManageSiteContent}
@@ -875,6 +1030,106 @@ export default function SiteVitrine() {
           )}
         </div>
       </section>
+
+      {histoireEditorOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 10040, padding: "20px" }}
+          onClick={() => setHistoireEditorOpen(false)}
+        >
+          <div
+            className="p-6 rounded shadow w-full max-w-3xl modal-panel"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-base font-semibold mb-2">Modifier Histoire</h4>
+            <p className="mb-2 text-[11px] opacity-70">
+              Astuce: utilisez **mot** pour gras et *mot* pour italique.
+            </p>
+            <label className="block text-sm opacity-70 mb-1">Sous-titre</label>
+            <input
+              className="w-full p-2 rounded border mb-3"
+              style={{ borderColor: "var(--border-color)", background: "var(--bg-main)", color: "var(--text-color)" }}
+              placeholder="Sous-titre histoire"
+              value={histoireDraft.modalSubtitle}
+              onChange={(e) => setHistoireDraft((prev) => ({ ...prev, modalSubtitle: e.target.value }))}
+            />
+            <label className="block text-sm opacity-70 mb-1">Contenu</label>
+            <textarea
+              className="w-full p-2 rounded border"
+              style={{ borderColor: "var(--border-color)", background: "var(--bg-main)", color: "var(--text-color)" }}
+              rows={10}
+              placeholder="Contenu histoire (texte long)"
+              value={histoireDraft.modalBody}
+              onChange={(e) => setHistoireDraft((prev) => ({ ...prev, modalBody: e.target.value }))}
+            />
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setHistoireEditorOpen(false)}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateSiteSection("histoire", "modalSubtitle", histoireDraft.modalSubtitle);
+                  updateSiteSection("histoire", "modalBody", histoireDraft.modalBody);
+                  setHistoireEditorOpen(false);
+                }}
+                className="px-4 py-2 rounded text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {histoirePreviewOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 10040, padding: "20px" }}
+          onClick={() => setHistoirePreviewOpen(false)}
+        >
+          <div
+            className="p-6 rounded shadow w-full max-w-3xl modal-panel"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-base font-semibold mb-2">Aperçu Histoire</h4>
+            <div className="text-sm font-semibold mb-2">{siteContent.histoire.modalSubtitle || "Sous-titre non défini"}</div>
+            <div
+              className="text-sm"
+              dangerouslySetInnerHTML={{
+                __html: formatDescriptionPreview(siteContent.histoire.modalBody || "Aucun contenu"),
+              }}
+            />
+            <button
+              onClick={() => setHistoirePreviewOpen(false)}
+              className="mt-4 px-4 py-2 rounded border"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
 
       {showPasswordModal && (
         <div
@@ -993,9 +1248,6 @@ export default function SiteVitrine() {
                 <tr>
                   <th className="px-3 py-2 text-left">Icône</th>
                   <th className="px-3 py-2 text-left">Nom</th>
-                  <th className="px-3 py-2 text-left">Sous-titre</th>
-                  <th className="px-3 py-2 text-left">Description</th>
-                  <th className="px-3 py-2 text-left">Image carte</th>
                   <th className="px-3 py-2 text-left">Prix (FCFA)</th>
                   <th className="px-3 py-2 text-right">Actions</th>
                 </tr>
@@ -1003,14 +1255,14 @@ export default function SiteVitrine() {
               <tbody>
                 {loadingServices ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center opacity-70">
+                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
                       <AiOutlineLoading3Quarters className="inline animate-spin mr-2" />
                       Chargement...
                     </td>
                   </tr>
                 ) : services.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center opacity-70">
+                    <td colSpan={4} className="px-3 py-6 text-center opacity-70">
                       Aucun service.
                     </td>
                   </tr>
@@ -1046,144 +1298,19 @@ export default function SiteVitrine() {
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={s.name || ""}
-                          onChange={(e) =>
-                            setServices((prev) =>
-                              prev.map((x) =>
-                                x.id === s.id
-                                  ? { ...x, name: e.target.value }
-                                  : x
-                              )
-                            )
-                          }
-                          disabled={!canManageServices}
-                          className="w-44 p-2 rounded border"
-                          style={{
-                            background: "var(--bg-card)",
-                            color: "var(--text-color)",
-                            borderColor: "var(--border-color)",
-                          }}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={s.subtitle || ""}
-                          onChange={(e) =>
-                            setServices((prev) =>
-                              prev.map((x) =>
-                                x.id === s.id
-                                  ? { ...x, subtitle: e.target.value }
-                                  : x
-                              )
-                            )
-                          }
-                          disabled={!canManageServices}
-                          className="w-56 p-2 rounded border"
-                          style={{
-                            background: "var(--bg-card)",
-                            color: "var(--text-color)",
-                            borderColor: "var(--border-color)",
-                          }}
-                          placeholder="Aperçu court (carte)"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <textarea
-                          value={s.description || ""}
-                          onChange={(e) =>
-                            setServices((prev) =>
-                              prev.map((x) =>
-                                x.id === s.id
-                                  ? { ...x, description: e.target.value }
-                                  : x
-                              )
-                            )
-                          }
-                          disabled={!canManageServices}
-                          className="w-64 p-2 rounded border min-h-[72px]"
-                          style={{
-                            background: "var(--bg-card)",
-                            color: "var(--text-color)",
-                            borderColor: "var(--border-color)",
-                          }}
-                          placeholder="Texte de la carte service (**gras** / *italique*)"
-                        />
-                        <p className="mt-1 text-[11px] opacity-60">
-                          Astuce: utilisez **mot** pour gras et *mot* pour italique.
-                        </p>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-2">
-                          {(rowImagePreviews[s.id] || s.image_url) && (
-                            <img
-                              src={rowImagePreviews[s.id] || toAssetUrl(s.image_url)}
-                              alt={s.name}
-                              className="w-28 h-16 rounded object-cover border"
-                              style={{ borderColor: "var(--border-color)" }}
-                            />
-                          )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={!canManageServices}
-                            className="w-56 p-2 rounded border text-sm"
-                            style={{
-                              background: "var(--bg-card)",
-                              color: "var(--text-color)",
-                              borderColor: "var(--border-color)",
-                            }}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const preview = URL.createObjectURL(file);
-                              setRowImageFiles((prev) => ({ ...prev, [s.id]: file }));
-                              setRowImagePreviews((prev) => ({ ...prev, [s.id]: preview }));
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={s.price}
-                          onChange={(e) =>
-                            setServices((prev) =>
-                              prev.map((x) =>
-                                x.id === s.id
-                                  ? { ...x, price: e.target.value }
-                                  : x
-                              )
-                            )
-                          }
-                          disabled={!canManageServices}
-                          className="w-32 p-2 rounded border"
-                          style={{
-                            background: "var(--bg-card)",
-                            color: "var(--text-color)",
-                            borderColor: "var(--border-color)",
-                          }}
-                        />
-                      </td>
+                      <td className="px-3 py-2 font-medium">{s.name}</td>
+                      <td className="px-3 py-2">{Number(s.price).toFixed(2)}</td>
                       <td className="px-3 py-2 text-right space-x-2">
                         <button
-                          onClick={() => saveInlinePrice(s)}
-                          disabled={inlineSaving === s.id || !canManageServices}
-                          style={{ background: "var(--accent)", color: "#fff" }}
-                          className="px-3 py-1 rounded disabled:opacity-70"
+                          onClick={() => openServiceEditor(s)}
+                          disabled={!canManageServices}
+                          className="px-3 py-1 rounded border inline-flex items-center justify-center disabled:opacity-60"
+                          style={{ borderColor: "var(--border-color)" }}
                           title={
-                            canManageServices ? "" : "Droit requis: services_manage"
+                            canManageServices ? "Modifier" : "Droit requis: services_manage"
                           }
                         >
-                          {inlineSaving === s.id ? (
-                            <AiOutlineLoading3Quarters className="inline animate-spin" />
-                          ) : (
-                            <FaSave className="inline" />
-                          )}
+                          <FaEdit />
                         </button>
                         {!isPinnedProtectedService(s.name) && (
                           <button
@@ -1324,10 +1451,13 @@ export default function SiteVitrine() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <h3 className="font-semibold mb-1 flex items-center gap-2 text-lg">
               <FaPlus />
               Ajouter un service
             </h3>
+            <p className="text-sm opacity-70 mb-4">
+              Renseigne les infos principales puis vérifie les aperçus avant d’ajouter.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm opacity-70 mb-1">Nom</label>
@@ -1337,7 +1467,7 @@ export default function SiteVitrine() {
                   onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
                   className="w-full p-2 rounded border"
                   style={{
-                    background: "var(--bg-card)",
+                    background: "var(--bg-main)",
                     color: "var(--text-color)",
                     borderColor: "var(--border-color)",
                   }}
@@ -1353,7 +1483,7 @@ export default function SiteVitrine() {
                   onChange={(e) => setAddForm({ ...addForm, price: e.target.value })}
                   className="w-full p-2 rounded border"
                   style={{
-                    background: "var(--bg-card)",
+                    background: "var(--bg-main)",
                     color: "var(--text-color)",
                     borderColor: "var(--border-color)",
                   }}
@@ -1370,7 +1500,7 @@ export default function SiteVitrine() {
                   }
                   className="w-full p-2 rounded border"
                   style={{
-                    background: "var(--bg-card)",
+                    background: "var(--bg-main)",
                     color: "var(--text-color)",
                     borderColor: "var(--border-color)",
                   }}
@@ -1379,6 +1509,9 @@ export default function SiteVitrine() {
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm opacity-70 mb-1">Description</label>
+                <p className="mb-1 text-[11px] opacity-60">
+                  Astuce: utilisez **mot** pour gras et *mot* pour italique.
+                </p>
                 <textarea
                   value={addForm.description}
                   onChange={(e) =>
@@ -1386,27 +1519,98 @@ export default function SiteVitrine() {
                   }
                   className="w-full p-2 rounded border min-h-[90px]"
                   style={{
-                    background: "var(--bg-card)",
+                    background: "var(--bg-main)",
                     color: "var(--text-color)",
                     borderColor: "var(--border-color)",
                   }}
                   placeholder="Texte affiché dans la carte service (**gras** / *italique*)"
                 />
-                <p className="mt-1 text-[11px] opacity-60">
-                  Astuce: utilisez **mot** pour gras et *mot* pour italique.
-                </p>
+                <div className="mt-2 flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescriptionViewerContent(
+                        formatDescriptionPreview(addForm.description || "Aucun texte pour l’instant.")
+                      );
+                      setDescriptionViewerOpen(true);
+                    }}
+                    className="px-3 py-2 rounded border text-sm inline-flex items-center gap-2"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <FaEye />
+                    Visualiser
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        description: String(prev.description || "").trim(),
+                      }))
+                    }
+                    className="px-3 py-2 rounded text-white text-sm inline-flex items-center gap-2"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    <FaSave />
+                    Enregistrer
+                  </button>
+                </div>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm opacity-70 mb-1">Photo de la carte</label>
+                <label className="block text-sm opacity-70 mb-2">Photo de la carte</label>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
+                    <div
+                      className="w-32 h-20 rounded border flex items-center justify-center overflow-hidden"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {addImagePreview ? (
+                        <img
+                          src={addImagePreview}
+                          alt="Aperçu"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs opacity-60 px-2 text-center">Aucune image</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById("add-service-image-input")?.click()}
+                      className="p-2 rounded border inline-flex items-center justify-center"
+                      style={{ borderColor: "var(--border-color)" }}
+                      title="Modifier l'image"
+                    >
+                      <FaEdit />
+                    </button>
+                    {addImagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageViewerUrl(addImagePreview);
+                          setImageViewerOpen(true);
+                        }}
+                        className="p-2 rounded border inline-flex items-center justify-center"
+                        style={{ borderColor: "var(--border-color)" }}
+                        title="Visualiser"
+                      >
+                        <FaEye />
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <input
+                  id="add-service-image-input"
                   type="file"
                   accept="image/*"
-                  className="w-full p-2 rounded border"
-                  style={{
-                    background: "var(--bg-card)",
-                    color: "var(--text-color)",
-                    borderColor: "var(--border-color)",
-                  }}
+                  style={{ display: "none" }}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
@@ -1414,19 +1618,24 @@ export default function SiteVitrine() {
                     setAddImagePreview(URL.createObjectURL(file));
                   }}
                 />
-                {addImagePreview && (
-                  <img
-                    src={addImagePreview}
-                    alt="Aperçu"
-                    className="mt-2 h-24 rounded object-cover border"
-                    style={{ borderColor: "var(--border-color)" }}
-                  />
-                )}
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm opacity-70 mb-1">Icône</label>
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-2">
+                <label className="block text-sm opacity-70 mb-2">Icône</label>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
+                    <div
+                      className="w-16 h-16 rounded border flex items-center justify-center"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {addForm.icon ? renderIcon(addForm.icon, 30) : <FaPlus className="opacity-50" />}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex gap-2">
                     <input
                       type="text"
                       value={addForm.icon}
@@ -1437,11 +1646,11 @@ export default function SiteVitrine() {
                       onFocus={() => setIconPickerOpen(true)}
                       className="flex-1 p-2 rounded border"
                       style={{
-                        background: "var(--bg-card)",
+                        background: "var(--bg-main)",
                         color: "var(--text-color)",
                         borderColor: "var(--border-color)",
                       }}
-                      placeholder="Tape le nom de l´icône ici …"
+                      placeholder="Tape le nom de l’icône ici…"
                     />
                     <button
                       type="button"
@@ -1452,11 +1661,13 @@ export default function SiteVitrine() {
                       Suggestions
                     </button>
                   </div>
-                  {iconPickerOpen && (
+                </div>
+
+                {iconPickerOpen && (
                     <div
-                      className="p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
+                      className="mt-2 p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
                       style={{
-                        background: "var(--bg-card)",
+                        background: "var(--bg-main)",
                         borderColor: "var(--border-color)",
                       }}
                     >
@@ -1502,7 +1713,6 @@ export default function SiteVitrine() {
                       )}
                     </div>
                   )}
-                </div>
               </div>
             </div>
 
@@ -1536,6 +1746,413 @@ export default function SiteVitrine() {
                 Ajouter
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingService && (
+        <div
+          className={`fixed inset-0 flex items-center justify-center modal-backdrop ${closingEditServiceModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 10000, padding: "20px" }}
+          onClick={closeServiceEditor}
+        >
+          <div
+            className={`p-6 rounded shadow w-full max-w-2xl modal-panel ${closingEditServiceModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4">{editServiceOriginal?.name}</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Nom du service</label>
+                <input
+                  type="text"
+                  value={editServiceDraft.name || ""}
+                  onChange={(e) =>
+                    setEditServiceDraft((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-main)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Sous-titre (carte)</label>
+                <input
+                  type="text"
+                  value={editServiceDraft.subtitle || ""}
+                  onChange={(e) =>
+                    setEditServiceDraft((prev) => ({ ...prev, subtitle: e.target.value }))
+                  }
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-main)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Description</label>
+                <div
+                  className="p-3 rounded border text-sm overflow-hidden"
+                  style={{
+                    background: "var(--bg-main)",
+                    borderColor: "var(--border-color)",
+                    maxHeight: "110px",
+                  }}
+                  dangerouslySetInnerHTML={{
+                    __html: formatDescriptionPreview(editServiceDraft.description || "Aucun texte"),
+                  }}
+                />
+                <div className="mt-2 flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescriptionEditorDraft(editServiceDraft.description || "");
+                      setDescriptionEditorOpen(true);
+                    }}
+                    className="px-3 py-2 rounded border text-sm inline-flex items-center gap-2"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <FaEdit />
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescriptionViewerContent(
+                        formatDescriptionPreview(editServiceDraft.description || "Aucun texte")
+                      );
+                      setDescriptionViewerOpen(true);
+                    }}
+                    className="px-3 py-2 rounded border text-sm inline-flex items-center gap-2"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <FaEye />
+                    Visualiser
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Prix (FCFA)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editServiceDraft.price || ""}
+                  onChange={(e) =>
+                    setEditServiceDraft((prev) => ({ ...prev, price: e.target.value }))
+                  }
+                  className="w-full p-2 rounded border"
+                  style={{
+                    background: "var(--bg-main)",
+                    color: "var(--text-color)",
+                    borderColor: "var(--border-color)",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Icône</label>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
+                    <div
+                      className="w-16 h-16 rounded border flex items-center justify-center"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {editServiceDraft.icon ? renderIcon(editServiceDraft.icon, 30) : <FaWrench />}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIconSearch(editServiceDraft.icon || "");
+                      setEditServiceIconPickerOpen(!editServiceIconPickerOpen);
+                    }}
+                    className="p-2 rounded border inline-flex items-center justify-center"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <FaEdit />
+                  </button>
+                </div>
+                {editServiceIconPickerOpen && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={editServiceDraft.icon || ""}
+                      onChange={(e) => {
+                        setEditServiceDraft((prev) => ({ ...prev, icon: e.target.value }));
+                        setIconSearch(e.target.value);
+                      }}
+                      className="w-full p-2 rounded border text-sm"
+                      style={{
+                        background: "var(--bg-main)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                      placeholder="Ex: fa6:FaUsers ou fa6:users"
+                    />
+                    <div
+                      className="mt-2 p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-auto"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {iconsLoading && (
+                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                          Chargement des icônes…
+                        </div>
+                      )}
+                      {!iconsLoading && filteredIcons.length === 0 && (
+                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                          Aucune correspondance. Essaie un autre mot-clé.
+                        </div>
+                      )}
+                      {!iconsLoading &&
+                        filteredIcons.map((ico) => (
+                          <button
+                            key={`edit-${ico.key}`}
+                            type="button"
+                            onClick={() => {
+                              const value = `${ico.pack}:${ico.name}`;
+                              setEditServiceDraft((prev) => ({ ...prev, icon: value }));
+                              setIconSearch(value);
+                              setEditServiceIconPickerOpen(false);
+                            }}
+                            className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                            style={{
+                              background: "var(--bg-card)",
+                              color: "var(--text-color)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          >
+                            <ico.Comp style={{ fontSize: 18 }} />
+                            <div>
+                              <div className="text-sm font-medium capitalize">{ico.label}</div>
+                              <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Image (carte)</label>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
+                    <div
+                      className="w-32 h-20 rounded border flex items-center justify-center overflow-hidden"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {editServiceDraft.image_file || editServiceOriginal?.image_url ? (
+                        <img
+                          src={
+                            editServiceDraft.image_file
+                              ? URL.createObjectURL(editServiceDraft.image_file)
+                              : toAssetUrl(editServiceOriginal?.image_url)
+                          }
+                          alt="Aperçu"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs opacity-60">Aucune image</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById(`edit-service-image-input-${editingService.id}`)?.click()}
+                      className="p-2 rounded border inline-flex items-center justify-center"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      <FaEdit />
+                    </button>
+                    {(editServiceDraft.image_file || editServiceOriginal?.image_url) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const src = editServiceDraft.image_file
+                            ? URL.createObjectURL(editServiceDraft.image_file)
+                            : toAssetUrl(editServiceOriginal?.image_url);
+                          setImageViewerUrl(src);
+                          setImageViewerOpen(true);
+                        }}
+                        className="p-2 rounded border inline-flex items-center justify-center"
+                        style={{ borderColor: "var(--border-color)" }}
+                      >
+                        <FaEye />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  id={`edit-service-image-input-${editingService.id}`}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setEditServiceDraft((prev) => ({ ...prev, image_file: file }));
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-2 justify-end">
+              <button
+                onClick={closeServiceEditor}
+                disabled={closingEditServiceModal}
+                className="px-4 py-2 rounded border disabled:opacity-60"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveServiceFromModal}
+                disabled={closingEditServiceModal || inlineSaving === editingService.id}
+                className="px-4 py-2 rounded text-white disabled:opacity-60"
+                style={{ background: "var(--accent)" }}
+              >
+                {inlineSaving === editingService.id ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {descriptionEditorOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 10050, padding: "20px" }}
+          onClick={() => setDescriptionEditorOpen(false)}
+        >
+          <div
+            className="p-6 rounded shadow w-full max-w-2xl modal-panel"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-base font-semibold mb-2">Modifier la description</h4>
+            <p className="mb-2 text-[11px] opacity-70">
+              Astuce: utilisez **mot** pour gras et *mot* pour italique.
+            </p>
+            <textarea
+              value={descriptionEditorDraft}
+              onChange={(e) => setDescriptionEditorDraft(e.target.value)}
+              rows={8}
+              className="w-full p-2 rounded border"
+              style={{
+                background: "var(--bg-main)",
+                color: "var(--text-color)",
+                borderColor: "var(--border-color)",
+              }}
+              placeholder="Vous pouvez utiliser **gras** et *italique*"
+            />
+            <div className="mt-3 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setDescriptionEditorOpen(false)}
+                className="px-3 py-2 rounded border text-sm"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditServiceDraft((prev) => ({ ...prev, description: descriptionEditorDraft }));
+                  setDescriptionEditorOpen(false);
+                }}
+                className="px-3 py-2 rounded text-white text-sm"
+                style={{ background: "var(--accent)" }}
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {descriptionViewerOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 10050, padding: "20px" }}
+          onClick={() => setDescriptionViewerOpen(false)}
+        >
+          <div
+            className="p-6 rounded shadow w-full max-w-2xl modal-panel"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="text-sm"
+              dangerouslySetInnerHTML={{ __html: descriptionViewerContent }}
+            />
+            <button
+              onClick={() => setDescriptionViewerOpen(false)}
+              className="mt-4 px-4 py-2 rounded border"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {imageViewerOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ background: "rgba(0,0,0,0.9)", zIndex: 10050, padding: "20px" }}
+          onClick={() => setImageViewerOpen(false)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <img src={imageViewerUrl} alt="Aperçu" className="w-full h-auto rounded" />
+            <button
+              onClick={() => setImageViewerOpen(false)}
+              className="absolute top-2 right-2 p-2 rounded"
+              style={{ background: "rgba(0,0,0,0.7)", color: "#fff" }}
+              title="Fermer"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}

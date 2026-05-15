@@ -34,12 +34,23 @@ const rawOrigins = (process.env.CORS_ORIGINS ||
 
 const allowedOrigins = rawOrigins.map(normalizeOrigin);
 const allowedOriginsSet = new Set(allowedOrigins);
+const isProd = process.env.NODE_ENV === "production";
+
+const isLocalDevOrigin = (origin) => {
+  if (!origin) return false;
+  const o = normalizeOrigin(origin);
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(o)) return true;
+  const escapedLan = String(LAN_IP || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!escapedLan) return false;
+  return new RegExp(`^https?:\\/\\/${escapedLan}(?::\\d+)?$`, "i").test(o);
+};
 
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true); // curl / apps natives
     const o = normalizeOrigin(origin);
     if (allowedOriginsSet.has(o)) return callback(null, true);
+    if (!isProd && isLocalDevOrigin(o)) return callback(null, true);
     console.warn("CORS refusé pour origin:", origin);
     return callback(new Error("Not allowed by CORS"));
   },

@@ -273,10 +273,17 @@ const normalizeAssetUrl = (raw, apiBase = "") => {
 
     return value;
   } catch {
-    // Relative path fallback
-    if (value.startsWith("/uploads/") && apiBase) {
-      return `${String(apiBase).replace(/\/+$/, "")}${value}`;
+    // Relative path fallback: support both /uploads/... and uploads/... variants.
+    if (apiBase) {
+      const base = String(apiBase).replace(/\/+$/, "");
+      if (/^\/?(uploads|service-icons|icons)\//i.test(value)) {
+        const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+        return `${base}${normalizedPath}`;
+      }
     }
+
+    // Local public assets fallback: support assets/... and /assets/...
+    if (/^assets\//i.test(value)) return `/${value}`;
     return value;
   }
 };

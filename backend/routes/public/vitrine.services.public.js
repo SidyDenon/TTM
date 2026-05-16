@@ -28,20 +28,44 @@ const normalizeIcon = (req, value) => {
   return { icon: path, icon_url: makeAbsolute(req, path) };
 };
 
+const getVitrineColumns = async (db) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'vitrine_services'
+         AND COLUMN_NAME IN ('is_active', 'is_internal')`
+    );
+    return {
+      hasIsActive: rows.some((r) => r.COLUMN_NAME === "is_active"),
+      hasIsInternal: rows.some((r) => r.COLUMN_NAME === "is_internal"),
+    };
+  } catch {
+    return { hasIsActive: false, hasIsInternal: false };
+  }
+};
+
 export default (db) => {
   router.get("/", async (req, res) => {
     try {
       let rows = [];
       try {
+        const { hasIsActive, hasIsInternal } = await getVitrineColumns(db);
+        const whereParts = [];
+        if (hasIsActive) whereParts.push("is_active = 1");
+        if (hasIsInternal) whereParts.push("COALESCE(is_internal, 0) = 0");
+        const whereClause = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+
         [rows] = await db.query(
-          `SELECT id, name, subtitle, description, price, icon_url, icon, image_url, is_internal
+          `SELECT id, name, subtitle, description, price, icon_url, icon, image_url
            FROM vitrine_services
-           WHERE is_active = 1 AND COALESCE(is_internal, 0) = 0
+           ${whereClause}
            ORDER BY id DESC`
         );
       } catch (e) {
         // Si la table n'existe pas encore, on renvoie une liste vide côté public.
-        if (e?.code === "ER_NO_SUCH_TABLE") {
+        if (e?.code === "ER_NO_SUCH_TABLE" || e?.code === "ER_BAD_FIELD_ERROR") {
           return res.json({ data: [], count: 0 });
         }
         throw e;

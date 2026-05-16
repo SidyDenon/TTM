@@ -251,7 +251,7 @@ export default function Tarifs() {
       tarifs.map((item) => {
         const key = String(item.title || "").toLowerCase().trim();
         const override = photosByService[key];
-        if (!override) return item;
+        if (!override || item.apiImageUrl) return item;
         return { ...item, img: override };
       }),
     [tarifs, photosByService]

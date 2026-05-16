@@ -13,7 +13,7 @@ import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
 import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane, FaEye } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { API_BASE, buildAssetUrl } from "../../config/urls";
+import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
@@ -246,12 +246,26 @@ export default function SiteVitrine() {
     return <Comp style={{ fontSize: size }} />;
   };
 
+  // Ancienne version : simple concaténation ou usage direct
   const toAssetUrl = (value) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "";
-    const lower = raw.toLowerCase();
-    if (lower === "null" || lower === "undefined" || lower === "none") return "";
-    return buildAssetUrl(raw);
+    const apiBase = String(API_BASE || "").replace(/\/+$/, "");
+    try {
+      if (/^https?:\/\//i.test(raw)) {
+        const currentApi = new URL(`${apiBase}/`);
+        const assetUrl = new URL(raw);
+        if (assetUrl.pathname.startsWith("/uploads/") && ["localhost", "127.0.0.1", "::1"].includes(assetUrl.hostname)) {
+          return `${currentApi.origin}${assetUrl.pathname}${assetUrl.search}`;
+        }
+        return assetUrl.toString();
+      }
+      const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
+      return new URL(normalizedPath, `${apiBase}/`).toString();
+    } catch {
+      const normalizedPath = raw.replace(/^\/+/, "");
+      return `${apiBase}/${normalizedPath}`;
+    }
   };
 
   const normalizeOptionalValue = (value) => {
@@ -260,6 +274,16 @@ export default function SiteVitrine() {
     const lower = raw.toLowerCase();
     if (lower === "null" || lower === "undefined" || lower === "none") return "";
     return raw;
+  };
+
+  const invalidatePublicVitrineCache = () => {
+    try {
+      if (typeof window === "undefined" || !window.localStorage) return;
+      window.localStorage.removeItem("ttm:public-services:v3");
+      window.localStorage.removeItem("ttm:site-content");
+    } catch {
+      // ignore storage access issues
+    }
   };
 
   const formatDescriptionPreview = (value) => {
@@ -279,7 +303,7 @@ export default function SiteVitrine() {
 
   // Chargement paresseux de la grosse liste d'icônes (évite de bloquer au montage)
   useEffect(() => {
-    if (!iconPickerOpen || iconList.length > 0 || iconsLoading) return;
+    if ((!iconPickerOpen && !editServiceIconPickerOpen) || iconList.length > 0 || iconsLoading) return;
     setIconsLoading(true);
     const list = [];
     const pushIcons = (entries, prefix, pack) => {
@@ -309,11 +333,11 @@ export default function SiteVitrine() {
     pushIcons(SlIcons, "Sl", "sl");
     setIconList(list);
     setIconsLoading(false);
-  }, [iconPickerOpen, iconList.length, iconsLoading]);
+  }, [iconPickerOpen, editServiceIconPickerOpen, iconList.length, iconsLoading]);
 
   const filteredIcons = useMemo(() => {
     if (!iconList.length) return [];
-    const qRaw = (iconSearch || addForm.icon || "").toLowerCase().trim();
+    const qRaw = (iconSearch || "").toLowerCase().trim();
     const q = qRaw.includes(":") ? qRaw.split(":")[1] : qRaw;
     const matches = iconList.filter((ico) => {
       if (!q) return true;
@@ -488,6 +512,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur sauvegarde contenu vitrine");
       toast.success("Contenu vitrine mis à jour ✅");
+      invalidatePublicVitrineCache();
       setSiteContent(payload);
     } catch (e) {
       toast.error(e.message);
@@ -615,6 +640,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
       toast.success(`Service "${srv.name}" mis à jour ✅`);
+      invalidatePublicVitrineCache();
       setServices((prev) =>
         prev.map((s) => (s.id === srv.id ? { ...s, ...(data?.data || {}), price } : s))
       );
@@ -658,6 +684,7 @@ export default function SiteVitrine() {
       description: srv.description || "",
       price: String(srv.price || ""),
       icon: iconFromService,
+      icon_url: normalizedIconUrl,
       image_url: normalizedImageUrl,
     });
     setShowEditServicePreview(false);
@@ -705,6 +732,7 @@ export default function SiteVitrine() {
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
 
       toast.success(`Service "${editServiceDraft.name}" mis à jour ✅`);
+      invalidatePublicVitrineCache();
       setServices((prev) =>
         prev.map((s) => (s.id === editingService.id ? { ...s, ...(data?.data || {}) } : s))
       );
@@ -737,6 +765,7 @@ export default function SiteVitrine() {
       if (!res.ok)
         throw new Error(data.error || "Erreur suppression service");
       toast.success(`Service "${srv.name}" supprimé ✅`);
+      invalidatePublicVitrineCache();
       setServices((prev) => sortPinnedServices(prev.filter((s) => s.id !== srv.id)));
       return true;
     } catch (e) {
@@ -785,6 +814,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
       toast.success("Service ajouté ✅");
+      invalidatePublicVitrineCache();
       setAddForm({ name: "", subtitle: "", description: "", price: "", icon: "" });
       setAddImageFile(null);
       setAddImagePreview("");
@@ -1029,14 +1059,6 @@ export default function SiteVitrine() {
                   Visualiser
                 </button>
               </div>
-              <button
-                onClick={saveSiteContent}
-                disabled={siteContentSaving || !canManageSiteContent}
-                className="px-4 py-2 rounded text-white disabled:opacity-60"
-                style={{ background: "var(--accent)" }}
-              >
-                {siteContentSaving ? "Sauvegarde..." : "Sauvegarder Histoire"}
-              </button>
             </div>
           )}
         </div>
@@ -1293,7 +1315,7 @@ export default function SiteVitrine() {
                           if (s.icon_url && !isVirtual) {
                             return (
                               <img
-                                src={toAssetUrl(s.icon_url)}
+                                src={s.icon_url && s.icon_url.startsWith('http') ? s.icon_url : `${API_BASE.replace(/\/api$/, '')}/${s.icon_url || ''}`}
                                 alt=""
                                 className="w-7 h-7 object-contain"
                               />
@@ -1876,99 +1898,8 @@ export default function SiteVitrine() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold mb-2">Icône</label>
-                <div className="flex gap-4 items-end">
-                  <div className="flex flex-col">
-                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
-                    <div
-                      className="w-16 h-16 rounded border flex items-center justify-center"
-                      style={{
-                        background: "var(--bg-main)",
-                        borderColor: "var(--border-color)",
-                      }}
-                    >
-                      {editServiceDraft.icon ? renderIcon(editServiceDraft.icon, 30) : <FaWrench />}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIconSearch(editServiceDraft.icon || "");
-                      setEditServiceIconPickerOpen(!editServiceIconPickerOpen);
-                    }}
-                    className="p-2 rounded border inline-flex items-center justify-center"
-                    style={{ borderColor: "var(--border-color)" }}
-                  >
-                    <FaEdit />
-                  </button>
-                </div>
-                {editServiceIconPickerOpen && (
-                  <div className="mt-2">
-                    <input
-                      type="text"
-                      value={editServiceDraft.icon || ""}
-                      onChange={(e) => {
-                        setEditServiceDraft((prev) => ({ ...prev, icon: e.target.value }));
-                        setIconSearch(e.target.value);
-                      }}
-                      className="w-full p-2 rounded border text-sm"
-                      style={{
-                        background: "var(--bg-main)",
-                        color: "var(--text-color)",
-                        borderColor: "var(--border-color)",
-                      }}
-                      placeholder="Ex: fa6:FaUsers ou fa6:users"
-                    />
-                    <div
-                      className="mt-2 p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-auto"
-                      style={{
-                        background: "var(--bg-main)",
-                        borderColor: "var(--border-color)",
-                      }}
-                    >
-                      {iconsLoading && (
-                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
-                          Chargement des icônes…
-                        </div>
-                      )}
-                      {!iconsLoading && filteredIcons.length === 0 && (
-                        <div className="col-span-2 md:col-span-3 text-sm opacity-70">
-                          Aucune correspondance. Essaie un autre mot-clé.
-                        </div>
-                      )}
-                      {!iconsLoading &&
-                        filteredIcons.map((ico) => (
-                          <button
-                            key={`edit-${ico.key}`}
-                            type="button"
-                            onClick={() => {
-                              const value = `${ico.pack}:${ico.name}`;
-                              setEditServiceDraft((prev) => ({ ...prev, icon: value }));
-                              setIconSearch(value);
-                              setEditServiceIconPickerOpen(false);
-                            }}
-                            className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
-                            style={{
-                              background: "var(--bg-card)",
-                              color: "var(--text-color)",
-                              borderColor: "var(--border-color)",
-                            }}
-                          >
-                            <ico.Comp style={{ fontSize: 18 }} />
-                            <div>
-                              <div className="text-sm font-medium capitalize">{ico.label}</div>
-                              <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
-                            </div>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">Image (carte)</label>
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-2">Photo de la carte</label>
                 <div className="flex gap-4 items-end">
                   <div className="flex flex-col">
                     <span className="text-xs opacity-70 mb-1">Aperçu</span>
@@ -1990,16 +1921,18 @@ export default function SiteVitrine() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-xs opacity-60">Aucune image</span>
+                        <span className="text-xs opacity-60 px-2 text-center">Aucune image</span>
                       )}
                     </div>
                   </div>
+
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => document.getElementById(`edit-service-image-input-${editingService.id}`)?.click()}
                       className="p-2 rounded border inline-flex items-center justify-center"
                       style={{ borderColor: "var(--border-color)" }}
+                      title="Modifier l'image"
                     >
                       <FaEdit />
                     </button>
@@ -2015,6 +1948,7 @@ export default function SiteVitrine() {
                         }}
                         className="p-2 rounded border inline-flex items-center justify-center"
                         style={{ borderColor: "var(--border-color)" }}
+                        title="Visualiser"
                       >
                         <FaEye />
                       </button>
@@ -2033,6 +1967,115 @@ export default function SiteVitrine() {
                     }
                   }}
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm opacity-70 mb-2">Icône</label>
+                <div className="flex gap-4 items-end">
+                  <div className="flex flex-col">
+                    <span className="text-xs opacity-70 mb-1">Aperçu</span>
+                    <div
+                      className="w-16 h-16 rounded border flex items-center justify-center overflow-hidden"
+                      style={{
+                        background: "var(--bg-main)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {editServiceDraft.icon ? (
+                        renderIcon(editServiceDraft.icon, 30)
+                      ) : normalizeOptionalValue(editServiceOriginal?.icon_url) ? (
+                        <img
+                          src={toAssetUrl(normalizeOptionalValue(editServiceOriginal?.icon_url))}
+                          alt="Icône service"
+                          className="w-9 h-9 object-contain"
+                        />
+                      ) : (
+                        <FaPlus className="opacity-50" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex gap-2">
+                    <input
+                      type="text"
+                      value={editServiceDraft.icon || ""}
+                      onChange={(e) => {
+                        setEditServiceDraft((prev) => ({ ...prev, icon: e.target.value }));
+                        setIconSearch(e.target.value);
+                      }}
+                      onFocus={() => setEditServiceIconPickerOpen(true)}
+                      className="flex-1 p-2 rounded border"
+                      style={{
+                        background: "var(--bg-main)",
+                        color: "var(--text-color)",
+                        borderColor: "var(--border-color)",
+                      }}
+                      placeholder="Tape le nom de l’icône ici…"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIconSearch(editServiceDraft.icon || "");
+                        setEditServiceIconPickerOpen((s) => !s);
+                      }}
+                      className="px-3 py-2 rounded border text-sm"
+                      style={{ borderColor: "var(--border-color)" }}
+                    >
+                      Suggestions
+                    </button>
+                  </div>
+                </div>
+
+                {editServiceIconPickerOpen && (
+                  <div
+                    className="mt-2 p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
+                    style={{
+                      background: "var(--bg-main)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    {iconsLoading && (
+                      <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                        Chargement des icônes…
+                      </div>
+                    )}
+                    {!iconsLoading && filteredIcons.length === 0 && (
+                      <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                        Aucune correspondance. Essaie un autre mot-clé.
+                      </div>
+                    )}
+                    {!iconsLoading &&
+                      filteredIcons.map((ico) => (
+                        <button
+                          key={`edit-${ico.key}`}
+                          type="button"
+                          onClick={() => {
+                            const value = `${ico.pack}:${ico.name}`;
+                            setEditServiceDraft((prev) => ({ ...prev, icon: value }));
+                            setIconSearch(value);
+                            setEditServiceIconPickerOpen(false);
+                          }}
+                          className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                        >
+                          <ico.Comp style={{ fontSize: 18 }} />
+                          <div>
+                            <div className="text-sm font-medium capitalize">{ico.label}</div>
+                            <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
+                          </div>
+                        </button>
+                      ))}
+                    {!iconsLoading && filteredIcons.length === 200 && (
+                      <div className="col-span-2 md:col-span-3 text-xs opacity-60">
+                        Résultats limités à 200 pour éviter les lags. Raffine la recherche.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

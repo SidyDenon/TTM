@@ -295,8 +295,8 @@ export function mergeServices(apiServices = [], apiBase = "") {
         ? normalizeAssetUrl(svc.icon_url, apiBase)
         : "";
     const iconImage = apiIconImage || meta.iconImage;
-    const serviceImage =
-      normalizeAssetUrl(svc?.image_url, apiBase) || meta.img || DEFAULT_IMAGE;
+    const apiImageUrl = normalizeAssetUrl(svc?.image_url, apiBase);
+    const serviceImage = apiImageUrl || meta.img || DEFAULT_IMAGE;
     const dynamicFaIcon = toFaIconClass(rawIcon);
 
     return {
@@ -308,6 +308,7 @@ export function mergeServices(apiServices = [], apiBase = "") {
       icon: dynamicFaIcon || meta.icon || "fa-wrench",
       iconImage,
       iconAlt: meta.iconAlt,
+      apiImageUrl,
       img: serviceImage,
       featured: meta.featured || false,
       amount: priceLabel || meta.amount || "Sur devis",
@@ -316,11 +317,6 @@ export function mergeServices(apiServices = [], apiBase = "") {
 }
 
 export async function fetchPublicServices(apiBase = "") {
-  const cached = !apiBase ? readCache(SERVICES_CACHE_KEY) : null;
-  if (Array.isArray(cached) && cached.length) {
-    return mergeServices(cached, "");
-  }
-
   const bases = apiBase ? [apiBase] : getBaseCandidates();
 
   for (const base of bases) {
@@ -338,6 +334,11 @@ export async function fetchPublicServices(apiBase = "") {
     } catch {
       continue;
     }
+  }
+
+  const cached = !apiBase ? readCache(SERVICES_CACHE_KEY) : null;
+  if (Array.isArray(cached) && cached.length) {
+    return mergeServices(cached, "");
   }
 
   return DEFAULT_SERVICES;

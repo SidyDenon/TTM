@@ -116,13 +116,7 @@ const normalizeAbsoluteAssetUrl = (raw) => {
 };
 
 // URLs pour les assets uploadés (/uploads/…)
-export const buildAssetUrl = (path = "") => {
-  const p = String(path || "");
-  if (!p) return "";
-  if (p.startsWith("http")) return normalizeAbsoluteAssetUrl(p);
-  const base = getApiBase();
-  return `${base}${p.startsWith("/") ? "" : "/"}${p}`;
-};
+
 
 // ---------------------- autres constantes ----------------------
 export const MAP_TILES = {

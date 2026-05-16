@@ -9,9 +9,10 @@ export const DEFAULT_SITE_CONTENT = {
 };
 
 const SITE_CONTENT_CACHE_KEY = "ttm:site-content";
+const SITE_CONTENT_CACHE_MAX_AGE_MS = 30 * 1000;
 
 export async function fetchSiteContent(apiBase = "") {
-  const cached = !apiBase ? readCache(SITE_CONTENT_CACHE_KEY) : null;
+  const cached = !apiBase ? readCache(SITE_CONTENT_CACHE_KEY, SITE_CONTENT_CACHE_MAX_AGE_MS) : null;
   if (cached && typeof cached === "object" && !Array.isArray(cached)) {
     return { ...DEFAULT_SITE_CONTENT, ...cached };
   }

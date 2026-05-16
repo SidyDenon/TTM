@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "../utils/toast";
 import { can, canAny, isSuper } from "../utils/rbac";
 import { useModalOrigin } from "../hooks/useModalOrigin";
-import { apiUrl, buildAssetUrl } from "../config/urls";
+import { apiUrl } from "../config/urls";
 import { getSocketInstance } from "../utils/socket";
 
 export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
@@ -310,7 +310,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
           >
             {user?.avatar_url ? (
               <img
-                src={buildAssetUrl(user.avatar_url)}
+                src={user?.avatar_url && user.avatar_url.startsWith('http') ? user.avatar_url : `${apiUrl.replace(/\/api$/, '')}/${user?.avatar_url || ''}`}
                 alt="Profil"
                 className="w-9 h-9 rounded-full object-cover"
               />
@@ -335,7 +335,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
                   <div className="flex items-center justify-center w-10 h-10 rounded-full border border-[var(--border-color)] bg-[var(--bg-main)]">
                     {user?.avatar_url ? (
                       <img
-                        src={buildAssetUrl(user.avatar_url)}
+                        src={user?.avatar_url && user.avatar_url.startsWith('http') ? user.avatar_url : `${apiUrl.replace(/\/api$/, '')}/${user?.avatar_url || ''}`}
                         alt="Profil"
                         className="w-10 h-10 rounded-full object-cover"
                       />

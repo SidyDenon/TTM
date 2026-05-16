@@ -12,7 +12,7 @@ import * as SlIcons from "react-icons/sl";      // SimpleLineIcons
 import { FaEdit, FaSave, FaTrash, FaPlus, FaPercent, FaWrench, FaKey, FaBriefcase, FaHeadset, FaPaperPlane, FaEye, FaEyeSlash } from "react-icons/fa";
 import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
-import { API_BASE, buildAssetUrl } from "../../config/urls";
+import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
 import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
@@ -87,6 +87,13 @@ export default function Settings() {
   const [iconList, setIconList] = useState([]);
   const [iconsLoading, setIconsLoading] = useState(false);
   const iconCache = useRef({});
+  const [showEditServiceIconModal, setShowEditServiceIconModal] = useState(false);
+  const [closingEditServiceIconModal, setClosingEditServiceIconModal] = useState(false);
+  const [editingServiceIcon, setEditingServiceIcon] = useState(null);
+  const [editServiceIconDraft, setEditServiceIconDraft] = useState("");
+  const [editServiceIconPickerOpen, setEditServiceIconPickerOpen] = useState(false);
+  const [editServiceIconSearch, setEditServiceIconSearch] = useState("");
+  const [savingServiceIconId, setSavingServiceIconId] = useState(null);
   const [confirmService, setConfirmService] = useState(null);
   const [closingConfirmService, setClosingConfirmService] = useState(false);
   const [confirmServiceLoading, setConfirmServiceLoading] = useState(false);
@@ -98,6 +105,7 @@ export default function Settings() {
   const editProfileModalRef = useModalOrigin(showEditProfile);
   const passwordModalRef = useModalOrigin(showPasswordModal);
   const addServiceModalRef = useModalOrigin(showAddServiceModal);
+  const editServiceIconModalRef = useModalOrigin(showEditServiceIconModal);
   const oilManagerModalRef = useModalOrigin(showOilManagerModal);
   const towingManagerModalRef = useModalOrigin(showTowingManagerModal);
   const testSmsModalRef = useModalOrigin(showTestSmsModal);
@@ -213,9 +221,18 @@ export default function Settings() {
     return <Comp style={{ fontSize: size }} />;
   };
 
+  const toAssetUrl = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const base = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
+    const path = raw.startsWith("/") ? raw : `/${raw}`;
+    return `${base}${path}`;
+  };
+
   // Chargement paresseux de la grosse liste d'icônes (évite de bloquer au montage)
   useEffect(() => {
-    if (!iconPickerOpen || iconList.length > 0 || iconsLoading) return;
+    if ((!iconPickerOpen && !editServiceIconPickerOpen) || iconList.length > 0 || iconsLoading) return;
     setIconsLoading(true);
     const list = [];
     const pushIcons = (entries, prefix, pack) => {
@@ -245,7 +262,7 @@ export default function Settings() {
     pushIcons(SlIcons, "Sl", "sl");
     setIconList(list);
     setIconsLoading(false);
-  }, [iconPickerOpen, iconList.length, iconsLoading]);
+  }, [iconPickerOpen, editServiceIconPickerOpen, iconList.length, iconsLoading]);
 
   const filteredIcons = useMemo(() => {
     if (!iconList.length) return [];
@@ -260,6 +277,19 @@ export default function Settings() {
     // limiter l'affichage pour ne pas lagger l'UI
     return matches.slice(0, 200);
   }, [iconList, iconSearch, addForm.icon]);
+
+  const filteredEditServiceIcons = useMemo(() => {
+    if (!iconList.length) return [];
+    const q = (editServiceIconSearch || editServiceIconDraft || "").toLowerCase().trim();
+    const matches = iconList.filter((ico) => {
+      if (!q) return true;
+      return (
+        ico.name.includes(q) ||
+        ico.label.toLowerCase().includes(q)
+      );
+    });
+    return matches.slice(0, 200);
+  }, [iconList, editServiceIconSearch, editServiceIconDraft]);
 
   const isHomeOilService = (name) => {
     const key = String(name || "")
@@ -618,6 +648,68 @@ export default function Settings() {
     }
   };
 
+  const openEditServiceIconModal = (srv) => {
+    const currentIcon = String(srv?.icon || "").trim();
+    setEditingServiceIcon(srv);
+    setEditServiceIconDraft(currentIcon);
+    setEditServiceIconSearch(currentIcon);
+    setEditServiceIconPickerOpen(false);
+    setClosingEditServiceIconModal(false);
+    setShowEditServiceIconModal(true);
+  };
+
+  const closeEditServiceIconModal = () => {
+    if (savingServiceIconId) return;
+    setClosingEditServiceIconModal(true);
+    setTimeout(() => {
+      setShowEditServiceIconModal(false);
+      setClosingEditServiceIconModal(false);
+      setEditingServiceIcon(null);
+      setEditServiceIconDraft("");
+      setEditServiceIconSearch("");
+      setEditServiceIconPickerOpen(false);
+    }, 180);
+  };
+
+  const saveServiceIcon = async () => {
+    if (!editingServiceIcon) return;
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour modifier les services."
+      );
+    }
+    const iconValue = String(editServiceIconDraft || "").trim();
+    if (!iconValue) return toast.error("Icône requise");
+    try {
+      setSavingServiceIconId(editingServiceIcon.id);
+      const res = await fetch(`${API_BASE}/api/admin/services/${editingServiceIcon.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ selected_icon: iconValue, icon_name: iconValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur mise à jour icône");
+      toast.success(`Icône de "${editingServiceIcon.name}" mise à jour ✅`);
+      setServices((prev) =>
+        sortPinnedServices(
+          prev.map((s) =>
+            s.id === editingServiceIcon.id
+              ? { ...s, ...(data?.data || {}), icon: iconValue }
+              : s
+          )
+        )
+      );
+      closeEditServiceIconModal();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSavingServiceIconId(null);
+    }
+  };
+
   const loadOilModels = async () => {
     try {
       setLoadingOilModels(true);
@@ -955,7 +1047,7 @@ export default function Settings() {
               />
             ) : user?.avatar_url ? (
               <img
-                src={buildAssetUrl(user.avatar_url)}
+                src={user.avatar_url && user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE.replace(/\/api$/, '')}/${user.avatar_url || ''}`}
                 alt="avatar"
                 className="w-full h-full object-cover"
               />
@@ -1037,7 +1129,7 @@ export default function Settings() {
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="preview" className="w-full h-full object-cover" />
                 ) : user?.avatar_url ? (
-                  <img src={buildAssetUrl(user.avatar_url)} alt="avatar" className="w-full h-full object-cover" />
+                  <img src={user.avatar_url && user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE.replace(/\/api$/, '')}/${user.avatar_url || ''}`} alt="avatar" className="w-full h-full object-cover" />
                 ) : (
                   <div
                     className="w-full h-full flex items-center justify-center text-xl font-bold opacity-60"
@@ -1274,24 +1366,46 @@ export default function Settings() {
                             /^[a-z0-9]+:/i.test(iconValue);
 
                           if (iconValue && isVirtual) {
-                            return renderIcon(iconValue, 22);
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => canManageServices && openEditServiceIconModal(s)}
+                                className="w-7 h-7 inline-flex items-center justify-center"
+                                title={canManageServices ? "Modifier l’icône" : "Icône"}
+                                disabled={!canManageServices}
+                              >
+                                {renderIcon(iconValue, 22)}
+                              </button>
+                            );
                           }
                           if (s.icon_url && !isVirtual) {
                             return (
-                              <img
-                                src={`${API_BASE.replace(/\/api$/, "")}${s.icon_url}`}
-                                alt=""
-                                className="w-7 h-7 object-contain"
-                              />
+                              <button
+                                type="button"
+                                onClick={() => canManageServices && openEditServiceIconModal(s)}
+                                className="w-7 h-7 inline-flex items-center justify-center"
+                                title={canManageServices ? "Modifier l’icône" : "Icône"}
+                                disabled={!canManageServices}
+                              >
+                                <img
+                                  src={toAssetUrl(s.icon_url)}
+                                  alt=""
+                                  className="w-7 h-7 object-contain"
+                                />
+                              </button>
                             );
                           }
                           return (
-                            <div
+                            <button
+                              type="button"
+                              onClick={() => canManageServices && openEditServiceIconModal(s)}
                               className="w-7 h-7 rounded flex items-center justify-center opacity-50"
                               style={{ background: "var(--bg-card)" }}
+                              title={canManageServices ? "Ajouter une icône" : "Icône"}
+                              disabled={!canManageServices}
                             >
                               <FaPlus />
-                            </div>
+                            </button>
                           );
                         })()}
                       </td>
@@ -2389,6 +2503,153 @@ export default function Settings() {
                 disabled={confirmServiceLoading}
               >
                 {confirmServiceLoading ? "..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showVitrineSections && showEditServiceIconModal && editingServiceIcon && (
+        <div
+          className={`fixed inset-0 flex justify-center items-center modal-backdrop ${closingEditServiceIconModal ? "closing" : ""}`}
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 60 }}
+          onClick={closeEditServiceIconModal}
+        >
+          <div
+            ref={editServiceIconModalRef}
+            className={`p-6 rounded shadow w-full max-w-2xl modal-panel ${closingEditServiceIconModal ? "closing" : ""}`}
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              border: "1px solid var(--border-color)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <FaEdit />
+              Modifier l’icône de {editingServiceIcon.name}
+            </h3>
+            <div className="md:col-span-2">
+              <label className="block text-sm opacity-70 mb-1">Icône</label>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 items-center">
+                  <div
+                    className="w-16 h-16 rounded border flex items-center justify-center overflow-hidden shrink-0"
+                    style={{
+                      background: "var(--bg-card)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    {editServiceIconDraft ? (
+                      renderIcon(editServiceIconDraft, 30)
+                    ) : editingServiceIcon.icon_url && !/^[a-z0-9]+:/i.test(String(editingServiceIcon.icon_url)) ? (
+                      <img
+                        src={toAssetUrl(editingServiceIcon.icon_url)}
+                        alt="Icône service"
+                        className="w-9 h-9 object-contain"
+                      />
+                    ) : (
+                      <FaPlus className="opacity-50" />
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={editServiceIconDraft}
+                    onChange={(e) => {
+                      setEditServiceIconDraft(e.target.value);
+                      setEditServiceIconSearch(e.target.value);
+                    }}
+                    onFocus={() => setEditServiceIconPickerOpen(true)}
+                    className="flex-1 p-2 rounded border"
+                    style={{
+                      background: "var(--bg-card)",
+                      color: "var(--text-color)",
+                      borderColor: "var(--border-color)",
+                    }}
+                    placeholder="Tape le nom de l´icône ici …"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditServiceIconPickerOpen((s) => !s)}
+                    className="px-3 py-2 rounded border text-sm"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    Suggestions
+                  </button>
+                </div>
+                {editServiceIconPickerOpen && (
+                  <div
+                    className="p-3 rounded border shadow-sm grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-auto"
+                    style={{
+                      background: "var(--bg-card)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    {iconsLoading && (
+                      <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                        Chargement des icônes…
+                      </div>
+                    )}
+                    {!iconsLoading && filteredEditServiceIcons.length === 0 && (
+                      <div className="col-span-2 md:col-span-3 text-sm opacity-70">
+                        Aucune correspondance. Essaie un autre mot-clé.
+                      </div>
+                    )}
+                    {!iconsLoading &&
+                      filteredEditServiceIcons.map((ico) => (
+                        <button
+                          key={`service-edit-${ico.key}`}
+                          type="button"
+                          onClick={() => {
+                            const value = `${ico.pack}:${ico.name}`;
+                            setEditServiceIconDraft(value);
+                            setEditServiceIconSearch(value);
+                            setEditServiceIconPickerOpen(false);
+                          }}
+                          className="flex items-center gap-2 p-2 rounded border text-left hover:border-[var(--accent)]"
+                          style={{
+                            background: "var(--bg-card)",
+                            color: "var(--text-color)",
+                            borderColor: "var(--border-color)",
+                          }}
+                        >
+                          <ico.Comp style={{ fontSize: 18 }} />
+                          <div>
+                            <div className="text-sm font-medium capitalize">{ico.label}</div>
+                            <div className="text-xs opacity-70">{ico.pack}:{ico.name}</div>
+                          </div>
+                        </button>
+                      ))}
+                    {!iconsLoading && filteredEditServiceIcons.length === 200 && (
+                      <div className="col-span-2 md:col-span-3 text-xs opacity-60">
+                        Résultats limités à 200 pour éviter les lags. Raffine la recherche.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={closeEditServiceIconModal}
+                disabled={savingServiceIconId === editingServiceIcon.id}
+                className="px-4 py-2 rounded border"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveServiceIcon}
+                disabled={savingServiceIconId === editingServiceIcon.id}
+                style={{ background: "var(--accent)", color: "#fff" }}
+                className="px-4 py-2 rounded flex items-center gap-2 disabled:opacity-70"
+              >
+                {savingServiceIconId === editingServiceIcon.id ? (
+                  <AiOutlineLoading3Quarters className="animate-spin" />
+                ) : (
+                  <FaSave />
+                )}
+                Enregistrer
               </button>
             </div>
           </div>

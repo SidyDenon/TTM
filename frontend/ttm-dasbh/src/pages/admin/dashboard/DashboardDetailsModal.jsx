@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAuth } from "../../../context/AuthContext";
 import { can, isSuper } from "../../../utils/rbac";
-import { MAP_TILES, buildAssetUrl, getApiBase } from "../../../config/urls";
+import { MAP_TILES, getApiBase } from "../../../config/urls";
 import { useModalOrigin } from "../../../hooks/useModalOrigin";
 
 export default function MissionsDetailsModal({
@@ -48,7 +48,10 @@ export default function MissionsDetailsModal({
         return raw;
       }
     }
-    return buildAssetUrl(raw) || null;
+    if (!raw) return null;
+    if (typeof raw === "string" && raw.startsWith("http")) return raw;
+    const base = getApiBase();
+    return `${base}${raw.startsWith("/") ? "" : "/"}${raw}`;
   };
 
   const formatServiceLabel = (raw) => {

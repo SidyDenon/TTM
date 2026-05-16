@@ -44,6 +44,43 @@ async function ensureOperatorAlertsColumn(db) {
   }
 }
 
+let serviceInternalColumnCache;
+async function getServiceInternalColumn(db) {
+  if (serviceInternalColumnCache !== undefined) return serviceInternalColumnCache;
+  try {
+    const [[row]] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'services'
+         AND COLUMN_NAME = 'is_internal'
+       LIMIT 1`
+    );
+    serviceInternalColumnCache = row?.COLUMN_NAME || null;
+  } catch {
+    serviceInternalColumnCache = null;
+  }
+  return serviceInternalColumnCache;
+}
+
+async function isInternalServiceByName(db, serviceName) {
+  const serviceInternalCol = await getServiceInternalColumn(db);
+  const label = String(serviceName || "").trim();
+  if (!serviceInternalCol || !label) return false;
+  try {
+    const [[row]] = await db.query(
+      `SELECT ${serviceInternalCol} AS is_internal
+       FROM services
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+       LIMIT 1`,
+      [label]
+    );
+    return Number(row?.is_internal) === 1;
+  } catch {
+    return false;
+  }
+}
+
 async function getOperatorMissionRadiusKm(db) {
   try {
     const [[row]] = await db.query(
@@ -631,6 +668,7 @@ export default (db) => {
     try {
       const { operatorInternal, operatorAlerts } = await getSchemaColumns(req.db);
       const internalSel = operatorInternal ? operatorInternal : null;
+      const serviceInternalCol = await getServiceInternalColumn(req.db);
 
       const [[profile]] = await req.db.query(
         `SELECT lat, lng${internalSel ? `, ${internalSel} AS is_internal` : ""}${
@@ -672,11 +710,18 @@ export default (db) => {
           [req.user.id]
         );
       } else {
+        const serviceInternalSelect = serviceInternalCol
+          ? `, COALESCE(s.${serviceInternalCol}, 0) AS service_is_internal`
+          : ", 0 AS service_is_internal";
+        const serviceInternalPublishedFilter = serviceInternalCol
+          ? `AND COALESCE(s.${serviceInternalCol}, 0) = 0`
+          : "";
         [rows] = await req.db.query(
           `SELECT * FROM (
               SELECT r.*,
                      u.name AS client_name,
                      u.phone AS client_phone,
+                     ${serviceInternalSelect.slice(2)},
                      (6371 * ACOS(
                        COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
                        COS(RADIANS(r.lng) - RADIANS(?)) +
@@ -684,6 +729,7 @@ export default (db) => {
                      )) AS distance
               FROM requests r
               JOIN users u ON u.id = r.user_id
+              LEFT JOIN services s ON LOWER(TRIM(s.name)) = LOWER(TRIM(r.service))
               WHERE r.lat IS NOT NULL
                 AND r.lng IS NOT NULL
                 AND NOT (
@@ -691,7 +737,7 @@ export default (db) => {
                   AND COALESCE(r.service, '') = 'oil_service'
                 )
                 AND (
-                  (r.status = 'publiee' AND r.operator_id IS NULL)
+                  (r.status = 'publiee' AND r.operator_id IS NULL ${serviceInternalPublishedFilter})
                   OR (r.operator_id = ? AND r.status IN ('publiee','assignee','acceptee','en_route','sur_place','remorquage'))
                 )
           ) AS q
@@ -776,6 +822,12 @@ export default (db) => {
       const radiusKm = Math.max(1, Math.min(30, Number(baseRadius)));
 
       const towingRadiusKm = await getOperatorTowingRadiusKm(req.db);
+      const serviceInternalCol = await getServiceInternalColumn(req.db);
+      const serviceInternalSelect = serviceInternalCol
+        ? `, COALESCE(s.${serviceInternalCol}, 0) AS service_is_internal`
+        : ", 0 AS service_is_internal";
+      const serviceInternalVisibilityCondition =
+        "AND COALESCE(q.service_is_internal, 0) = 0";
 
       const [rows] = await req.db.query(
         `SELECT * FROM (
@@ -785,6 +837,7 @@ export default (db) => {
                   op.id   AS operator_profile_id,
                   ou.name AS operator_name,
                   ou.phone AS operator_phone,
+                  ${serviceInternalSelect.slice(2)},
                   (6371 * ACOS(
                     COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
                     COS(RADIANS(r.lng) - RADIANS(?)) +
@@ -794,6 +847,7 @@ export default (db) => {
            JOIN users u ON u.id = r.user_id
            LEFT JOIN users ou ON ou.id = r.operator_id
            LEFT JOIN operators op ON op.user_id = ou.id
+           LEFT JOIN services s ON LOWER(TRIM(s.name)) = LOWER(TRIM(r.service))
            WHERE r.id = ?
          ) AS q
          WHERE
@@ -801,13 +855,11 @@ export default (db) => {
            OR (
              q.status = 'publiee'
              AND q.operator_id IS NULL
-             AND (
-               ? = 1
-               OR NOT (
-                 COALESCE(q.service_type, '') = 'oil_service'
-                 AND COALESCE(q.service, '') = 'oil_service'
-               )
+             AND NOT (
+               COALESCE(q.service_type, '') = 'oil_service'
+               AND COALESCE(q.service, '') = 'oil_service'
              )
+             ${serviceInternalVisibilityCondition}
              AND (
                q.distance <= ?
                OR (LOWER(q.service) LIKE '%remorqu%' AND q.distance <= ?)
@@ -820,7 +872,6 @@ export default (db) => {
           profile.lat,
           id,
           req.user.id,
-          Number(profile.is_internal) === 1 ? 1 : 0,
           radiusKm,
           towingRadiusKm,
         ]
@@ -873,19 +924,30 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     connection = await req.db.getConnection();
     await connection.beginTransaction();
 
-    const { operatorDispo } = await getSchemaColumns(connection);
+    const { operatorDispo, operatorInternal } = await getSchemaColumns(connection);
 
-    if (operatorDispo) {
-      const [[opDispo]] = await connection.query(
-        `SELECT ${operatorDispo} AS dispo FROM operators WHERE user_id = ? LIMIT 1`,
+    const opSelect = [];
+    if (operatorDispo) opSelect.push(`${operatorDispo} AS dispo`);
+    if (operatorInternal) opSelect.push(`${operatorInternal} AS is_internal`);
+
+    let operatorProfile = null;
+    if (opSelect.length) {
+      const [[opRow]] = await connection.query(
+        `SELECT ${opSelect.join(", ")} FROM operators WHERE user_id = ? LIMIT 1`,
         [req.user.id]
       );
-      if (opDispo && Number(opDispo.dispo) === 0) {
+      operatorProfile = opRow || null;
+    }
+
+    if (operatorDispo) {
+      if (operatorProfile && Number(operatorProfile.dispo) === 0) {
         await connection.rollback();
         connection.release();
         return res.status(403).json({ error: "Compte opérateur indisponible" });
       }
     }
+
+    const isInternalOperator = Number(operatorProfile?.is_internal) === 1;
 
     const [active] = await connection.query(
       "SELECT id FROM requests WHERE operator_id = ? AND status IN ('assignee','acceptee','en_route','sur_place','remorquage') LIMIT 1",
@@ -926,12 +988,30 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       String(missionBefore.service_type || "").toLowerCase() === "oil_service" &&
       String(missionBefore.service || "").toLowerCase() === "oil_service";
 
-    if (isOilService && Number(missionBefore.operator_id) !== Number(req.user.id)) {
+    const isInternalService = await isInternalServiceByName(
+      connection,
+      missionBefore?.service
+    );
+
+    if (
+      (isOilService || isInternalService) &&
+      Number(missionBefore.operator_id) !== Number(req.user.id)
+    ) {
       await connection.rollback();
       connection.release();
       return res.status(403).json({
-        error: "Mission domicile réservée: seul l'opérateur désigné par l'admin peut l'accepter",
+        error: "Mission réservée: seul l'opérateur désigné par l'admin peut l'accepter",
       });
+    }
+
+    if (!isInternalOperator) {
+      if (isInternalService) {
+        await connection.rollback();
+        connection.release();
+        return res.status(403).json({
+          error: "Mission réservée aux opérateurs internes",
+        });
+      }
     }
 
     const isTow =

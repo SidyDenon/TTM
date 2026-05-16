@@ -20,6 +20,26 @@ const ACTIVE_MISSION_STATUSES = [
 const PENDING_MISSION_STATUSES = ["publiee"];
 
 let hasDeviceTokensTable = null;
+let serviceInternalColumnCache;
+
+async function getServiceInternalColumn(db) {
+  if (serviceInternalColumnCache !== undefined) return serviceInternalColumnCache;
+  try {
+    const [[row]] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'services'
+         AND COLUMN_NAME = 'is_internal'
+       LIMIT 1`
+    );
+    serviceInternalColumnCache = row?.COLUMN_NAME || null;
+  } catch {
+    serviceInternalColumnCache = null;
+  }
+  return serviceInternalColumnCache;
+}
+
 async function deviceTokensTableExists(db) {
   if (hasDeviceTokensTable !== null) return hasDeviceTokensTable;
   try {
@@ -57,15 +77,29 @@ function collectZoneMatches(zoneMap, keys = []) {
 }
 
 async function fetchPendingByZone(db) {
+  const serviceInternalCol = await getServiceInternalColumn(db);
+  const serviceInternalSelect = serviceInternalCol
+    ? `, COALESCE(s.${serviceInternalCol}, 0) AS service_is_internal`
+    : ", 0 AS service_is_internal";
+  const serviceJoin = serviceInternalCol
+    ? "LEFT JOIN services s ON LOWER(TRIM(s.name)) = LOWER(TRIM(r.service))"
+    : "";
+  const serviceInternalWhere = serviceInternalCol
+    ? `AND COALESCE(s.${serviceInternalCol}, 0) = 0`
+    : "";
+
   const [rows] = await db.query(
-    `SELECT LOWER(TRIM(zone)) AS zone_key,
+    `SELECT LOWER(TRIM(r.zone)) AS zone_key
+            ${serviceInternalSelect},
             COUNT(*) AS cnt,
-            GROUP_CONCAT(id ORDER BY created_at ASC SEPARATOR ',') AS ids
-     FROM requests
-     WHERE status IN (${PENDING_MISSION_STATUSES.map(() => "?").join(",")})
-       AND (operator_id IS NULL OR operator_id = 0)
-       AND zone IS NOT NULL AND TRIM(zone) <> ''
-     GROUP BY zone_key`,
+            GROUP_CONCAT(r.id ORDER BY r.created_at ASC SEPARATOR ',') AS ids
+     FROM requests r
+     ${serviceJoin}
+     WHERE r.status IN (${PENDING_MISSION_STATUSES.map(() => "?").join(",")})
+       AND (r.operator_id IS NULL OR r.operator_id = 0)
+       AND r.zone IS NOT NULL AND TRIM(r.zone) <> ''
+       ${serviceInternalWhere}
+     GROUP BY zone_key, service_is_internal`,
     PENDING_MISSION_STATUSES
   );
 
@@ -73,11 +107,12 @@ async function fetchPendingByZone(db) {
   for (const row of rows || []) {
     const key = normalizeZoneKey(row.zone_key);
     if (!key) continue;
+    const isInternal = Number(row?.service_is_internal) === 1 ? 1 : 0;
     const ids = String(row.ids || "")
       .split(",")
       .map((id) => Number(id))
       .filter((id) => Number.isFinite(id));
-    map.set(key, { count: Number(row.cnt || 0), ids });
+    map.set(`${key}|${isInternal}`, { count: Number(row.cnt || 0), ids });
   }
   return map;
 }
@@ -95,17 +130,21 @@ async function fetchActiveOperatorIds(db) {
 }
 
 async function fetchOperatorTargets(db) {
-  const { operatorDispo, operatorAlerts } = await getSchemaColumns(db);
+  const { operatorDispo, operatorAlerts, operatorInternal } = await getSchemaColumns(db);
   const dispoSelect = operatorDispo ? `o.${operatorDispo} AS dispo` : "1 AS dispo";
   const alertsSelect = operatorAlerts
     ? `o.${operatorAlerts} AS alerts_enabled`
     : "1 AS alerts_enabled";
+  const internalSelect = operatorInternal
+    ? `o.${operatorInternal} AS is_internal`
+    : "0 AS is_internal";
   const [rows] = await db.query(
     `SELECT o.user_id,
             o.ville,
             o.quartier,
             ${dispoSelect},
             ${alertsSelect},
+            ${internalSelect},
             u.notification_token
      FROM operators o
      JOIN users u ON u.id = o.user_id`
@@ -173,10 +212,11 @@ async function runPendingMissionAlerts(db) {
     const zones = collectZoneMatches(zoneMap, [op.ville, op.quartier]);
     if (!zones.length) continue;
 
+    const targetType = Number(op?.is_internal) === 1 ? 1 : 0;
     let count = 0;
     const idSet = new Set();
     for (const zoneKey of zones) {
-      const entry = zoneMap.get(zoneKey);
+      const entry = zoneMap.get(`${zoneKey}|${targetType}`);
       if (!entry) continue;
       count += Number(entry.count || 0);
       for (const id of entry.ids || []) idSet.add(id);

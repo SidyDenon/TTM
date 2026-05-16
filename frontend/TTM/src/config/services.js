@@ -244,7 +244,7 @@ const toFaIconClass = (value = "") => {
 };
 
 export const DEFAULT_SERVICES = BASE_SERVICES;
-const SERVICES_CACHE_KEY = "ttm:public-services:v3";
+const SERVICES_CACHE_KEY = "ttm:public-services:v4";
 
 const LOCAL_ASSET_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 

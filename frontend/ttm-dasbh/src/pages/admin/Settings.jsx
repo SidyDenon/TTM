@@ -56,9 +56,10 @@ export default function Settings() {
   const [loadingServices, setLoadingServices] = useState(true);
   const [inlineSaving, setInlineSaving] = useState(null);
   const [togglingVisibilityServiceId, setTogglingVisibilityServiceId] = useState(null);
+  const [togglingInternalServiceId, setTogglingInternalServiceId] = useState(null);
   const [openServiceActionMenuId, setOpenServiceActionMenuId] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", price: "", icon: "" });
+  const [addForm, setAddForm] = useState({ name: "", price: "", icon: "", is_internal: false });
   const [servicesOpen, setServicesOpen] = useState(true);
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [closingAddServiceModal, setClosingAddServiceModal] = useState(false);
@@ -565,6 +566,50 @@ export default function Settings() {
     }
   };
 
+  const toggleServiceInternal = async (srv) => {
+    if (!canManageServices) {
+      return toast.error(
+        "Vous n’avez pas les droits pour modifier le type de service."
+      );
+    }
+
+    const current = Number(srv?.is_internal) === 1 ? 1 : 0;
+    const next = current === 1 ? 0 : 1;
+
+    try {
+      setTogglingInternalServiceId(srv.id);
+      const res = await fetch(`${API_BASE}/api/admin/services/${srv.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_internal: next }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || "Erreur mise à jour type de service");
+
+      toast.success(
+        next === 1
+          ? `Service "${srv.name}" passé en interne ✅`
+          : `Service "${srv.name}" passé en public ✅`
+      );
+
+      setServices((prev) =>
+        sortPinnedServices(
+          prev.map((s) =>
+            s.id === srv.id ? { ...s, is_internal: Number(next) } : s
+          )
+        )
+      );
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setTogglingInternalServiceId(null);
+    }
+  };
+
   const performDeleteService = async (srv) => {
     if (!canManageServices) {
       return toast.error(
@@ -620,6 +665,7 @@ export default function Settings() {
         name: addForm.name,
         price: String(price),
         icon_name: addForm.icon || "",
+        is_internal: addForm.is_internal ? 1 : 0,
       };
 
       const res = await fetch(`${API_BASE}/api/admin/services`, {
@@ -633,7 +679,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
       toast.success("Service ajouté ✅");
-      setAddForm({ name: "", price: "", icon: "" });
+      setAddForm({ name: "", price: "", icon: "", is_internal: false });
       setIconPickerOpen(false);
       setClosingAddServiceModal(true);
       setTimeout(() => {
@@ -1412,6 +1458,17 @@ export default function Settings() {
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <span>{s.name}</span>
+                          {Number(s?.is_internal) === 1 && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full"
+                              style={{
+                                background: "rgba(59,130,246,0.15)",
+                                color: "#60a5fa",
+                              }}
+                            >
+                              Interne
+                            </span>
+                          )}
                           {Number(s?.is_active) !== 1 && (
                             <span
                               className="text-xs px-2 py-0.5 rounded-full"
@@ -1537,6 +1594,19 @@ export default function Settings() {
                                     <FaEye className="w-4 h-4 text-blue-400" />
                                   )}
                                   {Number(s?.is_active) === 1 ? "Masquer" : "Afficher"}
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    toggleServiceInternal(s);
+                                    setOpenServiceActionMenuId(null);
+                                  }}
+                                  disabled={togglingInternalServiceId === s.id}
+                                  className="flex w-full items-center gap-2 px-3 py-2 hover:bg-[var(--bg-main)] disabled:opacity-50"
+                                  style={{ color: "var(--text-color)" }}
+                                >
+                                  <FaBriefcase className="w-4 h-4 text-sky-400" />
+                                  {Number(s?.is_internal) === 1 ? "Passer public" : "Passer interne"}
                                 </button>
 
                                 {!isPinnedProtectedService(s.name) && (
@@ -2794,6 +2864,20 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="md:col-span-2 flex items-center justify-between rounded border px-3 py-3" style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}>
+                <div>
+                  <div className="text-sm font-semibold">Service interne</div>
+                  <p className="text-xs opacity-70">Si activé, le service ne sera pas visible par les opérateurs externes.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddForm((prev) => ({ ...prev, is_internal: !prev.is_internal }))}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${addForm.is_internal ? "bg-blue-500" : "bg-zinc-600"}`}
+                  aria-pressed={addForm.is_internal}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${addForm.is_internal ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
             </div>
 

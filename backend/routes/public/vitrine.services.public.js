@@ -34,9 +34,9 @@ export default (db) => {
       let rows = [];
       try {
         [rows] = await db.query(
-          `SELECT id, name, subtitle, description, price, icon_url, icon, image_url
+          `SELECT id, name, subtitle, description, price, icon_url, icon, image_url, is_internal
            FROM vitrine_services
-           WHERE is_active = 1
+           WHERE is_active = 1 AND COALESCE(is_internal, 0) = 0
            ORDER BY id DESC`
         );
       } catch (e) {

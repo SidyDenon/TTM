@@ -36,7 +36,7 @@ const ensureServiceColumns = async (db) => {
     const [rows] = await db.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'services'
-         AND COLUMN_NAME IN ('icon_url','icon','description','subtitle','image_url','is_active')`
+            AND COLUMN_NAME IN ('icon_url','icon','description','subtitle','image_url','is_active','is_internal')`
     );
     const hasIconUrlColumn = rows.some((r) => r.COLUMN_NAME === "icon_url");
     const hasIconNameColumn = rows.some((r) => r.COLUMN_NAME === "icon");
@@ -44,6 +44,7 @@ const ensureServiceColumns = async (db) => {
     const hasSubtitleColumn = rows.some((r) => r.COLUMN_NAME === "subtitle");
     const hasImageUrlColumn = rows.some((r) => r.COLUMN_NAME === "image_url");
     let hasIsActiveColumn = rows.some((r) => r.COLUMN_NAME === "is_active");
+    let hasIsInternalColumn = rows.some((r) => r.COLUMN_NAME === "is_internal");
 
     if (!hasIsActiveColumn) {
       try {
@@ -54,6 +55,15 @@ const ensureServiceColumns = async (db) => {
       } catch {}
     }
 
+    if (!hasIsInternalColumn) {
+      try {
+        await db.query(
+          "ALTER TABLE services ADD COLUMN is_internal TINYINT(1) NOT NULL DEFAULT 0"
+        );
+        hasIsInternalColumn = true;
+      } catch {}
+    }
+
     return {
       hasIconUrlColumn,
       hasIconNameColumn,
@@ -61,6 +71,7 @@ const ensureServiceColumns = async (db) => {
       hasSubtitleColumn,
       hasImageUrlColumn,
       hasIsActiveColumn,
+      hasIsInternalColumn,
     };
   } catch {
     return {
@@ -70,6 +81,7 @@ const ensureServiceColumns = async (db) => {
       hasSubtitleColumn: false,
       hasImageUrlColumn: false,
       hasIsActiveColumn: false,
+      hasIsInternalColumn: false,
     };
   }
 };
@@ -211,6 +223,7 @@ export default (db) => {
         hasSubtitleColumn,
         hasImageUrlColumn,
         hasIsActiveColumn,
+        hasIsInternalColumn,
       } = await ensureServiceColumns(req.db);
       const selectFields = [
         "id",
@@ -222,6 +235,7 @@ export default (db) => {
         iconUrlEnabled ? "icon_url" : null,
         hasIconNameColumn ? "icon" : null,
         hasIsActiveColumn ? "is_active" : null,
+        hasIsInternalColumn ? "is_internal" : null,
       ]
         .filter(Boolean)
         .join(", ");
@@ -251,6 +265,7 @@ export default (db) => {
           icon_url: normUrl || virtualIcon || null,
           icon: virtualIcon,
           is_active: hasIsActiveColumn ? Number(s.is_active) : 1,
+          is_internal: hasIsInternalColumn ? Number(s.is_internal) : 0,
         };
       });
 
@@ -333,7 +348,7 @@ export default (db) => {
     validateUploadedFilesSignature,
     async (req, res) => {
       try {
-        const { name, description, subtitle, image_url, price, selected_icon, icon_name } = req.body;
+        const { name, description, subtitle, image_url, price, selected_icon, icon_name, is_internal } = req.body;
         if (!name || price == null)
           return res.status(400).json({ error: "Nom et prix requis" });
 
@@ -344,9 +359,14 @@ export default (db) => {
           hasSubtitleColumn,
           hasImageUrlColumn,
           hasIsActiveColumn,
+          hasIsInternalColumn,
         } = await ensureServiceColumns(req.db);
         const uploadedIcon = req.files?.icon?.[0]?.filename || null;
         const uploadedImage = req.files?.image?.[0]?.filename || null;
+        const internalFlag =
+          is_internal === true ||
+          is_internal === 1 ||
+          String(is_internal).toLowerCase() === "true";
 
         const pickedIcon =
           selected_icon && typeof selected_icon === "string" && selected_icon.trim()
@@ -381,7 +401,7 @@ export default (db) => {
         }
 
         let result;
-        if (iconUrlEnabled || hasIconNameColumn || hasDescriptionColumn || hasImageUrlColumn) {
+        if (iconUrlEnabled || hasIconNameColumn || hasDescriptionColumn || hasImageUrlColumn || hasIsInternalColumn) {
           const fields = ["name", "price"];
           const placeholders = ["?", "?"];
           const values = [name, price];
@@ -409,6 +429,11 @@ export default (db) => {
             fields.push("icon");
             placeholders.push("?");
             values.push(iconName);
+          }
+          if (hasIsInternalColumn) {
+            fields.push("is_internal");
+            placeholders.push("?");
+            values.push(internalFlag ? 1 : 0);
           }
           if (hasIsActiveColumn) {
             fields.push("is_active");
@@ -441,6 +466,7 @@ export default (db) => {
           icon_url: iconUrlEnabled ? autoIcon : null,
           icon: hasIconNameColumn ? iconName : null,
           is_active: 1,
+          is_internal: hasIsInternalColumn ? (internalFlag ? 1 : 0) : 0,
         };
 
         await logAdminEvent(req.db, req.user?.id, "service_cree", {
@@ -465,7 +491,7 @@ export default (db) => {
     validateUploadedFilesSignature,
     async (req, res) => {
     try {
-      const { price, name, description, subtitle, image_url, selected_icon, icon_name, is_active } = req.body;
+      const { price, name, description, subtitle, image_url, selected_icon, icon_name, is_active, is_internal } = req.body;
       const {
         hasIconUrlColumn: iconUrlEnabled,
         hasIconNameColumn,
@@ -473,6 +499,7 @@ export default (db) => {
         hasSubtitleColumn,
         hasImageUrlColumn,
         hasIsActiveColumn,
+        hasIsInternalColumn,
       } = await ensureServiceColumns(req.db);
       const uploadedIcon = req.files?.icon?.[0]?.filename || null;
       const uploadedImage = req.files?.image?.[0]?.filename || null;
@@ -486,7 +513,8 @@ export default (db) => {
         !uploadedIcon &&
         (!iconUrlEnabled || !selected_icon) &&
         (!hasIconNameColumn || !icon_name) &&
-        (!hasIsActiveColumn || is_active == null)
+        (!hasIsActiveColumn || is_active == null) &&
+        (!hasIsInternalColumn || is_internal == null)
       )
         return res
           .status(400)
@@ -556,6 +584,11 @@ export default (db) => {
         values.push(Number(is_active) === 1 ? 1 : 0);
       }
 
+      if (hasIsInternalColumn && is_internal != null) {
+        fields.push("is_internal = ?");
+        values.push(Number(is_internal) === 1 ? 1 : 0);
+      }
+
       if (!fields.length) {
         return res
           .status(400)
@@ -595,6 +628,7 @@ export default (db) => {
           icon_url: iconUrlEnabled ? updated.icon_url || null : null,
           icon: hasIconNameColumn ? updated.icon || null : null,
           is_active: hasIsActiveColumn ? Number(updated.is_active) : 1,
+          is_internal: hasIsInternalColumn ? Number(updated.is_internal) : 0,
         },
       });
     } catch (err) {

@@ -51,6 +51,43 @@ const getOnlineOperators = (req) => {
   }
 };
 
+let serviceInternalColumnCache;
+async function getServiceInternalColumn(db) {
+  if (serviceInternalColumnCache !== undefined) return serviceInternalColumnCache;
+  try {
+    const [[row]] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'services'
+         AND COLUMN_NAME = 'is_internal'
+       LIMIT 1`
+    );
+    serviceInternalColumnCache = row?.COLUMN_NAME || null;
+  } catch {
+    serviceInternalColumnCache = null;
+  }
+  return serviceInternalColumnCache;
+}
+
+async function missionRequiresInternalOperator(db, mission) {
+  const serviceInternalCol = await getServiceInternalColumn(db);
+  const serviceName = String(mission?.service || "").trim();
+  if (!serviceInternalCol || !serviceName) return false;
+  try {
+    const [[row]] = await db.query(
+      `SELECT ${serviceInternalCol} AS is_internal
+       FROM services
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+       LIMIT 1`,
+      [serviceName]
+    );
+    return Number(row?.is_internal) === 1;
+  } catch {
+    return false;
+  }
+}
+
 async function selectNearbyOperatorIds(db, req, mission, radiusKm) {
   const operatorsMap = getOnlineOperators(req);
   if (!operatorsMap || operatorsMap.size === 0) return [];
@@ -65,6 +102,10 @@ async function selectNearbyOperatorIds(db, req, mission, radiusKm) {
   const { operatorInternal, operatorDispo } = await getSchemaColumns(db);
   const internalSelect = operatorInternal ? `, ${operatorInternal} AS is_internal` : "";
   const dispoSelect = operatorDispo ? `, ${operatorDispo} AS dispo` : "";
+  const requiresInternalOperator = await missionRequiresInternalOperator(db, mission);
+
+  // Internal services follow the oil_service flow: admin assignment only.
+  if (requiresInternalOperator) return [];
 
   const [rows] = await db.query(
     `SELECT user_id, lat, lng${internalSelect}${dispoSelect}
@@ -78,7 +119,8 @@ async function selectNearbyOperatorIds(db, req, mission, radiusKm) {
   const matches = [];
   for (const row of rows || []) {
     const isInternal = row.is_internal != null && Number(row.is_internal) === 1;
-    if (isInternal) continue;
+    if (requiresInternalOperator && !isInternal) continue;
+    if (!requiresInternalOperator && isInternal) continue;
     if (row.dispo != null && Number(row.dispo) === 0) continue;
 
     const dist = calculateDistance(
@@ -591,6 +633,15 @@ export default (db, notifyOperators, emitMissionEvent) => {
       }
 
       const io = getIo(req);
+      const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
+      if (io && isInternalService) {
+        io.to("admins").emit("new_internal_service_request", {
+          requestId: newRequest.id,
+          userId: req.user.id,
+          service: newRequest.service,
+          message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
+        });
+      }
       const isTow = String(existing.service || "").toLowerCase().includes("remorqu");
       const radiusKm = isTow
         ? await getOperatorTowingRadiusKm(req.db)
@@ -792,6 +843,15 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
 
     // Notifier uniquement les opérateurs proches
     const io = getIo(req);
+    const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
+    if (io && isInternalService) {
+      io.to("admins").emit("new_internal_service_request", {
+        requestId: newRequest.id,
+        userId: req.user.id,
+        service: newRequest.service,
+        message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
+      });
+    }
     const isTow = String(srv?.name || "").toLowerCase().includes("remorqu");
     const radiusKm = isTow
       ? await getOperatorTowingRadiusKm(req.db)

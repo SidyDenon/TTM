@@ -19,6 +19,44 @@ async function operatorAllowsMissionAlerts(db, operatorId) {
   return Number(row.alerts_enabled ?? 1) !== 0;
 }
 
+let serviceInternalColumnCache;
+
+async function getServiceInternalColumn(db) {
+  if (serviceInternalColumnCache !== undefined) return serviceInternalColumnCache;
+  try {
+    const [[row]] = await db.query(
+      `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'services'
+         AND COLUMN_NAME = 'is_internal'
+       LIMIT 1`
+    );
+    serviceInternalColumnCache = row?.COLUMN_NAME || null;
+  } catch {
+    serviceInternalColumnCache = null;
+  }
+  return serviceInternalColumnCache;
+}
+
+async function isInternalService(db, serviceName) {
+  const serviceInternalCol = await getServiceInternalColumn(db);
+  const label = String(serviceName || "").trim();
+  if (!serviceInternalCol || !label) return false;
+  try {
+    const [[row]] = await db.query(
+      `SELECT ${serviceInternalCol} AS is_internal
+       FROM services
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+       LIMIT 1`,
+      [label]
+    );
+    return Number(row?.is_internal) === 1;
+  } catch {
+    return false;
+  }
+}
+
 const formatMissionForSocket = (row = {}) => {
   const toNumber = (value) =>
     value === null || value === undefined || value === "" ? null : Number(value);
@@ -423,20 +461,61 @@ export default (db, io, emitMissionEvent) => {
       const { operator_id } = req.body;
       if (!operator_id) return res.status(400).json({ error: "Opérateur requis" });
 
+      const [[mission]] = await req.db.query(
+        "SELECT id, user_id, service, service_type, status, operator_id FROM requests WHERE id = ? LIMIT 1",
+        [req.params.id]
+      );
+      if (!mission) {
+        return res.status(404).json({ error: "Mission introuvable" });
+      }
+
+      const missionIsInternal = await isInternalService(req.db, mission.service);
+
+      if (missionIsInternal) {
+        const { operatorInternal } = await getSchemaColumns(req.db);
+        const internalCol = operatorInternal || "is_internal";
+        const [[operator]] = await req.db.query(
+          `SELECT user_id, ${internalCol} AS is_internal FROM operators WHERE user_id = ? LIMIT 1`,
+          [operator_id]
+        );
+        if (!operator) {
+          return res.status(404).json({ error: "Opérateur introuvable" });
+        }
+        if (Number(operator.is_internal) !== 1) {
+          return res.status(403).json({
+            error: "Seuls les opérateurs internes peuvent recevoir une mission interne",
+          });
+        }
+      }
+
       if (!(await operatorAllowsMissionAlerts(req.db, operator_id))) {
         return res.status(403).json({
           error: "Cet opérateur a désactivé la réception des missions",
         });
       }
 
-      await req.db.query(
-        "UPDATE requests SET operator_id = ?, status = 'publiee' WHERE id = ?",
-        [operator_id, req.params.id]
-      );
+      let assignedStatus = missionIsInternal ? "assignee" : "publiee";
+      try {
+        await req.db.query(
+          "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+          [operator_id, assignedStatus, req.params.id]
+        );
+      } catch (e) {
+        const isStatusTruncation =
+          e?.code === "WARN_DATA_TRUNCATED" ||
+          e?.errno === 1265 ||
+          e?.code === "ER_TRUNCATED_WRONG_VALUE_FOR_FIELD";
+        if (!missionIsInternal || !isStatusTruncation) throw e;
+        assignedStatus = "publiee";
+        await req.db.query(
+          "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+          [operator_id, assignedStatus, req.params.id]
+        );
+      }
 
       await req.db.query(
-        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
-        [req.params.id, JSON.stringify({ admin_id: req.user.id, operator_id })]
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, ?, ?, NOW())",
+        [req.params.id, assignedStatus, JSON.stringify({ admin_id: req.user.id, operator_id })]
       );
 
       const [[request]] = await req.db.query(

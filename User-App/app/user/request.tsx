@@ -438,9 +438,13 @@ export default function RequestScreen() {
   );
   const totalOilLiters = oilLiters * oilQuantity;
   const currentServiceBasePrice = Number(currentService?.price || 0);
-  const estimatedOilServicePrice =
+  const oilPartPrice =
     isCurrentOilService && Number.isFinite(Number(selectedOilModelPrice))
-      ? currentServiceBasePrice + Number(selectedOilModelPrice)
+      ? Number(selectedOilModelPrice)
+      : 0;
+  const estimatedOilServicePrice =
+    isCurrentOilService
+      ? currentServiceBasePrice + oilPartPrice
       : isCurrentOilService
       ? currentServiceBasePrice
       : 0;
@@ -1062,9 +1066,20 @@ const renderServiceIcon = (
 
                 <View style={styles.priceBox}>
                   <Text style={styles.priceLabel}>Prix estime</Text>
-                  <Text style={styles.priceValue}>{formatPrice(estimatedOilServicePrice)}</Text>
+                  <View style={styles.priceBreakdownRow}>
+                    <Text style={styles.priceBreakdownLabel}>Prix service</Text>
+                    <Text style={styles.priceBreakdownValue}>{formatPrice(currentServiceBasePrice)}</Text>
+                  </View>
+                  <View style={styles.priceBreakdownRow}>
+                    <Text style={styles.priceBreakdownLabel}>Prix d&apos;huile</Text>
+                    <Text style={styles.priceBreakdownValue}>{formatPrice(oilPartPrice)}</Text>
+                  </View>
+                  <View style={[styles.priceBreakdownRow, styles.priceBreakdownTotalRow]}>
+                    <Text style={styles.priceBreakdownTotalLabel}>Total</Text>
+                    <Text style={styles.priceValue}>{formatPrice(estimatedOilServicePrice)}</Text>
+                  </View>
                   <Text style={styles.priceHint}>
-                    Selon modèle d&apos;huile + base service ({oilQuantity} x {oilLiters}L)
+                    {formatPrice(currentServiceBasePrice)} + {formatPrice(oilPartPrice)} ({oilQuantity} x {oilLiters}L)
                   </Text>
                 </View>
 
@@ -1345,7 +1360,34 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.primaryDark,
     fontWeight: "800",
-    marginTop: 3,
+    marginTop: 0,
+  },
+  priceBreakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  priceBreakdownLabel: {
+    fontSize: 12,
+    color: COLORS.text,
+    fontWeight: "600",
+  },
+  priceBreakdownValue: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: "700",
+  },
+  priceBreakdownTotalRow: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  priceBreakdownTotalLabel: {
+    fontSize: 13,
+    color: COLORS.primaryDark,
+    fontWeight: "800",
   },
   priceHint: {
     fontSize: 11,

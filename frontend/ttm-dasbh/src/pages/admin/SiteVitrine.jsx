@@ -73,6 +73,7 @@ export default function SiteVitrine() {
     description: "",
     price: "",
     icon: "",
+    is_internal: false,
   });
   const [addImageFile, setAddImageFile] = useState(null);
   const [addImagePreview, setAddImagePreview] = useState("");
@@ -280,6 +281,7 @@ export default function SiteVitrine() {
     try {
       if (typeof window === "undefined" || !window.localStorage) return;
       window.localStorage.removeItem("ttm:public-services:v3");
+      window.localStorage.removeItem("ttm:public-services:v4");
       window.localStorage.removeItem("ttm:site-content");
     } catch {
       // ignore storage access issues
@@ -802,6 +804,7 @@ export default function SiteVitrine() {
       payload.append("description", addForm.description.trim());
       payload.append("price", String(price));
       payload.append("icon_name", addForm.icon || "");
+      payload.append("is_internal", addForm.is_internal ? "1" : "0");
       if (addImageFile) payload.append("image", addImageFile);
 
       const res = await fetch(`${API_BASE}/api/admin/vitrine/services`, {
@@ -815,7 +818,7 @@ export default function SiteVitrine() {
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
       toast.success("Service ajouté ✅");
       invalidatePublicVitrineCache();
-      setAddForm({ name: "", subtitle: "", description: "", price: "", icon: "" });
+      setAddForm({ name: "", subtitle: "", description: "", price: "", icon: "", is_internal: false });
       setAddImageFile(null);
       setAddImagePreview("");
       setIconPickerOpen(false);
@@ -1588,6 +1591,20 @@ export default function SiteVitrine() {
                     Enregistrer
                   </button>
                 </div>
+              </div>
+              <div className="md:col-span-2 flex items-center justify-between rounded border px-3 py-3" style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}>
+                <div>
+                  <div className="text-sm font-semibold">Service interne</div>
+                  <p className="text-xs opacity-70">Si activé, ce service ne sort pas dans les listes publiques.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddForm((prev) => ({ ...prev, is_internal: !prev.is_internal }))}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${addForm.is_internal ? "bg-blue-500" : "bg-zinc-600"}`}
+                  aria-pressed={addForm.is_internal}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${addForm.is_internal ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm opacity-70 mb-2">Photo de la carte</label>

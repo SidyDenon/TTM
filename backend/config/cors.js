@@ -25,14 +25,15 @@ function getLocalIPv4() {
 }
 
 const LAN_IP = process.env.LOCAL_IP || getLocalIPv4();
+const alwaysAllowedOrigins = ["https://admin.towtruckmali.com"];
 
 const rawOrigins = (process.env.CORS_ORIGINS ||
-  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000,http://192.168.11.241:5173,http://192.168.11.103,https://ttm-production-d022.up.railway.app,https://ttmadmin.netlify.app,https://towtruckmali.com,https://www.towtruckmali.com`)
+  `http://localhost:5173,http://localhost:3000,http://${LAN_IP}:5173,http://${LAN_IP}:3000,http://${LAN_IP}:5000,http://10.0.2.2:5000,http://192.168.11.241:5173,http://192.168.11.103,https://ttm-production-d022.up.railway.app,https://ttmadmin.netlify.app,https://towtruckmali.com,https://www.towtruckmali.com,https://admin.towtruckmali.com`)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
-const allowedOrigins = rawOrigins.map(normalizeOrigin);
+const allowedOrigins = [...rawOrigins, ...alwaysAllowedOrigins].map(normalizeOrigin);
 const allowedOriginsSet = new Set(allowedOrigins);
 const isProd = process.env.NODE_ENV === "production";
 

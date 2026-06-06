@@ -18,7 +18,7 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
     const validTokens = tokens.filter(
       (t) =>
         typeof t === "string" &&
-        t.startsWith("ExponentPushToken")
+        (t.startsWith("ExponentPushToken") || t.startsWith("ExpoPushToken"))
     );
 
     if (validTokens.length === 0) {

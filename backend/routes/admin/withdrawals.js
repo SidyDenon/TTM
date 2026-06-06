@@ -77,6 +77,48 @@ export default (db) => {
         .filter((r) => norm(r.status) === "rejetée")
         .reduce(sum, 0);
 
+      try {
+        const approvedIds = rows
+          .filter((r) => norm(r.status) === "approuvée")
+          .map((r) => Number(r.id))
+          .filter((id) => Number.isFinite(id));
+
+        if (approvedIds.length > 0) {
+          const placeholders = approvedIds.map(() => "?").join(",");
+          const [approveLogs] = await req.db.query(
+            `SELECT
+               CAST(JSON_UNQUOTE(JSON_EXTRACT(ae.meta, '$.withdrawal_id')) AS UNSIGNED) AS withdrawal_id,
+               u.name AS admin_name,
+               ae.created_at
+             FROM admin_events ae
+             LEFT JOIN users u ON u.id = ae.admin_id
+             WHERE ae.action = 'retrait_approuve'
+               AND CAST(JSON_UNQUOTE(JSON_EXTRACT(ae.meta, '$.withdrawal_id')) AS UNSIGNED) IN (${placeholders})
+             ORDER BY ae.created_at DESC`,
+            approvedIds
+          );
+
+          const adminByWithdrawal = new Map();
+          for (const log of approveLogs || []) {
+            const wid = Number(log?.withdrawal_id);
+            if (!Number.isFinite(wid) || adminByWithdrawal.has(wid)) continue;
+            adminByWithdrawal.set(wid, log?.admin_name || null);
+          }
+
+          rows = rows.map((r) => ({
+            ...r,
+            approved_by_admin:
+              norm(r.status) === "approuvée"
+                ? adminByWithdrawal.get(Number(r.id)) || null
+                : null,
+          }));
+        } else {
+          rows = rows.map((r) => ({ ...r, approved_by_admin: null }));
+        }
+      } catch (e) {
+        rows = rows.map((r) => ({ ...r, approved_by_admin: null }));
+      }
+
       res.json({
         message: "Liste des retraits ✅",
         data: rows,

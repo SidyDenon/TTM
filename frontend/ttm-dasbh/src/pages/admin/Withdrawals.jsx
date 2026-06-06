@@ -157,6 +157,7 @@ export default function Withdrawals() {
             currency: data.currency || "FCFA",
             method: data.method,
             phone: data.phone,
+            approved_by_admin: null,
             status: data.status,
             created_at: data.created_at,
             updated_at: data.created_at,
@@ -228,6 +229,8 @@ export default function Withdrawals() {
           <td>${w.operator_name || "—"}</td>
           <td>${formatAmount(w.amount)} ${w.currency || ""}</td>
           <td>${w.method || ""}</td>
+          <td>${w.phone || "—"}</td>
+          <td>${w.approved_by_admin || "—"}</td>
           <td>${w.status || ""}</td>
           <td>${w.updated_at || w.created_at || ""}</td>
         </tr>`
@@ -249,7 +252,7 @@ export default function Withdrawals() {
           <table>
             <thead>
               <tr>
-                <th>#ID</th><th>Opérateur</th><th>Montant</th><th>Méthode</th><th>Statut</th><th>Maj</th>
+                <th>#ID</th><th>Opérateur</th><th>Montant</th><th>Méthode</th><th>Téléphone</th><th>Validé par</th><th>Statut</th><th>Maj</th>
               </tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
@@ -402,6 +405,7 @@ export default function Withdrawals() {
                 <th className="px-3 py-2 text-left">Montant</th>
                 <th className="px-3 py-2 text-left">Méthode</th>
                 <th className="px-3 py-2 text-left">Téléphone</th>
+                <th className="px-3 py-2 text-left">Validé par</th>
                 <th className="px-3 py-2 text-left">Statut</th>
                 <th className="px-3 py-2 text-left">Dernière mise à jour</th>
                 <th className="px-3 py-2 text-center">Actions</th>
@@ -423,6 +427,7 @@ export default function Withdrawals() {
                   </td>
                   <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>{w.method}</td>
                   <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>{w.phone || "—"}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>{w.approved_by_admin || "—"}</td>
                   <td
                     className="px-3 py-2"
                     style={{

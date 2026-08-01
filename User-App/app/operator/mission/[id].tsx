@@ -306,7 +306,7 @@ export default function MissionSuivi() {
           throw new Error(String(message));
         }
         const m = data?.data;
-        console.log("📦 mission status (operator):", m?.status, "id:", m?.id);
+        // mission status update handled
         if (!m) {
           throw new Error("Mission introuvable dans la réponse API");
         }
@@ -421,7 +421,7 @@ export default function MissionSuivi() {
       socket.emit("join_request", { requestId: Number(mission.id) } as { requestId: number });
 
     const onConnect = () => {
-      console.log("✅ [SOCKET] connect:", socket.id);
+      // socket connected
       doRegister();
       joinRoom();
     };
@@ -506,7 +506,7 @@ export default function MissionSuivi() {
         return;
       }
 
-      console.log("🚗 Démarrage du suivi GPS...");
+      // GPS tracking started
       locationSub.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Highest,
@@ -559,7 +559,7 @@ export default function MissionSuivi() {
 
     return () => {
       if (locationSub.current) {
-        console.log("🛑 Arrêt du suivi GPS");
+        // GPS tracking stopped
         locationSub.current.remove();
         locationSub.current = null;
       }

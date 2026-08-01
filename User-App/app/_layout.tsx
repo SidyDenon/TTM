@@ -7,7 +7,10 @@ import { SocketProvider } from "../context/SocketContext";
 import SplashScreen from "../components/SplashScreen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../utils/api";
-import { requestNotificationPermission, setupNotificationChannel } from "../lib/notifications";
+import {
+  requestNotificationPermission,
+  setupNotificationChannel,
+} from "../lib/notifications";
 import { getExpoPushTokenSafe } from "../lib/expoNotifications";
 
 /* ---------------- Root Navigator ---------------- */

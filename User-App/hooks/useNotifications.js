@@ -78,9 +78,17 @@ export default function useNotifications(options = {}) {
       );
     };
 
+    const handlePaymentConfirmed = async (data) => {
+      await triggerNotification(
+        "💳 Paiement client validé",
+        data?.message || "Le client a confirmé le paiement de la mission."
+      );
+    };
+
     // Écoute les événements
     socket.on("withdrawal_update", handleWithdrawalUpdate);
     socket.on("mission:updated", handleMissionUpdated);
+    socket.on("payment_confirmed", handlePaymentConfirmed);
 
     // 4️⃣ Si l'utilisateur clique une notif → ouvre retraits
     const tapSub = notificationsAvailable && Notifications
@@ -122,6 +130,7 @@ export default function useNotifications(options = {}) {
     return () => {
       socket.off("withdrawal_update", handleWithdrawalUpdate);
       socket.off("mission:updated", handleMissionUpdated);
+      socket.off("payment_confirmed", handlePaymentConfirmed);
       tapSub?.remove();
     };
   }, [token, socket, user?.id, user?.role, onRefreshWallet, onOpenWithdrawals, router]);

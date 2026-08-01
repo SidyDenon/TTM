@@ -352,7 +352,7 @@ const closeMenu = () => {
 // 🔗 Connexion socket.io
 useEffect(() => {
   if (isConnected && user) {
-    console.log("🧠 Socket déjà connecté via contexte :", socket?.id);
+    // socket already available from context
     socket?.emit("register", { userId: user.id, role: "operator" });
   }
 }, [isConnected, user]);
@@ -364,7 +364,7 @@ useEffect(() => {
 useEffect(() => {
   if (!socket) return;
 
-  console.log("📡 [Socket] Listening (Operator Screen)");
+  // socket listener active
 
   const removalStatuses = new Set([
     "acceptee",

@@ -1,6 +1,9 @@
 import { Alert, Platform } from "react-native";
 import Notifications, { isExpoGo } from "./expoNotifications";
 
+const DEFAULT_NOTIFICATION_SOUND = "default";
+const CUSTOM_NOTIFICATION_SOUND = "ttm sound";
+
 let expoGoWarned = false;
 const warnExpoGo = () => {
   if (expoGoWarned) return;
@@ -51,6 +54,11 @@ export async function setupNotificationChannel() {
   });
 }
 
+function isMissionRelatedNotification(title: string, body = "") {
+  const text = `${title} ${body}`.toLowerCase();
+  return text.includes("mission") || text.includes("missions");
+}
+
 export async function showLocalNotification(title: string, body: string) {
   if (!Notifications) {
     warnExpoGo();
@@ -61,11 +69,13 @@ export async function showLocalNotification(title: string, body: string) {
     await setupNotificationChannel();
   }
 
+  const isMissionNotification = isMissionRelatedNotification(title, body);
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
-      sound: Platform.OS === "ios" ? "towtruck_alert.wav" : undefined,
+      sound: isMissionNotification ? CUSTOM_NOTIFICATION_SOUND : DEFAULT_NOTIFICATION_SOUND,
       channelId: Platform.OS === "android" ? "default" : undefined,
     },
     trigger: null,

@@ -117,7 +117,7 @@ export default function MissionDetails() {
 useEffect(() => {
   if (!socket) return;
 
-  console.log("📡 [Socket] Écoute mission events sur l’écran détail");
+  // mission socket listener active
 
   // ✅ Fonction utilitaire (avec types)
   const triggerNotification = async (title: string, body: string) => {

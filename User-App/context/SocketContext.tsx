@@ -42,7 +42,7 @@ export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
   useEffect(() => {
     if (!token || !user) {
       if (socketRef.current) {
-        console.log("[SOCKET] Déconnexion car user null");
+        // no-op
         socketRef.current.disconnect();
       }
       socketRef.current = null;
@@ -52,13 +52,13 @@ export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
 
     // déjà créé ?
     if (socketRef.current?.connected) {
-      console.log("[SOCKET] Déjà connecté, pas de recréation.");
+      // already connected; keep it simple
       return;
     }
 
     // Base URL sans /api
     const baseURL = getApiUrl().replace("/api", "");
-    console.log("[SOCKET] Connexion Socket.IO sur :", baseURL);
+    // connect silently unless needed for debugging
 
     const socket = io(baseURL, {
       transports: ["websocket"],
@@ -73,28 +73,28 @@ export const SocketProvider: React.FC<ProviderProps> = ({ children }) => {
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("✅ [SOCKET] Connecté :", socket.id);
+      // socket connected
       setIsConnected(true);
       socket.emit("register", { token });
     });
 
     socket.on("disconnect", (reason) => {
-      console.log("⚠️ [SOCKET] Déconnecté :", reason);
+      // socket disconnected
       setIsConnected(false);
     });
 
     socket.on("connect_error", (err) => {
-      console.warn("❌ [SOCKET] Erreur connexion :", err.message);
+      // connection error silently handled
     });
 
     socket.on("reconnect_attempt", (attempt) => {
-      console.log("🔄 [SOCKET] Reconnect attempt:", attempt);
+      // reconnecting silently
     });
 
     // Cleanup
     return () => {
       if (socketRef.current) {
-        console.log("🧹 [SOCKET] Cleanup");
+        // cleanup complete
         socketRef.current.disconnect();
         socketRef.current = null;
       }

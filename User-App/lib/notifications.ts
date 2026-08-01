@@ -1,8 +1,12 @@
 import { Alert, Platform } from "react-native";
 import Notifications, { isExpoGo } from "./expoNotifications";
 
-const warnExpoGo = () =>
+let expoGoWarned = false;
+const warnExpoGo = () => {
+  if (expoGoWarned) return;
+  expoGoWarned = true;
   console.log("⚠️ Expo Go détecté — notifications push/système désactivées dans ce mode");
+};
 
 if (Notifications) {
   Notifications.setNotificationHandler({

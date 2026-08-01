@@ -60,15 +60,13 @@ const ensureTaskDefined = () => {
 
       const nextId = String(active.id);
       const nextStatus = active.status ?? null;
+      const nextStatusLabel = nextStatus ? nextStatus.replace(/_/g, " ") : "mise à jour";
 
       await AsyncStorage.setItem(STORAGE_LAST_ID, nextId);
       if (nextStatus) await AsyncStorage.setItem(STORAGE_LAST_STATUS, nextStatus);
 
       if (lastId === nextId && shouldNotifyStatusChange(lastStatus, nextStatus)) {
-        await showLocalNotification(
-          "Mise à jour de mission",
-          `Statut : ${nextStatus.replace(/_/g, " ")}`
-        );
+        await showLocalNotification("Mise à jour de mission", `Statut : ${nextStatusLabel}`);
         return BackgroundFetch.BackgroundFetchResult.NewData;
       }
 
@@ -86,27 +84,29 @@ const ensureTaskDefined = () => {
 export async function startMissionBackgroundTracking() {
   const BackgroundFetch = getBackgroundFetch();
   if (!BackgroundFetch) {
-    console.warn("⚠️ Expo Go détecté — BackgroundFetch indisponible");
     return;
   }
 
   if (!ensureTaskDefined()) return;
 
-  const status = await BackgroundFetch.getStatusAsync();
-  if (status !== BackgroundFetch.BackgroundFetchStatus.Available) {
-    console.warn("⚠️ BackgroundFetch indisponible:", status);
-    return;
+  try {
+    const status = await BackgroundFetch.getStatusAsync();
+    if (status !== BackgroundFetch.BackgroundFetchStatus.Available) {
+      return;
+    }
+
+    const tasks = await TaskManager.getRegisteredTasksAsync();
+    const alreadyRegistered = tasks?.some((t) => t.taskName === TASK_NAME);
+    if (alreadyRegistered) return;
+
+    await BackgroundFetch.registerTaskAsync(TASK_NAME, {
+      minimumInterval: 300,
+      stopOnTerminate: false,
+      startOnBoot: true,
+    });
+  } catch {
+    // En Expo Go / iOS non configuré, on ignore silencieusement.
   }
-
-  const tasks = await TaskManager.getRegisteredTasksAsync();
-  const alreadyRegistered = tasks?.some((t) => t.taskName === TASK_NAME);
-  if (alreadyRegistered) return;
-
-  await BackgroundFetch.registerTaskAsync(TASK_NAME, {
-    minimumInterval: 300,
-    stopOnTerminate: false,
-    startOnBoot: true,
-  });
 }
 
 export async function stopMissionBackgroundTracking() {
@@ -114,7 +114,7 @@ export async function stopMissionBackgroundTracking() {
   const tasks = await TaskManager.getRegisteredTasksAsync();
   const alreadyRegistered = tasks?.some((t) => t.taskName === TASK_NAME);
   if (alreadyRegistered && BackgroundFetch) {
-    await BackgroundFetch.unregisterTaskAsync(TASK_NAME);
+    await BackgroundFetch.unregisterTaskAsync(TASK_NAME).catch(() => undefined);
   }
   await AsyncStorage.multiRemove([STORAGE_LAST_ID, STORAGE_LAST_STATUS]);
 }

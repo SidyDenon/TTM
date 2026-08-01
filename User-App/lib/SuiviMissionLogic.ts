@@ -356,18 +356,15 @@ export function useSuiviMissionLogic() {
 
     const doRegister = () => socket.emit("register", { token });
     const joinRoom = () => {
-      console.log("🟢 [SOCKET] Join room mission_", mission.id);
       socket.emit("join_request", { requestId: mission.id });
     };
 
     const onConnect = () => {
-      console.log("✅ [SOCKET] Connecté:", socket.id);
       doRegister();
       joinRoom();
     };
 
     const onReconnect = () => {
-      console.log("🔄 [SOCKET] Reconnect");
       doRegister();
       joinRoom();
     };
@@ -563,7 +560,6 @@ export function useSuiviMissionLogic() {
 
     socket.on("connect", onConnect);
     socket.io.on("reconnect", onReconnect);
-    socket.on("register_success", (p: any) => console.log("🆗 register_success", p));
     socket.on("operator_position_update", onOpPos);
     socket.on("mission:updated", onStatusUpdate);
     socket.on("mission:status_changed", onStatusUpdate);
@@ -574,7 +570,6 @@ export function useSuiviMissionLogic() {
     return () => {
       socket.off("connect", onConnect);
       socket.io.off("reconnect", onReconnect);
-      socket.off("register_success");
       socket.off("operator_position_update", onOpPos);
       socket.off("mission:updated", onStatusUpdate);
       socket.off("mission:status_changed", onStatusUpdate);

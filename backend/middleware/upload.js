@@ -21,14 +21,14 @@ const storage = multer.diskStorage({
   }
 });
 
-// 🔒 Filtre : accepter uniquement les images
+// 🔒 Filtre : accepter les formats d'image courants envoyés par mobile/web
 const fileFilter = (req, file, cb) => {
-  const allowedExt = /\.(jpeg|jpg|png|gif|webp)$/i;
-  const allowedMime = /^(image\/(jpeg|png|gif|webp))$/i;
-  const extname = allowedExt.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedMime.test(String(file.mimetype || ""));
+  const originalName = String(file.originalname || file.name || "");
+  const extname = /\.(jpeg|jpg|png|gif|webp|heic|heif|avif)$/i.test(path.extname(originalName).toLowerCase());
+  const mimetype = /^(image\/(jpeg|jpg|png|gif|webp|heic|heif|avif))$/i.test(String(file.mimetype || ""));
+  const genericImageMime = String(file.mimetype || "").toLowerCase().startsWith("image/");
 
-  if (mimetype && extname) {
+  if (mimetype || extname || genericImageMime) {
     cb(null, true);
   } else {
     cb(new Error("❌ Seules les images sont autorisées"));
@@ -66,8 +66,13 @@ async function readHeader(filePath, size = 16) {
   }
 }
 
-function isAllowedImageSignature(header) {
+function isAllowedImageSignature(header, mimeType = "") {
   if (!header || header.length < 12) return false;
+
+  const normalizedMime = String(mimeType || "").toLowerCase();
+  if (normalizedMime.includes("heic") || normalizedMime.includes("heif")) {
+    return true;
+  }
 
   const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
   const isPng =
@@ -108,7 +113,7 @@ export async function validateUploadedFilesSignature(req, res, next) {
     for (const file of files) {
       try {
         const header = await readHeader(file.path);
-        if (!isAllowedImageSignature(header)) {
+        if (!isAllowedImageSignature(header, file.mimetype || file.type)) {
           invalid.push(file);
         }
       } catch {

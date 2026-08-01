@@ -51,8 +51,6 @@ export default function useNotifications(options = {}) {
         .catch((err) => {
           console.error("❌ Erreur registerForPushNotificationsAsync:", err);
         });
-    } else {
-      console.log("⚠️ Notifications indisponibles sur cette build (Expo Go ?)");
     }
 
     // 3️⃣ Gestion des événements temps réel
@@ -74,7 +72,6 @@ export default function useNotifications(options = {}) {
       ) {
         return;
       }
-      console.log("🚨 mission:updated (notifications)", data);
       await triggerNotification(
         "🚨 Nouvelle mission",
         data.message || `Mission #${data.id}`

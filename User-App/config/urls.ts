@@ -12,6 +12,7 @@ const LAN_IPS = ["192.168.11.103", "192.168.11.164", "192.168.11.241"]; // ajout
 
 export let API_BASE = PROD_BASE; // host sans /api
 export let API_URL = `${API_BASE}/api`;
+let lastLoggedApiBase: string | null = null;
 
 // ---------------------- ping test ----------------------
 async function testBackend(url: string) {
@@ -77,7 +78,10 @@ export async function initApiBase() {
   const fallbackBase = envBase ? envBase.replace(/\/+$/, "") : PROD_BASE;
   API_BASE = resolved || fallbackBase;
   API_URL = `${API_BASE}/api`;
-  if (__DEV__) console.log("📡 API sélectionnée :", API_BASE);
+  if (__DEV__ && lastLoggedApiBase !== API_BASE) {
+    console.log("📡 API sélectionnée :", API_BASE);
+    lastLoggedApiBase = API_BASE;
+  }
 }
 
 export function getApiBase() {

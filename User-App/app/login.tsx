@@ -5,7 +5,6 @@ import {
   Easing,
   LayoutAnimation,
   Platform,
-  UIManager,
   View,
   Text,
   TextInput,
@@ -52,12 +51,6 @@ export default function LoginScreen() {
     inputRange: [0, 1],
     outputRange: [0, segmentWidth / 2], // half of container
   });
-
-  useEffect(() => {
-    if (Platform.OS === "android") {
-      UIManager.setLayoutAnimationEnabledExperimental?.(true);
-    }
-  }, []);
 
   const switchMode = (next: Mode) => {
     // (optional) animate layout changes in form

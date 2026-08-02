@@ -9,7 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/images/logo1.png",
   scheme: "userapp",
   userInterfaceStyle: "light",
-  newArchEnabled: true,
+  newArchEnabled: false,
   experiments: {
     typedRoutes: true,
   },

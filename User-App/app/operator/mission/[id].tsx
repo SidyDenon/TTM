@@ -12,7 +12,6 @@ import {
   Image,
   Animated,
   useWindowDimensions,
-  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -795,53 +794,19 @@ export default function MissionSuivi() {
   const confirmCashPayment = async () => {
     if (!mission?.id || confirmingCash) return;
     try {
-      console.log("[cash-confirm-ui] pressed", {
-        missionId: Number(mission.id),
-        payment_method: mission.payment_method,
-        payment_status: mission.payment_status,
-        cash_received_by_operator: mission.cash_received_by_operator,
-      });
-
       setConfirmingCash(true);
-      Toast.show({
-        type: "info",
-        text1: "Envoi...",
-        text2: "Confirmation espèces en cours.",
-      });
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
       const res = await fetch(`${API_URL}/operator/requests/${mission.id}/confirm-cash-payment`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
       });
-      clearTimeout(timeout);
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      console.log("[cash-confirm-ui] response", {
-        status: res.status,
-        ok: res.ok,
-        body: data,
-      });
+      const data = await res.json();
 
       if (!res.ok) {
-        const detailMsg =
-          data?.details
-            ? `${data?.error || "Erreur serveur"} (${data?.details}${data?.code ? ` / ${data.code}` : ""})`
-            : data?.error || "Impossible de confirmer le paiement espèces";
         Toast.show({
           type: "error",
           text1: "Erreur",
-          text2: detailMsg,
+          text2: data?.error || "Impossible de confirmer le paiement espèces",
         });
-        Alert.alert("Erreur confirmation", detailMsg || `HTTP ${res.status}`);
         return;
       }
 
@@ -864,16 +829,11 @@ export default function MissionSuivi() {
 
       setTimeout(() => router.replace("/operator"), 1000);
     } catch (err) {
-      console.error("[cash-confirm-ui] network/error", err);
       Toast.show({
         type: "error",
         text1: "Erreur réseau",
         text2: "Impossible de confirmer le paiement espèces.",
       });
-      Alert.alert(
-        "Erreur réseau",
-        "La demande de confirmation n'a pas abouti. Vérifie la connexion et le backend."
-      );
     } finally {
       setConfirmingCash(false);
     }

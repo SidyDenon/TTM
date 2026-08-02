@@ -1374,12 +1374,6 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
 
     try {
       const { id } = req.params;
-      const operatorId = Number(req.user?.id || 0);
-      console.log("[cash-confirm] hit", {
-        request_id: Number(id),
-        operator_id: operatorId,
-        role: String(req.user?.role || ""),
-      });
 
       // Ensure commission_percent exists on transactions (compat anciennes bases)
       try {
@@ -1412,19 +1406,10 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
       );
 
       if (!mission) {
-        console.warn("[cash-confirm] mission_not_found_or_forbidden", {
-          request_id: Number(id),
-          operator_id: operatorId,
-        });
         return res.status(404).json({ error: "Mission introuvable ou non autorisée" });
       }
 
       if (String(mission.status || "") !== "terminee") {
-        console.warn("[cash-confirm] mission_not_finished", {
-          request_id: Number(id),
-          operator_id: operatorId,
-          status: String(mission.status || ""),
-        });
         return res.status(400).json({
           error: "La mission doit être terminée avant confirmation du paiement espèces",
         });
@@ -1450,41 +1435,17 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           [req.user.id, id, grossAmount, currency, commissionPercent]
         );
         txId = insertTx.insertId;
-        console.log("[cash-confirm] tx_created", {
-          request_id: Number(id),
-          operator_id: operatorId,
-          tx_id: Number(txId),
-          payment_method: "cash",
-        });
       } else {
         const tx = existingRows[0];
         txId = tx.id;
-        console.log("[cash-confirm] tx_found", {
-          request_id: Number(id),
-          operator_id: operatorId,
-          tx_id: Number(txId),
-          tx_status: String(tx.status || ""),
-          tx_payment_method: String(tx.payment_method || ""),
-        });
 
         if (String(tx.status || "") === "confirmée") {
-          console.warn("[cash-confirm] tx_already_admin_confirmed", {
-            request_id: Number(id),
-            operator_id: operatorId,
-            tx_id: Number(txId),
-          });
           return res.status(400).json({
             error: "Transaction déjà validée définitivement par l'administration",
           });
         }
 
         if (tx.payment_method && String(tx.payment_method).toLowerCase() !== "cash") {
-          console.warn("[cash-confirm] tx_method_not_cash", {
-            request_id: Number(id),
-            operator_id: operatorId,
-            tx_id: Number(txId),
-            tx_payment_method: String(tx.payment_method || ""),
-          });
           return res.status(400).json({
             error: "Le client n'a pas choisi le paiement espèces pour cette mission",
           });
@@ -1516,21 +1477,11 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
         alreadyCashReceivedRow = Array.isArray(alreadyRows) && alreadyRows.length > 0
           ? alreadyRows[0]
           : null;
-      } catch (eventsReadErr) {
-        console.warn("[cash-confirm] request_events_read_warning", {
-          request_id: Number(id),
-          tx_id: Number(txId),
-          message: eventsReadErr?.message || String(eventsReadErr),
-          code: eventsReadErr?.code || null,
-        });
+      } catch {
+        // Non bloquant: poursuit la confirmation.
       }
 
       if (alreadyCashReceivedRow) {
-        console.log("[cash-confirm] already_signaled", {
-          request_id: Number(id),
-          operator_id: operatorId,
-          tx_id: Number(txId),
-        });
         return res.json({
           message: "Paiement espèces déjà signalé",
           data: {
@@ -1557,13 +1508,8 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
             }),
           ]
         );
-      } catch (eventsInsertErr) {
-        console.warn("[cash-confirm] request_events_insert_warning", {
-          request_id: Number(id),
-          tx_id: Number(txId),
-          message: eventsInsertErr?.message || String(eventsInsertErr),
-          code: eventsInsertErr?.code || null,
-        });
+      } catch {
+        // Non bloquant: poursuit la confirmation.
       }
 
       // Temps réel admin + opérateur
@@ -1599,12 +1545,8 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           cash_received_by_operator: true,
           message: `Paiement espèces reçu pour mission #${id}. Validation admin en cours.`,
         });
-      } catch (emitErr) {
-        console.warn("[cash-confirm] emit_warnings", {
-          request_id: Number(id),
-          tx_id: Number(txId),
-          message: emitErr?.message || String(emitErr),
-        });
+      } catch {
+        // Non bloquant: ne pas casser la réponse API.
       }
 
       // Message user: in-app (socket) si ouvert, push fallback s'il est fermé
@@ -1620,12 +1562,8 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           cash_received_by_operator: true,
           message: userMessage,
         });
-      } catch (emitClientErr) {
-        console.warn("[cash-confirm] emit_client_warning", {
-          request_id: Number(id),
-          tx_id: Number(txId),
-          message: emitClientErr?.message || String(emitClientErr),
-        });
+      } catch {
+        // Non bloquant.
       }
 
       if (mission.client_notification_token) {
@@ -1643,12 +1581,8 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
               cash_received_by_operator: true,
             }
           );
-        } catch (pushErr) {
-          console.warn("[cash-confirm] push_warning", {
-            request_id: Number(id),
-            tx_id: Number(txId),
-            message: pushErr?.message || String(pushErr),
-          });
+        } catch {
+          // Non bloquant.
         }
       }
 
@@ -1664,26 +1598,13 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           cash_received_by_operator: true,
         },
       });
-
-      console.log("[cash-confirm] success", {
-        request_id: Number(id),
-        operator_id: operatorId,
-        tx_id: Number(txId),
-        payment_method: "cash",
-        status: "en_attente",
-      });
     } catch (err) {
       console.error(" Erreur POST /operator/requests/:id/confirm-cash-payment:", {
         request_id: Number(req.params?.id),
         operator_id: Number(req.user?.id || 0),
-        code: err?.code || null,
         message: err?.message || String(err),
       });
-      res.status(500).json({
-        error: "Erreur serveur",
-        details: err?.message || String(err),
-        code: err?.code || null,
-      });
+      res.status(500).json({ error: "Erreur serveur" });
     }
   });
 

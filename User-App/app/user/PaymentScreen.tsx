@@ -253,23 +253,18 @@ export default function PaymentScreen() {
         <Text style={[styles.bannerTitle, { fontSize: isCompact ? 18 : 20 }]}>
           {paid ? "Paiement confirmé " : cashPending ? "Confirmation en attente" : "Mission terminée 🎉"}
         </Text>
-        <Text style={styles.bannerText}>
+        <Text style={[
+          styles.bannerText,
+          paid && cashPaymentConfirmed ? styles.bannerTextSuccess : null,
+        ]}>
           {paid
             ? cashPaymentConfirmed
-              ? "Paiement espèces validé. Tu peux maintenant nous laisser ton avis."
+              ? "La réception de votre paiement en espèces a été confirmée. Vous pouvez maintenant laisser votre avis."
               : "Merci, ton paiement a bien été transmis. Tu peux maintenant nous laisser ton avis."
             : cashPending
             ? "Paiement espèces déclaré. Attends la confirmation de l'opérateur."
             : "Choisis ton mode de paiement pour finaliser la mission."}
         </Text>
-
-        {cashPaymentConfirmed && (
-          <View style={styles.confirmBanner}>
-            <Text style={styles.confirmBannerText}>
-              L'opérateur a confirmé la réception de votre paiement en espèces.
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* TICKET DE PAIEMENT */}
@@ -561,21 +556,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
   },
-  confirmBanner: {
-    marginTop: 10,
-    backgroundColor: "#E8F5E9",
-    borderColor: "#66BB6A",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    width: "100%",
-  },
-  confirmBannerText: {
-    color: "#1B5E20",
-    fontSize: 13,
+  bannerTextSuccess: {
+    color: "#2E7D32",
     fontWeight: "700",
-    textAlign: "center",
   },
 
   // 🎟️ Ticket

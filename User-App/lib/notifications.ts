@@ -2,7 +2,9 @@ import { Alert, Platform } from "react-native";
 import Notifications, { isExpoGo } from "./expoNotifications";
 
 const DEFAULT_NOTIFICATION_SOUND = "default";
-const CUSTOM_NOTIFICATION_SOUND = "ttm sound";
+const CUSTOM_NOTIFICATION_SOUND = "notify.wav";
+const DEFAULT_CHANNEL_ID = "default";
+const MISSION_CHANNEL_ID = "mission";
 
 let expoGoWarned = false;
 const warnExpoGo = () => {
@@ -48,9 +50,14 @@ export async function requestNotificationPermission() {
 
 export async function setupNotificationChannel() {
   if (!Notifications || Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync("default", {
+  await Notifications.setNotificationChannelAsync(DEFAULT_CHANNEL_ID, {
     name: "Notifications TowTruck",
     importance: Notifications.AndroidImportance.HIGH,
+  });
+  await Notifications.setNotificationChannelAsync(MISSION_CHANNEL_ID, {
+    name: "Missions TowTruck",
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: CUSTOM_NOTIFICATION_SOUND,
   });
 }
 
@@ -70,13 +77,19 @@ export async function showLocalNotification(title: string, body: string) {
   }
 
   const isMissionNotification = isMissionRelatedNotification(title, body);
+  const channelId =
+    Platform.OS === "android"
+      ? isMissionNotification
+        ? MISSION_CHANNEL_ID
+        : DEFAULT_CHANNEL_ID
+      : undefined;
 
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
       sound: isMissionNotification ? CUSTOM_NOTIFICATION_SOUND : DEFAULT_NOTIFICATION_SOUND,
-      channelId: Platform.OS === "android" ? "default" : undefined,
+      channelId,
     },
     trigger: null,
   });

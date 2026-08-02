@@ -495,7 +495,7 @@ useEffect(() => {
   };
 
   // -------------------------------
-  // 📡 ABONNEMENT
+  //  ABONNEMENT
   // -------------------------------
   socket.on("mission:created", onMissionCreated);
   socket.on("mission:updated", onMissionUpdated);

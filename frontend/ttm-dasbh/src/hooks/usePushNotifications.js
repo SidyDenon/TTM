@@ -11,7 +11,7 @@ export default function usePushNotifications() {
   // Vérifie le support navigateur
   useEffect(() => {
     if (!("Notification" in window)) {
-      console.warn("🚫 Les notifications ne sont pas supportées sur ce navigateur.");
+      console.warn(" Les notifications ne sont pas supportées sur ce navigateur.");
       setSupported(false);
     }
   }, []);

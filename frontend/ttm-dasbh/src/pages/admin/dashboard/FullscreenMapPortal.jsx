@@ -69,7 +69,7 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
           onClick={(e) => e.stopPropagation()}
         >
           <p className="text-lg font-semibold text-[var(--accent)]">
-            🚫 Accès restreint
+             Accès restreint
           </p>
           <p className="text-sm text-[var(--muted)] mt-2">
             Vous n’avez pas l’autorisation d’afficher la carte des missions.

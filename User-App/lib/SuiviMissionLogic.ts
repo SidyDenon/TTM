@@ -203,7 +203,7 @@ export function useSuiviMissionLogic() {
           const m = json.data;
 
           if (!m || (Array.isArray(m) && m.length === 0)) {
-            console.log("🚫 Aucune mission active détectée — retour à l'accueil");
+            console.log(" Aucune mission active détectée — retour à l'accueil");
             setMission(null);
             router.replace("/user");
             return;

@@ -84,5 +84,5 @@ export async function apiRequest<T>(
 
 // Debug console en DEV
 if (__DEV__) {
-  console.log("📡 API_URL utilisée :", API_URL);
+  console.log(" API_URL utilisée :", API_URL);
 }

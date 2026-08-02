@@ -77,7 +77,7 @@ export default function PaymentScreen() {
     }
   }, [cashConfirmed]);
 
-  // 📡 Charger la mission
+  //  Charger la mission
   useEffect(() => {
     if (!missionId) {
       setLoadingMission(false);

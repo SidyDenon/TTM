@@ -325,7 +325,7 @@ export default function Missions() {
         className="p-6 rounded shadow"
         style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
       >
-        <h2 className="text-lg font-semibold text-[var(--accent)]">🚫 Accès restreint</h2>
+        <h2 className="text-lg font-semibold text-[var(--accent)]"> Accès restreint</h2>
         <p className="mt-2 text-sm text-[var(--muted)]">
           Vous n’avez pas la permission d’afficher les missions.
         </p>

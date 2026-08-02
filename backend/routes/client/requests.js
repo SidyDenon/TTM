@@ -909,7 +909,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       }
 
       let [[tx]] = await req.db.query(
-        "SELECT * FROM transactions WHERE request_id = ? LIMIT 1",
+        "SELECT * FROM transactions WHERE request_id = ? ORDER BY id DESC LIMIT 1",
         [id]
       );
       if (!tx) {

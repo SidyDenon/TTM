@@ -161,7 +161,7 @@ export default (db) => {
           return res.status(404).json({ error: "Retrait introuvable" });
         }
 
-        // 🚫 Protection anti double-traitement
+        //  Protection anti double-traitement
         const currentStatus = String(withdrawal.status || "")
           .toLowerCase()
           .replace(/\s+/g, "_");
@@ -235,7 +235,7 @@ export default (db) => {
             );
           } else {
             console.log(
-              `📡 [SOCKET] withdrawal_update émis via room operator:${withdrawal.operator_id}`
+              ` [SOCKET] withdrawal_update émis via room operator:${withdrawal.operator_id}`
             );
           }
         }

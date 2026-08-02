@@ -1418,7 +1418,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       const commissionPercent = await getCommissionPercent(req.db);
 
       const [existingRows] = await req.db.query(
-        "SELECT * FROM transactions WHERE request_id = ? LIMIT 1",
+        "SELECT * FROM transactions WHERE request_id = ? ORDER BY id DESC LIMIT 1",
         [id]
       );
 
@@ -1454,7 +1454,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
                  amount = ?,
                  currency = ?,
                  commission_percent = ?,
-                 payment_method = 'cash',
+                 payment_method = 'cash'
              WHERE id = ?`,
             [grossAmount, currency, commissionPercent, txId]
           );

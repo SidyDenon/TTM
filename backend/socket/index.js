@@ -178,7 +178,7 @@ async function registerSocket(user, socket) {
       const isBlocked = operatorDispo && op && Number(op.dispo) === 0;
       if (isBlocked) {
         socket.emit("operator_blocked", { reason: "dispo_zero" });
-        console.log(`🚫 Operator ${id} bloqué (dispo=0), rooms non rejointes`);
+        console.log(` Operator ${id} bloqué (dispo=0), rooms non rejointes`);
         return;
       }
 

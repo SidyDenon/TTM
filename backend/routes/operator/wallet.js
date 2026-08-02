@@ -277,10 +277,10 @@ export default (db) => {
         created_at: new Date().toISOString(),
       };
 
-      // 📡 Notifier les admins
+      //  Notifier les admins
       io.to("admins").emit("withdrawal_created", withdrawalPayload);
 
-      // 📡 Notifier aussi l'opérateur concerné (wallet/retrait en temps réel)
+      //  Notifier aussi l'opérateur concerné (wallet/retrait en temps réel)
       io.to(`operator:${Number(operatorUserId)}`).emit(
         "withdrawal_created",
         withdrawalPayload

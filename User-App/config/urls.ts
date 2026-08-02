@@ -79,7 +79,7 @@ export async function initApiBase() {
   API_BASE = resolved || fallbackBase;
   API_URL = `${API_BASE}/api`;
   if (__DEV__ && lastLoggedApiBase !== API_BASE) {
-    console.log("📡 API sélectionnée :", API_BASE);
+    console.log(" API sélectionnée :", API_BASE);
     lastLoggedApiBase = API_BASE;
   }
 }
@@ -124,5 +124,5 @@ export const buildBasePath = (endpoint = "") => {
 // Debug (DEV only)
 // ============================================================
 if (__DEV__) {
-  console.log("📡 Mode DEV (auto detect local → prod) ");
+  console.log(" Mode DEV (auto detect local → prod) ");
 }

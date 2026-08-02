@@ -181,7 +181,7 @@ router.post("/login", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Identifiant ou mot de passe incorrect" });
     }
 
-    // 🚫 Blocage opérateur (dispo = 0)
+    //  Blocage opérateur (dispo = 0)
     if (canonicalRole(userMatch.role) === "operator") {
       try {
         const { operatorDispo } = await getSchemaColumns(req.db);

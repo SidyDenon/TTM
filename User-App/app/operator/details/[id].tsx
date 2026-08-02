@@ -113,7 +113,7 @@ export default function MissionDetails() {
     fetchDetails();
   }, [id, token]);
 
-  // 📡 Temps réel : écoute des mises à jour
+  //  Temps réel : écoute des mises à jour
 useEffect(() => {
   if (!socket) return;
 
@@ -149,7 +149,7 @@ useEffect(() => {
           text1: "Mise à jour en direct",
           text2: message || `Mission ${status}`,
         });
-        triggerNotification("📡 Mise à jour de la mission", message || `Statut : ${status}`);
+        triggerNotification(" Mise à jour de la mission", message || `Statut : ${status}`);
       }
 
       if (status === "annulee_admin" || status === "annulee_client") {

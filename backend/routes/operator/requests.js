@@ -1545,65 +1545,89 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
       );
 
       // Temps réel admin + opérateur
-      io.to("admins").emit("transaction_updated", {
-        id: Number(txId),
-        operator_id: req.user.id,
-        request_id: Number(id),
-        amount: grossAmount,
-        commission_percent: commissionPercent,
-        payment_method: "cash",
-        status: "en_attente",
-        cash_received_by_operator: true,
-        message: `Paiement espèces déclaré reçu par l'opérateur pour mission #${id}`,
-      });
+      try {
+        io.to("admins").emit("transaction_updated", {
+          id: Number(txId),
+          operator_id: req.user.id,
+          request_id: Number(id),
+          amount: grossAmount,
+          commission_percent: commissionPercent,
+          payment_method: "cash",
+          status: "en_attente",
+          cash_received_by_operator: true,
+          message: `Paiement espèces déclaré reçu par l'opérateur pour mission #${id}`,
+        });
 
-      io.to("admins").emit("dashboard_update", {
-        type: "transaction",
-        action: "updated",
-        id: Number(txId),
-        status: "en_attente",
-        payment_method: "cash",
-      });
+        io.to("admins").emit("dashboard_update", {
+          type: "transaction",
+          action: "updated",
+          id: Number(txId),
+          status: "en_attente",
+          payment_method: "cash",
+        });
 
-      io.to(`operator:${Number(req.user.id)}`).emit("payment_cash_received", {
-        id: Number(txId),
-        request_id: Number(id),
-        amount: grossAmount,
-        currency,
-        commission_percent: commissionPercent,
-        payment_method: "cash",
-        status: "en_attente",
-        cash_received_by_operator: true,
-        message: `Paiement espèces reçu pour mission #${id}. Validation admin en cours.`,
-      });
+        io.to(`operator:${Number(req.user.id)}`).emit("payment_cash_received", {
+          id: Number(txId),
+          request_id: Number(id),
+          amount: grossAmount,
+          currency,
+          commission_percent: commissionPercent,
+          payment_method: "cash",
+          status: "en_attente",
+          cash_received_by_operator: true,
+          message: `Paiement espèces reçu pour mission #${id}. Validation admin en cours.`,
+        });
+      } catch (emitErr) {
+        console.warn("[cash-confirm] emit_warnings", {
+          request_id: Number(id),
+          tx_id: Number(txId),
+          message: emitErr?.message || String(emitErr),
+        });
+      }
 
       // Message user: in-app (socket) si ouvert, push fallback s'il est fermé
       const userMessage = `L'opérateur a confirmé la réception du paiement en espèces pour la mission #${id}. Validation administrative en cours.`;
-      io.to(`client:${Number(mission.user_id)}`).emit("payment_cash_confirmed", {
-        request_id: Number(id),
-        transaction_id: Number(txId),
-        amount: grossAmount,
-        currency,
-        status: "en_attente",
-        payment_method: "cash",
-        cash_received_by_operator: true,
-        message: userMessage,
-      });
+      try {
+        io.to(`client:${Number(mission.user_id)}`).emit("payment_cash_confirmed", {
+          request_id: Number(id),
+          transaction_id: Number(txId),
+          amount: grossAmount,
+          currency,
+          status: "en_attente",
+          payment_method: "cash",
+          cash_received_by_operator: true,
+          message: userMessage,
+        });
+      } catch (emitClientErr) {
+        console.warn("[cash-confirm] emit_client_warning", {
+          request_id: Number(id),
+          tx_id: Number(txId),
+          message: emitClientErr?.message || String(emitClientErr),
+        });
+      }
 
       if (mission.client_notification_token) {
-        await sendPushNotification(
-          mission.client_notification_token,
-          "Paiement espèces confirmé",
-          userMessage,
-          {
-            type: "payment_cash_confirmed",
+        try {
+          await sendPushNotification(
+            mission.client_notification_token,
+            "Paiement espèces confirmé",
+            userMessage,
+            {
+              type: "payment_cash_confirmed",
+              request_id: Number(id),
+              transaction_id: Number(txId),
+              status: "en_attente",
+              payment_method: "cash",
+              cash_received_by_operator: true,
+            }
+          );
+        } catch (pushErr) {
+          console.warn("[cash-confirm] push_warning", {
             request_id: Number(id),
-            transaction_id: Number(txId),
-            status: "en_attente",
-            payment_method: "cash",
-            cash_received_by_operator: true,
-          }
-        );
+            tx_id: Number(txId),
+            message: pushErr?.message || String(pushErr),
+          });
+        }
       }
 
       res.json({

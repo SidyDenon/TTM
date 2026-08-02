@@ -481,12 +481,6 @@ export default (db, notifyOperators, emitMissionEvent) => {
         [id, JSON.stringify({ user_id: req.user.id })]
       );
 
-      notifyOperators("demande_annulee", {
-        id,
-        client_id: req.user.id,
-        reason: "annulee par le client",
-      });
-
       const payload = { id: Number(id), status: "annulee_client" };
       const missionEmitter = req.emitMissionEvent || emitMissionEvent;
       if (missionEmitter) {
@@ -494,11 +488,8 @@ export default (db, notifyOperators, emitMissionEvent) => {
         const missionPayload = missionRow
           ? normalizeMissionPayload({ ...missionRow, status: "annulee_client" })
           : { ...payload };
-        missionEmitter(
-          "mission:status_changed",
-          { id: payload.id, status: payload.status },
-          { operatorId: missionPayload.operator_id, clientId: req.user.id }
-        );
+        // Annulation client: on diffuse uniquement l'état complet pour éviter
+        // les notifs génériques basées sur l'événement mission:status_changed.
         missionEmitter("mission:updated", missionPayload, {
           operatorId: missionPayload.operator_id,
           clientId: req.user.id,

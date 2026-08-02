@@ -267,7 +267,7 @@ const fetchData = async (signal) => {
     const handleMissionCreated = (mission) => {
       if (!mission?.id) return;
       console.debug("[WS][admin] mission:created", mission.id, mission.status);
-      showSystemNotification("🚨 Nouvelle mission", `Mission #${mission.id}`);
+      showSystemNotification(" Nouvelle mission", `Mission #${mission.id}`);
       upsertMission(mission);
     };
 

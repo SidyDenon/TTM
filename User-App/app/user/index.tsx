@@ -9,6 +9,7 @@ import {
   Dimensions,
   ScrollView,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import MapView, { Marker, Callout, Region, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
@@ -22,7 +23,7 @@ import { useSocket } from "../../context/SocketContext";
 import { SupportModal } from "../../components/SupportModal";
 import { API_URL } from "../../utils/api";
 import Loader from "../../components/Loader";
-import useNotifications from "../../hooks/useNotifications";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const FALLBACK_REGION: Region = {
   latitude: 12.6392,
@@ -42,6 +43,8 @@ function HomeContent() {
   const { isConnected } = useSocket();
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   // --- états du menu ---
   const [menuVisible, setMenuVisible] = useState(false);
@@ -50,8 +53,7 @@ function HomeContent() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [loggingOut, setLoggingOut] = useState(false);
   const mapProvider = Platform.OS === "ios" ? PROVIDER_GOOGLE : undefined;
-
-  useNotifications();
+  const isCompact = width < 370 || height < 760;
 
   const openMenu = () => {
     setMenuVisible(true);
@@ -220,7 +222,16 @@ function HomeContent() {
       </MapView>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top + 8, 20),
+            right: 0,
+            paddingHorizontal: isCompact ? 14 : 20,
+          },
+        ]}
+      >
         <Text style={styles.logo}>
           <Text style={{ color: "#E53935" }}>TT</Text>M
         </Text>
@@ -233,17 +244,17 @@ function HomeContent() {
       </View>
 
       {/* Bouton principal */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { bottom: Math.max(insets.bottom + 14, 22) }]}>
         <TouchableOpacity
           style={styles.helpBtn}
           onPress={() => router.push("/user/request")}
         >
-          <Text style={styles.helpText}>🚨DEMANDER UNE ASSISTANCE</Text>
+          <Text style={[styles.helpText, { fontSize: isCompact ? 14 : 16 }]}>DEMANDER UNE ASSISTANCE</Text>
         </TouchableOpacity>
       </View>
 
       {/* Boutons flottants (vue + recentrage) */}
-      <View style={styles.fabStack}>
+      <View style={[styles.fabStack, { bottom: Math.max(insets.bottom + 96, 106) }]}>
         <TouchableOpacity
           style={styles.viewBtn}
           onPress={() => setSatellite((s) => !s)}

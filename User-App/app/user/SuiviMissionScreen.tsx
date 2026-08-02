@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useSuiviMissionLogic } from "../../lib/SuiviMissionLogic";
 import { useAuth } from "../../context/AuthContext";
@@ -56,6 +58,9 @@ export default function SuiviMissionScreen() {
 
   const { logout, user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isCompact = screenWidth < 370 || screenHeight < 760;
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [operatorBoxVisible, setOperatorBoxVisible] = useState(false);
@@ -232,7 +237,7 @@ export default function SuiviMissionScreen() {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { top: Math.max(insets.top + 8, 16), left: 16, right: 16 }]}>
         <Text style={styles.logo}>
           <Text style={{ color: "#E53935" }}>TT</Text>M
         </Text>
@@ -315,7 +320,7 @@ export default function SuiviMissionScreen() {
       </MapView>
 
       {/*  BOUTONS VUE + RECENTRER */}
-      <View style={styles.fabStack}>
+      <View style={[styles.fabStack, { right: 16, bottom: isCompact ? 240 : 260 }]}>
         <TouchableOpacity
           style={styles.viewBtn}
           onPress={() => setSatellite((s) => !s)}
@@ -333,7 +338,7 @@ export default function SuiviMissionScreen() {
       </View>
 
       {/* SPEED DIAL APPEL */}
-      <View style={styles.callFabContainer}>
+      <View style={[styles.callFabContainer, { right: 16, bottom: isCompact ? 124 : 140 }]}>
         {callMenuOpen && (
           <View style={styles.callMenu}>
             {canCallOperator && (
@@ -377,7 +382,17 @@ export default function SuiviMissionScreen() {
      
 
       {/* INFO BOX */}
-      <View style={styles.infoContainer}>
+      <View
+        style={[
+          styles.infoContainer,
+          {
+            bottom: Math.max(insets.bottom + 8, 12),
+            left: isCompact ? 10 : 15,
+            right: isCompact ? 10 : 15,
+            paddingHorizontal: isCompact ? 12 : 16,
+          },
+        ]}
+      >
         <View style={styles.infoHeaderRow}>
           <Text style={styles.status}>{cleanStatusText}</Text>
         
@@ -410,7 +425,7 @@ export default function SuiviMissionScreen() {
           <Text style={styles.cancelText}>Annuler la mission</Text>
         </TouchableOpacity>
       )}
-        <Text style={styles.address}>
+        <Text style={[styles.address, { fontSize: isCompact ? 13 : 14 }]}>
           {mission.address || "Adresse du client"}
         </Text>
 
@@ -731,16 +746,18 @@ const styles = StyleSheet.create({
 
   cancelBtn: {
     position: "relative",
-    width: 200,
+    width: "100%",
+    maxWidth: 260,
     paddingVertical: 10,
     borderRadius: 19,
     backgroundColor: "#FF5252",
     flexDirection: "row",
-    justifyContent:"center",
+    justifyContent: "center",
+    alignSelf: "center",
     textAlign: "center",
     gap: 6,
     zIndex: 90,
-    left:100,
+    marginBottom: 8,
   },
 
   cancelText: { color: "#fff", fontWeight: "600", fontSize: 13 },

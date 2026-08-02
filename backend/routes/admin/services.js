@@ -638,7 +638,7 @@ export default (db) => {
   });
 
   // ────────────────────────────────
-  // 🗑️ Supprimer un service
+  // ️ Supprimer un service
   // ────────────────────────────────
   router.delete(
     "/:id",

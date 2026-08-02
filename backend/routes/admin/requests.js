@@ -550,7 +550,7 @@ export default (db, io, emitMissionEvent) => {
         if (op) {
           await sendPushNotification(
             op.notification_token,
-            "🚨 Nouvelle mission assignée",
+            " Nouvelle mission assignée",
             `Mission #${request.id} – ${request.service || "Service"}`,
             { type: "mission", id: request.id }
           );
@@ -721,7 +721,7 @@ export default (db, io, emitMissionEvent) => {
         for (const op of operators) {
           await sendPushNotification(
             op.notification_token,
-            "🚨 Nouvelle mission disponible",
+            " Nouvelle mission disponible",
             `${updated.service || "Service"} - ${updated.address || "Adresse"}`,
             { type: "mission", id: updated.id }
           );

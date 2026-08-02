@@ -25,6 +25,7 @@ export default function useNotifications(options = {}) {
   const router = useRouter();
   const onRefreshWallet = options?.onRefreshWallet;
   const onOpenWithdrawals = options?.onOpenWithdrawals;
+  const isOperator = user?.role === "operator";
 
   useEffect(() => {
     if (!token || !socket) return;
@@ -53,7 +54,7 @@ export default function useNotifications(options = {}) {
         });
     }
 
-    // 3️⃣ Gestion des événements temps réel
+    // 3️⃣ Gestion des événements temps réel (opérateur uniquement)
     const handleWithdrawalUpdate = async (data) => {
       console.log("💬 Retrait mis à jour :", data);
 
@@ -70,9 +71,41 @@ export default function useNotifications(options = {}) {
       );
     };
 
-    // Écoute les événements
-    socket.on("withdrawal_update", handleWithdrawalUpdate);
-    socket.on("payment_confirmed", handlePaymentConfirmed);
+    if (isOperator) {
+      socket.on("withdrawal_update", handleWithdrawalUpdate);
+      socket.on("payment_confirmed", handlePaymentConfirmed);
+    }
+
+    const handleUserMissionPush = (data = {}) => {
+      if (user?.role === "operator") return;
+      const type = data?.type;
+
+      if (type === "mission_accepted") {
+        Toast.show({
+          type: "success",
+          text1: "Mission acceptée",
+          text2: "Un opérateur a accepté votre demande.",
+        });
+        router.replace("/user/SuiviMissionScreen");
+      }
+
+      if (type === "mission_timeout") {
+        const requestId = data?.request_id ?? data?.requestId;
+        Toast.show({
+          type: "error",
+          text1: "Mission expirée",
+          text2: "Aucun opérateur n’a accepté votre demande.",
+        });
+        if (requestId) {
+          router.replace({
+            pathname: "/user/SearchingOperatorsScreen",
+            params: { requestId: String(requestId), initialStatus: "timeout" },
+          });
+        } else {
+          router.replace("/user");
+        }
+      }
+    };
 
     // 4️⃣ Si l'utilisateur clique une notif → ouvre retraits
     const tapSub = notificationsAvailable && Notifications
@@ -81,42 +114,26 @@ export default function useNotifications(options = {}) {
           if (type === "withdrawal_update") {
             onOpenWithdrawals?.();
           }
-          if (type === "mission_accepted" && user?.role !== "operator") {
-            Toast.show({
-              type: "success",
-              text1: "Mission acceptée",
-              text2: "Un opérateur a accepté votre demande.",
-            });
-            router.replace("/user/SuiviMissionScreen");
-          }
-          if (type === "mission_timeout" && user?.role !== "operator") {
-            const requestId =
-              resp.notification.request.content.data?.request_id ??
-              resp.notification.request.content.data?.requestId;
-            Toast.show({
-              type: "error",
-              text1: "Mission expirée",
-              text2: "Aucun opérateur n’a accepté votre demande.",
-            });
-            if (requestId) {
-              router.replace({
-                pathname: "/user/SearchingOperatorsScreen",
-                params: { requestId: String(requestId), initialStatus: "timeout" },
-              });
-            } else {
-              router.replace("/user");
-            }
-          }
+          handleUserMissionPush(resp.notification.request.content.data || {});
+        })
+      : null;
+
+    const receivedSub = notificationsAvailable && Notifications
+      ? Notifications.addNotificationReceivedListener((evt) => {
+          handleUserMissionPush(evt?.request?.content?.data || {});
         })
       : null;
 
     // Cleanup
     return () => {
-      socket.off("withdrawal_update", handleWithdrawalUpdate);
-      socket.off("payment_confirmed", handlePaymentConfirmed);
+      if (isOperator) {
+        socket.off("withdrawal_update", handleWithdrawalUpdate);
+        socket.off("payment_confirmed", handlePaymentConfirmed);
+      }
       tapSub?.remove();
+      receivedSub?.remove();
     };
-  }, [token, socket, user?.id, user?.role, onRefreshWallet, onOpenWithdrawals, router]);
+  }, [token, socket, user?.id, user?.role, onRefreshWallet, onOpenWithdrawals, router, isOperator]);
 }
 
 //  Notification locale + vibration

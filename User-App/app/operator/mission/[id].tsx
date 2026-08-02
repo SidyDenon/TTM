@@ -444,7 +444,7 @@ export default function MissionSuivi() {
     };
   }, [socket, mission?.id, token]);
 
-  // 🚨 Annulation admin/client → retour accueil opérateur
+  //  Annulation admin/client → retour accueil opérateur
   useEffect(() => {
     if (!socket || !mission?.id) return;
 

@@ -76,6 +76,18 @@ export default (db) => {
         // on continue quand même, au pire on aura seulement users.notification_token
       }
 
+      // Évite les push croisés: un même token ne doit pointer que vers un seul user.
+      try {
+        await db.query(
+          `UPDATE users
+           SET notification_token = NULL
+           WHERE id <> ? AND notification_token = ?`,
+          [req.user.id, token]
+        );
+      } catch (e) {
+        console.error(" Erreur nettoyage token dupliqué:", e.message || e);
+      }
+
       //  Compatibilité avec ton code existant : dernier device = notification_token
       try {
         await db.query(

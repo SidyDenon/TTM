@@ -8,6 +8,10 @@ import {
   BackHandler,
   Modal,
   TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  useWindowDimensions,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -32,6 +36,8 @@ export default function PaymentScreen() {
   const router = useRouter();
   const { missionId } = useLocalSearchParams<{ missionId?: string }>();
   const { token } = useAuth();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
+  const isCompact = screenHeight < 760 || screenWidth < 370;
 
   const [loadingMission, setLoadingMission] = useState(true);
   const [mission, setMission] = useState<MissionPayment | null>(null);
@@ -202,6 +208,7 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       {/* Header avec logo */}
       <View style={styles.header}>
         <Text style={styles.logo}>
@@ -217,7 +224,7 @@ export default function PaymentScreen() {
           loop={false}
           style={styles.lottie}
         />
-        <Text style={styles.bannerTitle}>
+        <Text style={[styles.bannerTitle, { fontSize: isCompact ? 18 : 20 }]}>
           {paid ? "Paiement confirmé " : "Mission terminée 🎉"}
         </Text>
         <Text style={styles.bannerText}>
@@ -305,6 +312,7 @@ export default function PaymentScreen() {
           <Text style={styles.link}>Retour à l’accueil</Text>
         </TouchableOpacity>
       )}
+      </ScrollView>
 
       {/*  MODAL DE PAIEMENT */}
       <Modal
@@ -314,7 +322,12 @@ export default function PaymentScreen() {
         onRequestClose={() => !loading && setPayModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <KeyboardAvoidingView
+            style={styles.modalKeyboard}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+          <View style={[styles.modalContent, { maxHeight: screenHeight * 0.82 }]}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>Paiement mobile money</Text>
               <TouchableOpacity
@@ -412,7 +425,9 @@ export default function PaymentScreen() {
                 <Text style={styles.modalBtnText}>Valider le paiement</Text>
               )}
             </TouchableOpacity>
+            </ScrollView>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -421,6 +436,7 @@ export default function PaymentScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 20 },
+  scrollContent: { paddingBottom: 20 },
   center: {
     flex: 1,
     justifyContent: "center",
@@ -594,6 +610,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+  },
+  modalKeyboard: {
+    width: "100%",
+    alignItems: "center",
   },
   modalContent: {
     width: "100%",

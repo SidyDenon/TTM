@@ -103,7 +103,7 @@ export default (db) => {
         try {
           await sendMail(
             email,
-            "Bienvenue sur Tow Truck Mali – Dépannage express 🚨",
+            "Bienvenue sur Tow Truck Mali – Dépannage express ",
             `Bonjour ${name},
 
 Bienvenue sur TOW TRUCK MALI 🚗💨  
@@ -123,7 +123,7 @@ En cas de besoin, notre équipe est prête à intervenir.
 
 🌐 Visitez notre site : https://towtruckmali.com/
 
-🚨 TOW TRUCK MALI  
+ TOW TRUCK MALI  
 Dépannage express – 24h/24
 `
           );

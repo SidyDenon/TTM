@@ -8,6 +8,7 @@ import {
   Alert,
   Animated,
   Linking,
+  AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -86,6 +87,40 @@ export default function SearchingOperatorsScreen() {
     router.replace("/user/SuiviMissionScreen");
   };
 
+  const syncCurrentRequestStatus = async () => {
+    if (!requestId || !token) return;
+    try {
+      const res = await fetch(`${API_URL}/requests/${requestId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+
+      const currentStatus = String(payload?.data?.status || "").toLowerCase();
+
+      if (["acceptee", "en_route", "sur_place", "remorquage"].includes(currentStatus)) {
+        setStatus("accepted");
+        setOperatorName(payload?.data?.operator_name || null);
+        router.replace("/user/SuiviMissionScreen");
+        return;
+      }
+
+      if (currentStatus === "terminee") {
+        router.replace({
+          pathname: "/user/PaymentScreen",
+          params: { missionId: String(requestId) },
+        });
+        return;
+      }
+
+      if (["annulee_admin", "annulee_client", "annulee"].includes(currentStatus)) {
+        setStatus("timeout");
+      }
+    } catch {
+      // pas bloquant
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -97,6 +132,19 @@ export default function SearchingOperatorsScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    syncCurrentRequestStatus();
+  }, [requestId, token]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        syncCurrentRequestStatus();
+      }
+    });
+    return () => sub.remove();
+  }, [requestId, token]);
 
   /* ------- MAP / LOCALISATION (juste pour le fond) ------- */
   useEffect(() => {
@@ -189,7 +237,7 @@ export default function SearchingOperatorsScreen() {
     const onMissionUpdate = (data: MissionUpdatePayload) => {
       if (Number(data.id) !== idNum) return;
 
-      if (data.status === "acceptee") {
+      if (["acceptee", "en_route", "sur_place", "remorquage"].includes(data.status)) {
         const responderLabel = getResponderLabel(data.service);
         const name = data.operator_name ?? `Un ${responderLabel}`;
         const amount =
@@ -201,16 +249,23 @@ export default function SearchingOperatorsScreen() {
         if (data.service) setService(data.service);
         if (typeof data.total_km === "number") setTotalKm(data.total_km);
 
-        Toast.show({
-          type: "success",
-          text1: "Mission acceptée",
+        if (data.status === "acceptee") {
+          Toast.show({
+            type: "success",
+            text1: "Mission acceptée",
             text2: `${name} a accepté ta mission et se dirige vers toi.`,
-        });
+          });
+        }
 
         setStatus("accepted");
         setOperatorName(data.operator_name ?? null);
         if (amount !== null) {
           setQuote({ amount, currency: data.currency || "FCFA" });
+        }
+
+        if (data.status !== "acceptee") {
+          router.replace("/user/SuiviMissionScreen");
+          return;
         }
       } else if (data.status === "terminee") {
         router.replace({

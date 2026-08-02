@@ -670,7 +670,7 @@ Important : changez votre mot de passe à la première connexion.`,
     }
   });
 
-  // 🗑️ Supprimer un administrateur
+  // ️ Supprimer un administrateur
   router.delete("/:id", superOnly, checkPermission("rbac_users_manage"), async (req, res) => {
     try {
       const { id } = req.params;

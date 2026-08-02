@@ -66,9 +66,19 @@ function isMissionRelatedNotification(title: string, body = "") {
   return text.includes("mission") || text.includes("missions");
 }
 
+function isClientCancellationNotification(title: string, body = "") {
+  const text = `${title} ${body}`.toLowerCase();
+  return text.includes("annulee_client") || text.includes("annulée par le client");
+}
+
 export async function showLocalNotification(title: string, body: string) {
   if (!Notifications) {
     warnExpoGo();
+    return;
+  }
+
+  // Règle produit: ne jamais notifier l'annulation faite par le client.
+  if (isClientCancellationNotification(title, body)) {
     return;
   }
 

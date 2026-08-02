@@ -422,26 +422,26 @@ useEffect(() => {
   };
 
   // -------------------------------
-  // 🗑 Fonction commune pour REMOVE
+  //  Fonction commune pour REMOVE
   // -------------------------------
   const removeLocalMission = (id: number) => {
     setMissions((prev) => prev.filter((m) => m.id !== id));
   };
 
   // -------------------------------
-  // 📩 HANDLERS UNIFIÉS
+  //  HANDLERS UNIFIÉS
   // -------------------------------
   const onMissionCreated = (mission: any) => {
     if (!alertsEnabled) return;
     const normalized = normalizeMissionPayload(mission);
     if (!normalized) return;
 
-    console.log("📩 mission:created", normalized.id);
+    console.log(" mission:created", normalized.id);
     updateLocalMission(normalized);
 
-    notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`, "info");
+    notify(" Nouvelle mission", `Mission #${normalized.id} disponible`, "info");
     if (canUseNotifications && Platform.OS !== "web") {
-      showLocalNotification("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`).catch(() => {});
+      showLocalNotification(" Nouvelle mission", `Mission #${normalized.id} disponible`).catch(() => {});
     }
   };
 
@@ -450,12 +450,12 @@ useEffect(() => {
     const normalized = normalizeMissionPayload(mission);
     if (!normalized) return;
 
-    console.log("📩 mission:updated", normalized.id);
+    console.log(" mission:updated", normalized.id);
 
     const status = normalized.status?.toLowerCase() || "";
 
     if (removalStatuses.has(status)) {
-      console.log("🗑 Suppression via updated");
+      console.log(" Suppression via updated");
       removeLocalMission(normalized.id);
       if (status !== "annulee_client") {
         notify("Mission retirée", `#${normalized.id} indisponible`, "error");
@@ -471,7 +471,7 @@ useEffect(() => {
     const id = Number(payload?.id);
     const status = String(payload?.status || "").toLowerCase();
 
-    console.log("📩 mission:status_changed", id, status);
+    console.log(" mission:status_changed", id, status);
 
     if (removalStatuses.has(status)) {
       removeLocalMission(id);
@@ -488,7 +488,7 @@ useEffect(() => {
     if (!alertsEnabled) return;
     const id = Number(data?.id || data);
 
-    console.log("📩 mission:deleted", id);
+    console.log(" mission:deleted", id);
     removeLocalMission(id);
 
     notify("Mission supprimée", `Mission #${id} retirée`, "error");

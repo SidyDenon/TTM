@@ -183,7 +183,7 @@ const [loggingOut, setLoggingOut] = useState(false);
         try {
           data = await res.json();
         } catch (jsonErr) {
-          console.error("❌ Erreur parsing wallet response:", jsonErr);
+          console.error(" Erreur parsing wallet response:", jsonErr);
           return;
         }
 
@@ -191,7 +191,7 @@ const [loggingOut, setLoggingOut] = useState(false);
           setIsInternal(!!data.is_internal);
         }
       } catch (err) {
-        console.error("❌ Erreur fetchInternalFlag:", err);
+        console.error(" Erreur fetchInternalFlag:", err);
       }
     };
     if (token) fetchInternalFlag();
@@ -284,7 +284,7 @@ const closeMenu = () => {
           }
           if (!cancelled) setActiveMissionId(null);
         } catch (err) {
-          console.error("❌ Erreur check active mission:", err);
+          console.error(" Erreur check active mission:", err);
         } finally {
           if (!cancelled) setCheckingActiveMission(false);
         }
@@ -403,7 +403,7 @@ useEffect(() => {
   };
 
   // -------------------------------
-  // 🔄 Fonction commune pour ADD/UPDATE
+  //  Fonction commune pour ADD/UPDATE
   // -------------------------------
   const updateLocalMission = (mission: any) => {
     const normalized = normalizeMissionPayload(mission);
@@ -586,7 +586,7 @@ const panGesture = React.useMemo(
     }
   }
   } catch (err) {
-    console.error("❌ Erreur recentrerCarte:", err);
+    console.error(" Erreur recentrerCarte:", err);
   }
 };
 
@@ -617,7 +617,7 @@ const panGesture = React.useMemo(
         try {
           data = await res.json();
         } catch (jsonErr) {
-          console.error("❌ Erreur parsing missions response:", jsonErr);
+          console.error(" Erreur parsing missions response:", jsonErr);
           setLoading(false);
           return;
         }
@@ -636,7 +636,7 @@ const panGesture = React.useMemo(
         animateList();
         setMissions(filtered);
       } catch (err) {
-        console.error("❌ Erreur chargement missions", err);
+        console.error(" Erreur chargement missions", err);
       } finally {
         setLoading(false);
       }
@@ -671,7 +671,7 @@ useEffect(() => {
       setLocation(coords);
       pushProfileLocation(coords);
     } catch (err: any) {
-      console.error("❌ Erreur localisation initiale:", err?.message || err);
+      console.error(" Erreur localisation initiale:", err?.message || err);
       Toast.show({
         type: "error",
         position: "top",
@@ -741,7 +741,7 @@ useEffect(() => {
         }
       );
     } catch (err: any) {
-      console.error("❌ Erreur watchPosition:", err?.message || err);
+      console.error(" Erreur watchPosition:", err?.message || err);
       Toast.show({
         type: "error",
         position: "top",
@@ -848,7 +848,7 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
       //  Redirection vers la page de mission
       router.replace(`/operator/mission/${id}`);
     } catch (err) {
-      console.error("❌ Erreur acceptation mission:", err);
+      console.error(" Erreur acceptation mission:", err);
       Alert.alert("Erreur", "Impossible d’accepter la mission");
     }
           },

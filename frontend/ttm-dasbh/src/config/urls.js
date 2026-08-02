@@ -1,5 +1,5 @@
 // ============================================================
-// 🌍 CONFIG BACKEND (auto local → prod)
+//  CONFIG BACKEND (auto local → prod)
 // ============================================================
 const PROD_BASE = "https://ttm-production-d022.up.railway.app";
 const LOCAL_BASE = "http://localhost:5000";

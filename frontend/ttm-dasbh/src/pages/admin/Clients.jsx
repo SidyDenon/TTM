@@ -57,7 +57,7 @@ export default function Clients() {
       }
       setClients(Array.isArray(result.data) ? result.data : []);
     } catch (err) {
-      console.error("❌ Erreur chargement clients:", err);
+      console.error(" Erreur chargement clients:", err);
       setError(err.message || "Erreur chargement clients");
       toast.error(err.message || "Erreur chargement clients");
       setClients([]);

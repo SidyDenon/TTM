@@ -205,7 +205,7 @@ export default (db) => {
         }));
       res.json({ message: "Icônes disponibles ", data: icons });
     } catch (err) {
-      console.error("❌ Erreur GET /services/icons:", err);
+      console.error(" Erreur GET /services/icons:", err);
       res.status(500).json({ error: "Erreur chargement icônes" });
     }
   });
@@ -271,7 +271,7 @@ export default (db) => {
 
       res.json({ message: "Liste des services ", data });
     } catch (err) {
-      console.error("❌ Erreur GET /services:", err);
+      console.error(" Erreur GET /services:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -336,7 +336,7 @@ export default (db) => {
 
       res.json({ message: "Services disponibles ", data });
     } catch (err) {
-      console.error("❌ Erreur GET /services/public:", err);
+      console.error(" Erreur GET /services/public:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -477,7 +477,7 @@ export default (db) => {
 
         res.json({ message: "Service ajouté ", data: newService });
       } catch (err) {
-        console.error("❌ Erreur POST /services:", err);
+        console.error(" Erreur POST /services:", err);
         res.status(500).json({ error: "Erreur ajout service" });
       }
     }
@@ -632,7 +632,7 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur PUT /services:", err);
+      console.error(" Erreur PUT /services:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -678,7 +678,7 @@ export default (db) => {
         });
         res.json({ message: "Service supprimé " });
       } catch (err) {
-        console.error("❌ Erreur DELETE /services:", err);
+        console.error(" Erreur DELETE /services:", err);
         res.status(500).json({ error: "Erreur suppression service" });
       }
     }

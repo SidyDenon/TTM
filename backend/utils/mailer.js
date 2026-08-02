@@ -67,7 +67,7 @@ export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = 
       err?.response?.data?.message ||
       (typeof err === "string" ? err : "") ||
       "Erreur ZeptoMail inconnue";
-    console.error("❌ Envoi ZeptoMail échoué:", message, zeptoErr?.details || "");
+    console.error(" Envoi ZeptoMail échoué:", message, zeptoErr?.details || "");
     const wrapped = new Error(message);
     wrapped.cause = err;
     throw wrapped;

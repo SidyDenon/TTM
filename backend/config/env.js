@@ -9,7 +9,7 @@ export async function validateEnv(db) {
   const requiredEnv = [...requiredAlways, ...(skipDbCheck ? [] : requiredForDb)];
   const missingEnv = requiredEnv.filter((k) => !process.env[k]);
   if (missingEnv.length) {
-    console.error("❌ Variables d'environnement manquantes:", missingEnv.join(", "));
+    console.error(" Variables d'environnement manquantes:", missingEnv.join(", "));
     process.exit(1);
   }
 
@@ -18,7 +18,7 @@ export async function validateEnv(db) {
       await db.query("SELECT 1");
       console.log(" Connexion DB réussie");
     } catch (err) {
-      console.error("❌ Erreur connexion DB:", err.message);
+      console.error(" Erreur connexion DB:", err.message);
       process.exit(1);
     }
   } else {

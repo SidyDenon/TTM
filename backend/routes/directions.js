@@ -134,7 +134,7 @@ export default () => {
       };
       return res.status(200).json(normalized);
     } catch (err) {
-      console.error("❌ Proxy Directions erreur:", err);
+      console.error(" Proxy Directions erreur:", err);
       res.status(500).json({ error: "Erreur proxy Directions" });
     }
   });

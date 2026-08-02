@@ -147,7 +147,7 @@ export default function Missions() {
       if (!res.ok) throw new Error(json.error || "Impossible de charger les opérateurs");
       setOperators(json.data || []);
     } catch (err) {
-      console.error("❌ loadOperators:", err);
+      console.error(" loadOperators:", err);
       toast.error(err.message);
     }
   };
@@ -341,7 +341,7 @@ export default function Missions() {
         className="p-4 rounded"
         style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
       >
-        ❌ {error}
+         {error}
         <button
           onClick={loadRequests}
           className="ml-4 px-3 py-1 bg-[var(--accent)] text-white rounded hover:opacity-90"

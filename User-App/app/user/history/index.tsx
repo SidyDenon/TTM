@@ -40,7 +40,7 @@ export default function HistoryList() {
       const json = await res.json();
       setMissions(Array.isArray(json?.data) ? json.data : []);
     } catch (e) {
-      console.error("❌ Erreur chargement historique:", e);
+      console.error(" Erreur chargement historique:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);

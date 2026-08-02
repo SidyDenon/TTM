@@ -16,7 +16,7 @@ export default function ChangePassword() {
 
   const requestCode = async () => {
     if (!identifier.trim()) {
-      setMessage("❌ Merci d'indiquer un email ou un téléphone.");
+      setMessage(" Merci d'indiquer un email ou un téléphone.");
       return;
     }
     setMessage("");
@@ -32,7 +32,7 @@ export default function ChangePassword() {
       setMessage(" Code envoyé ! Consultez votre boite mail/SMS.");
       setStep(2);
     } catch (err) {
-      setMessage(`❌ ${err.message}`);
+      setMessage(` ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,7 @@ export default function ChangePassword() {
   const submitReset = async (e) => {
     e.preventDefault();
     if (newPwd !== confirmPwd) {
-      setMessage("❌ Les mots de passe ne correspondent pas.");
+      setMessage(" Les mots de passe ne correspondent pas.");
       return;
     }
     setLoading(true);
@@ -61,7 +61,7 @@ export default function ChangePassword() {
       setMessage(" Mot de passe mis à jour ! Redirection en cours...");
       setTimeout(() => navigate("/login", { replace: true }), 1500);
     } catch (err) {
-      setMessage(`❌ ${err.message}`);
+      setMessage(` ${err.message}`);
     } finally {
       setLoading(false);
     }

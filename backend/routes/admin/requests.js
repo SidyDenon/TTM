@@ -393,7 +393,7 @@ export default (db, io, emitMissionEvent) => {
       });
     } catch (err) {
       console.error(
-        "❌ Erreur GET /admin/requests:",
+        " Erreur GET /admin/requests:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message
@@ -443,7 +443,7 @@ export default (db, io, emitMissionEvent) => {
         res.json({ message: "Photos ajoutées ", photos: urls });
       } catch (err) {
         console.error(
-          "❌ Erreur POST /admin/requests/:id/photos:",
+          " Erreur POST /admin/requests/:id/photos:",
           err.code || "",
           err.sqlState || "",
           err.sqlMessage || err.message
@@ -560,7 +560,7 @@ export default (db, io, emitMissionEvent) => {
       res.json({ message: "Demande assignée ", request });
     } catch (err) {
       console.error(
-        "❌ Erreur PATCH /admin/requests/:id/assigner:",
+        " Erreur PATCH /admin/requests/:id/assigner:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message
@@ -626,7 +626,7 @@ export default (db, io, emitMissionEvent) => {
       res.json({ message: "Statut mis à jour ", request });
     } catch (err) {
       console.error(
-        "❌ Erreur PATCH /admin/requests/:id/status:",
+        " Erreur PATCH /admin/requests/:id/status:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message
@@ -664,7 +664,7 @@ export default (db, io, emitMissionEvent) => {
       });
     } catch (err) {
       console.error(
-        "❌ Erreur GET /admin/requests/:id/events:",
+        " Erreur GET /admin/requests/:id/events:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message
@@ -736,7 +736,7 @@ export default (db, io, emitMissionEvent) => {
       res.json({ message: "Mission publiée ", request: updated });
     } catch (err) {
       console.error(
-        "❌ Erreur POST /admin/requests/:id/publier:",
+        " Erreur POST /admin/requests/:id/publier:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message
@@ -771,7 +771,7 @@ export default (db, io, emitMissionEvent) => {
       res.json({ message: `Mission #${id} supprimée ` });
     } catch (err) {
       console.error(
-        "❌ Erreur DELETE /admin/requests/:id:",
+        " Erreur DELETE /admin/requests/:id:",
         err.code || "",
         err.sqlState || "",
         err.sqlMessage || err.message

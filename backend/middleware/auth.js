@@ -98,7 +98,7 @@ export default async function authMiddleware(req, res, next) {
 
     next();
   } catch (err) {
-    console.error("❌ Erreur middleware auth:", err.message);
+    console.error(" Erreur middleware auth:", err.message);
     res.status(401).json({ error: "Token invalide ou expiré" });
   }
 }

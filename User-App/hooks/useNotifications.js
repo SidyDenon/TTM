@@ -44,12 +44,12 @@ export default function useNotifications(options = {}) {
                 body: JSON.stringify({ token: expoPushToken }),
               });
             } catch (err) {
-              console.error("❌ Erreur fetch push-token:", err);
+              console.error(" Erreur fetch push-token:", err);
             }
           }
         })
         .catch((err) => {
-          console.error("❌ Erreur registerForPushNotificationsAsync:", err);
+          console.error(" Erreur registerForPushNotificationsAsync:", err);
         });
     }
 
@@ -145,7 +145,7 @@ async function triggerNotification(title, body) {
       body ?? (title.includes("Retrait") ? "Nouvelle mise à jour de retrait" : "Nouvelle notification")
     );
   } catch (err) {
-    console.error("❌ Erreur triggerNotification:", err);
+    console.error(" Erreur triggerNotification:", err);
   }
 }
 

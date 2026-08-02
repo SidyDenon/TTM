@@ -49,7 +49,7 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user]);
 
-  /* 🔄 Récupération des demandes */
+  /*  Récupération des demandes */
   const fetchRequests = useCallback(async () => {
     if (!user || user.role !== "user") return;
 
@@ -71,13 +71,13 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
           topOffset: 55,
         });
       }
-      console.error("❌ Erreur fetchRequests:", err);
+      console.error(" Erreur fetchRequests:", err);
     } finally {
       setLoading(false);
     }
   }, [user, apiFetch]);
 
-  /* 🆕 Création d’une demande */
+  /*  Création d’une demande */
   const createRequest = useCallback(
     async (data: Omit<Request, "id" | "created_at" | "status">) => {
       if (!user || user.role !== "user") return;
@@ -98,7 +98,7 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
           visibilityTime: 3000,
           topOffset: 55,
         });
-        console.error("❌ Erreur createRequest:", err);
+        console.error(" Erreur createRequest:", err);
       } finally {
         setLoading(false);
       }

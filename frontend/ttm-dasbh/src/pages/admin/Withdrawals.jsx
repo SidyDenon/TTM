@@ -64,7 +64,7 @@ export default function Withdrawals() {
       setWithdrawals(data.data || []);
       setStats(data.stats || {});
     } catch (err) {
-      toast.error(`❌ ${err.message}`);
+      toast.error(` ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -90,11 +90,11 @@ export default function Withdrawals() {
       toast.success(` Retrait #${id} approuvé`, {
         toastId: getStatusToastId(id, "approuvée"),
       });
-      // 🔄 recharge la liste locale
+      //  recharge la liste locale
       loadWithdrawals();
       // 👉 le sidebar mettra à jour son badge grâce au socket "withdrawal_updated_admin"
     } catch (err) {
-      toast.error(`❌ ${err.message}`);
+      toast.error(` ${err.message}`);
     }
   };
 
@@ -120,7 +120,7 @@ export default function Withdrawals() {
       });
       loadWithdrawals();
     } catch (err) {
-      toast.error(`❌ ${err.message}`);
+      toast.error(` ${err.message}`);
     }
   };
 
@@ -140,7 +140,7 @@ export default function Withdrawals() {
     if (!socket) return;
 
     const onCreated = (data) => {
-      toast.info(`🆕 Nouvelle demande de retrait (#${data.id})`);
+      toast.info(` Nouvelle demande de retrait (#${data.id})`);
       showSystemNotification(
         "💸 Nouveau retrait",
         `Montant : ${data.amount} ${data.currency || "FCFA"}`
@@ -465,7 +465,7 @@ export default function Withdrawals() {
                             style={{ background: "rgba(229,55,46,0.1)", color: "#e5372e", borderColor: "#e5372e" }}
                             title="Rejeter le retrait"
                           >
-                            ❌ Rejeter
+                             Rejeter
                           </button>
                         )}
                         {!canApprove && !canReject && (

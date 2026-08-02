@@ -54,7 +54,7 @@ export default (db) => {
 
       res.json({ message: "Service ajouté ", id: result.insertId });
     } catch (err) {
-      console.error("❌ Erreur ajout service:", err);
+      console.error(" Erreur ajout service:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -65,7 +65,7 @@ export default (db) => {
       const [rows] = await req.db.query("SELECT * FROM services ORDER BY id DESC");
       res.json(rows);
     } catch (err) {
-      console.error("❌ Erreur liste services:", err);
+      console.error(" Erreur liste services:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -107,12 +107,12 @@ export default (db) => {
 
       res.json({ message: "Service mis à jour " });
     } catch (err) {
-      console.error("❌ Erreur update service:", err);
+      console.error(" Erreur update service:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
 
-  // ❌ Supprimer un service
+  //  Supprimer un service
   router.delete("/services/:id", checkPermission("services_manage"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -127,7 +127,7 @@ export default (db) => {
       });
       res.json({ message: "Service supprimé " });
     } catch (err) {
-      console.error("❌ Erreur delete service:", err);
+      console.error(" Erreur delete service:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -195,7 +195,7 @@ export default (db) => {
       const config = await ensureConfigRow(req.db);
       res.json(config);
     } catch (err) {
-      console.error("❌ Erreur GET config:", err);
+      console.error(" Erreur GET config:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -237,7 +237,7 @@ export default (db) => {
 
       res.json({ message: "Configuration mise à jour " });
     } catch (err) {
-      console.error("❌ Erreur update config:", err);
+      console.error(" Erreur update config:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -276,7 +276,7 @@ router.get("/tow-pricing", checkPermission("config_view"), async (req, res) => {
       tow_price_per_km: Number.isFinite(perKm) ? perKm : 500,
     });
   } catch (err) {
-    console.error("❌ Erreur GET /tow-pricing:", err);
+    console.error(" Erreur GET /tow-pricing:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -345,7 +345,7 @@ router.put("/tow-pricing", checkPermission("config_manage"), async (req, res) =>
     });
 
   } catch (err) {
-    console.error("❌ Erreur PUT /tow-pricing:", err);
+    console.error(" Erreur PUT /tow-pricing:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

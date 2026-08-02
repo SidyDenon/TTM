@@ -97,7 +97,7 @@ export default (db) => {
       );
       res.json({ message: "Liste vitrine services ", data: rows });
     } catch (err) {
-      console.error("❌ GET /vitrine/services:", err);
+      console.error(" GET /vitrine/services:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -146,7 +146,7 @@ export default (db) => {
 
       res.json({ message: "Service vitrine ajouté ", data: created });
     } catch (err) {
-      console.error("❌ POST /vitrine/services:", err);
+      console.error(" POST /vitrine/services:", err);
       res.status(500).json({ error: "Erreur ajout service vitrine" });
     }
   });
@@ -217,7 +217,7 @@ export default (db) => {
       );
       res.json({ message: "Service vitrine mis à jour ", data: updated });
     } catch (err) {
-      console.error("❌ PUT /vitrine/services:", err);
+      console.error(" PUT /vitrine/services:", err);
       res.status(500).json({ error: "Erreur mise à jour service vitrine" });
     }
   });
@@ -248,7 +248,7 @@ export default (db) => {
       await req.db.query("DELETE FROM vitrine_services WHERE id = ?", [Number(req.params.id)]);
       res.json({ message: "Service vitrine supprimé " });
     } catch (err) {
-      console.error("❌ DELETE /vitrine/services:", err);
+      console.error(" DELETE /vitrine/services:", err);
       res.status(500).json({ error: "Erreur suppression service vitrine" });
     }
   });

@@ -22,7 +22,7 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
     );
 
     if (validTokens.length === 0) {
-      console.log("❌ Aucun token Expo valide fourni à sendPushNotification");
+      console.log(" Aucun token Expo valide fourni à sendPushNotification");
       return;
     }
 
@@ -97,6 +97,6 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
       console.log(" Erreur API Expo :", result);
     }
   } catch (err) {
-    console.error("❌ Erreur envoi notification Expo :", err);
+    console.error(" Erreur envoi notification Expo :", err);
   }
 }

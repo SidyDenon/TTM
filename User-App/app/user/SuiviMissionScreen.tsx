@@ -98,7 +98,7 @@ export default function SuiviMissionScreen() {
     ]).start(() => setMenuVisible(false));
   };
 
-  // 🔄 Bouton recenter
+  //  Bouton recenter
   const recenter = () => {
     if (!mapRef.current || !mission) return;
 
@@ -314,7 +314,7 @@ export default function SuiviMissionScreen() {
         )}
       </MapView>
 
-      {/* 🔄 BOUTONS VUE + RECENTRER */}
+      {/*  BOUTONS VUE + RECENTRER */}
       <View style={styles.fabStack}>
         <TouchableOpacity
           style={styles.viewBtn}

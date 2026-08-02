@@ -21,7 +21,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   try {
     data = JSON.parse(text);
   } catch {
-    console.error("❌ Réponse non-JSON:", text);
+    console.error(" Réponse non-JSON:", text);
     throw new Error("Réponse invalide du serveur");
   }
 

@@ -39,7 +39,7 @@ export default function MissionDetailsScreen() {
           setTimeout(() => router.replace("/user/history"), 300);
         }
       } catch (err) {
-        console.error("❌ Erreur chargement mission:", err);
+        console.error(" Erreur chargement mission:", err);
         setMission(null);
       } finally {
         setLoading(false);
@@ -103,7 +103,7 @@ export default function MissionDetailsScreen() {
         <Text style={styles.title}>Mission #{missionId}</Text>
         <Text style={styles.info}>🔧 Type: <Text style={styles.bold}>{service || "Non précisé"}</Text></Text>
         <Text style={styles.info}>📍 Adresse: <Text style={styles.bold}>{address || "Non précisée"}</Text></Text>
-        {description ? <Text style={styles.info}>📝 Description: <Text style={styles.bold}>{description}</Text></Text> : null}
+        {description ? <Text style={styles.info}> Description: <Text style={styles.bold}>{description}</Text></Text> : null}
         <Text style={styles.info}>📅 Date: <Text style={styles.bold}>{created_at ? new Date(created_at).toLocaleString() : "—"}</Text></Text>
         <Text style={styles.info}> Prix: <Text style={[styles.bold, { color: '#4CAF50' }]}>{formatCurrency(amount)}</Text></Text>
         <Text style={styles.info}>📦 Statut: <Text style={[styles.bold, { color: (status === 'terminee' ? '#4CAF50' : status?.startsWith('annule') ? '#E53935' : '#FF9800') }]}>{String(status || '').toUpperCase()}</Text></Text>

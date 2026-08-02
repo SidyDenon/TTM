@@ -12,7 +12,7 @@ export default function MissionsDetailsModal({
   onPublish,
   onAssign,
 }) {
-  const [photoView, setPhotoView] = useState(null); // 🆕 Lightbox
+  const [photoView, setPhotoView] = useState(null); //  Lightbox
   const modalRef = useModalOrigin(true);
   const photoRef = useModalOrigin(!!photoView);
 
@@ -56,7 +56,7 @@ export default function MissionsDetailsModal({
         className="bg-[var(--bg-card)] text-[var(--text-color)] p-6 rounded-2xl shadow-xl w-[600px] relative overflow-y-auto max-h-[90vh] font-roboto modal-panel"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ❌ Bouton fermer */}
+        {/*  Bouton fermer */}
         <button
           onClick={onClose}
           className="absolute top-2 right-2 bg-[var(--bg-main)] p-2 rounded-full hover:bg-red-600 transition"
@@ -118,7 +118,7 @@ export default function MissionsDetailsModal({
                     src={url}
                     alt="mission"
                     className="w-24 h-24 object-cover rounded cursor-pointer border border-[var(--border-color)] hover:opacity-80 hover:scale-105 transition"
-                    onClick={() => setPhotoView(url)} // 🆕 Ouvre lightbox
+                    onClick={() => setPhotoView(url)} //  Ouvre lightbox
                   />
                 );
               })}

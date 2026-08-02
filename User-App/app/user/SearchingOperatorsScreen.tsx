@@ -268,7 +268,7 @@ export default function SearchingOperatorsScreen() {
     };
   }, [socket, token, requestId, router]);
 
-  // ❌ Annuler la mission tant qu’elle n’est pas acceptée
+  //  Annuler la mission tant qu’elle n’est pas acceptée
   const handleCancel = () => {
     if (!requestId) return;
     if (status === "accepted") return;

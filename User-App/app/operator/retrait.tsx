@@ -48,7 +48,7 @@ export default function WithdrawHistoryScreen() {
       }
       setTransactions(data.transactions || []);
     } catch (err) {
-      console.error("❌ Erreur fetchWallet:", err);
+      console.error(" Erreur fetchWallet:", err);
       Alert.alert("Erreur", "Impossible de charger vos retraits");
     } finally {
       setLoading(false);
@@ -105,7 +105,7 @@ export default function WithdrawHistoryScreen() {
         text1:
           data.status === "approuvée"
             ? "💸 Retrait approuvé !"
-            : "❌ Retrait rejeté",
+            : " Retrait rejeté",
         text2: data.message || "",
         visibilityTime: 3000,
       });

@@ -22,7 +22,7 @@ async function test() {
   console.log(users);
 
   if (users.length === 0) {
-    console.log("❌ PROBLÈME: Aucun client avec cet email!");
+    console.log(" PROBLÈME: Aucun client avec cet email!");
     await conn.end();
     return;
   }
@@ -45,7 +45,7 @@ async function test() {
     console.log(" Email envoyé avec succès!");
     console.log("Réponse:", result);
   } catch (err) {
-    console.error("❌ ERREUR lors de l'envoi:", err.message);
+    console.error(" ERREUR lors de l'envoi:", err.message);
     console.error("Détails complets:", err);
   }
 

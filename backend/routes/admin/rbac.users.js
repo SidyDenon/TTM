@@ -171,7 +171,7 @@ export default (db) => {
 
       res.json({ message: "Admins récupérés ", data });
     } catch (e) {
-      console.error("❌ GET /rbac/users:", e);
+      console.error(" GET /rbac/users:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -310,7 +310,7 @@ Important : changez votre mot de passe à la première connexion.`,
     });
   } catch (e) {
     try { await conn.rollback(); } catch {}
-    console.error("❌ POST /rbac/users:", e);
+    console.error(" POST /rbac/users:", e);
     res.status(500).json({ error: "Erreur serveur" });
   } finally {
     try { conn.release(); } catch {}
@@ -355,7 +355,7 @@ Important : changez votre mot de passe à la première connexion.`,
       });
       res.json({ message: "Rôle assigné " });
     } catch (e) {
-      console.error("❌ PUT /rbac/users/:id/role:", e);
+      console.error(" PUT /rbac/users/:id/role:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -439,7 +439,7 @@ Important : changez votre mot de passe à la première connexion.`,
         },
       });
     } catch (e) {
-      console.error("❌ PATCH /rbac/users/:id:", e);
+      console.error(" PATCH /rbac/users/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -471,12 +471,12 @@ Important : changez votre mot de passe à la première connexion.`,
         data: { id: Number(id), is_blocked: !!blocked },
       });
     } catch (e) {
-      console.error("❌ PATCH /rbac/users/:id/block:", e);
+      console.error(" PATCH /rbac/users/:id/block:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
 
-  // 🔄 Réinitialiser mot de passe admin
+  //  Réinitialiser mot de passe admin
   router.post("/:id/reset-password", superOnly, checkPermission("rbac_users_manage"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -519,7 +519,7 @@ Important : changez votre mot de passe à la première connexion.`,
         motDePasse: nouveauMdp,
       });
     } catch (e) {
-      console.error("❌ POST /rbac/users/:id/reset-password:", e);
+      console.error(" POST /rbac/users/:id/reset-password:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -639,7 +639,7 @@ Important : changez votre mot de passe à la première connexion.`,
       });
     } catch (e) {
       try { await conn.rollback(); } catch {}
-      console.error("❌ PATCH /rbac/users/:id/permissions:", e);
+      console.error(" PATCH /rbac/users/:id/permissions:", e);
       res.status(500).json({ error: "Erreur serveur" });
     } finally {
       try { conn.release(); } catch {}
@@ -665,7 +665,7 @@ Important : changez votre mot de passe à la première connexion.`,
       });
       res.json({ message: newStatus ? "Superadmin attribué " : "Superadmin retiré " });
     } catch (e) {
-      console.error("❌ PATCH /rbac/users/:id/super:", e);
+      console.error(" PATCH /rbac/users/:id/super:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -690,7 +690,7 @@ Important : changez votre mot de passe à la première connexion.`,
       await req.db.query("DELETE FROM admin_users WHERE id = ?", [id]);
       res.json({ message: "Administrateur supprimé " });
     } catch (e) {
-      console.error("❌ DELETE /rbac/users/:id:", e);
+      console.error(" DELETE /rbac/users/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -736,7 +736,7 @@ Important : changez votre mot de passe à la première connexion.`,
 
       res.json({ data });
     } catch (e) {
-      console.error("❌ GET /rbac/users/:id/events:", e);
+      console.error(" GET /rbac/users/:id/events:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -782,7 +782,7 @@ Important : changez votre mot de passe à la première connexion.`,
         },
       });
     } catch (e) {
-      console.error("❌ PATCH /rbac/users/:id/force-super:", e);
+      console.error(" PATCH /rbac/users/:id/force-super:", e);
       res.status(500).json({ error: "Erreur serveur" });
     } finally {
       try { conn.release(); } catch {}

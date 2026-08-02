@@ -319,7 +319,7 @@ export default function RequestScreen() {
     }
   }, [photos.length, addPhoto]);
 
-  // ─────────────── ❌ Supprimer photo ───────────────
+  // ───────────────  Supprimer photo ───────────────
   const removePhoto = (index: number) => {
     setPhotos(photos.filter((_, i) => i !== index));
   };

@@ -77,7 +77,7 @@ export default function UserParametreScreen() {
 
       {/* Déconnexion */}
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutText}>🚪 Déconnexion</Text>
+        <Text style={styles.logoutText}> Déconnexion</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

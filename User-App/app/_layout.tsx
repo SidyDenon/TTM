@@ -52,7 +52,7 @@ function RootNavigator() {
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("❌ Erreur configuration notifications:", err);
+          console.error(" Erreur configuration notifications:", err);
         }
       }
     })();
@@ -87,7 +87,7 @@ function RootNavigator() {
         console.log(" Token push enregistré sur le backend");
       } catch (err: any) {
         if (err?.name !== "AbortError") {
-          console.error("❌ Erreur enregistrement token push:", err);
+          console.error(" Erreur enregistrement token push:", err);
         }
       }
     })();

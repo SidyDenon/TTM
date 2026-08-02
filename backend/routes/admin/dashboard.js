@@ -104,7 +104,7 @@ export default (db, io, emitMissionEvent) => {
         user: { id, name, email, phone, ...(avatarCol ? { avatar_url } : {}) },
       });
     } catch (err) {
-      console.error("❌ PUT /admin/utilisateurs/:id:", err);
+      console.error(" PUT /admin/utilisateurs/:id:", err);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -117,7 +117,7 @@ export default (db, io, emitMissionEvent) => {
       const [rows] = await req.db.query("SELECT id, name, phone, role FROM users");
       res.json({ message: "Liste des utilisateurs récupérée ", data: rows });
     } catch (err) {
-      console.error("❌ Erreur GET /utilisateurs:", err);
+      console.error(" Erreur GET /utilisateurs:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -149,7 +149,7 @@ export default (db, io, emitMissionEvent) => {
         data: { demandeId: id, prixEstime: price, distance },
       });
     } catch (err) {
-      console.error("❌ Erreur POST /demandes/:id/prix:", err);
+      console.error(" Erreur POST /demandes/:id/prix:", err);
       res.status(500).json({ error: "Erreur lors du calcul du prix" });
     }
   });
@@ -236,7 +236,7 @@ export default (db, io, emitMissionEvent) => {
         dashboardCache = { data: null, lastFetch: 0 }; // invalidate cache
         res.json({ message: "Mission publiee ", data: payload });
       } catch (err) {
-        console.error("❌ Erreur POST /requests/:id/publier:", err);
+        console.error(" Erreur POST /requests/:id/publier:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
@@ -294,7 +294,7 @@ export default (db, io, emitMissionEvent) => {
         dashboardCache = { data: null, lastFetch: 0 };
         res.json({ message: "Mission annulee par l’admin ", data: payload });
       } catch (err) {
-        console.error("❌ Erreur PATCH /requests/:id/annuler:", err);
+        console.error(" Erreur PATCH /requests/:id/annuler:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
@@ -358,7 +358,7 @@ export default (db, io, emitMissionEvent) => {
         cached: false,
       });
     } catch (err) {
-      console.error("❌ Erreur GET /api/admin/dashboard:", err);
+      console.error(" Erreur GET /api/admin/dashboard:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -389,7 +389,7 @@ export default (db, io, emitMissionEvent) => {
         data: { labels, revenues, missions },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /revenus:", err);
+      console.error(" Erreur GET /revenus:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -415,7 +415,7 @@ export default (db, io, emitMissionEvent) => {
 
         res.json({ message: "Top 5 services ", data: rows });
       } catch (err) {
-        console.error("❌ Erreur GET /top-services:", err);
+        console.error(" Erreur GET /top-services:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }

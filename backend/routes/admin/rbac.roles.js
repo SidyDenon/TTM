@@ -97,7 +97,7 @@ export default (db) => {
 
       res.json({ message: "Rôles récupérés ", data, catalog: CATALOG });
     } catch (e) {
-      console.error("❌ GET /rbac/roles:", e);
+      console.error(" GET /rbac/roles:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -132,7 +132,7 @@ export default (db) => {
 
       res.status(201).json({ message: "Rôle créé ", id: r.insertId });
     } catch (e) {
-      console.error("❌ POST /rbac/roles:", e);
+      console.error(" POST /rbac/roles:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -178,7 +178,7 @@ export default (db) => {
 
       res.json({ message: "Rôle mis à jour " });
     } catch (e) {
-      console.error("❌ PUT /rbac/roles/:id:", e);
+      console.error(" PUT /rbac/roles/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -202,7 +202,7 @@ export default (db) => {
       });
       res.json({ message: "Rôle supprimé " });
     } catch (e) {
-      console.error("❌ DELETE /rbac/roles/:id:", e);
+      console.error(" DELETE /rbac/roles/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

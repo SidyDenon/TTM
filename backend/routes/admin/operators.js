@@ -61,7 +61,7 @@ export default (db) => {
         const [rows] = await req.db.query(sql);
         res.json({ message: "Liste des opérateurs récupérée ", data: rows });
       } catch (err) {
-        console.error("❌ Erreur GET /operators:", err);
+        console.error(" Erreur GET /operators:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
@@ -151,7 +151,7 @@ export default (db) => {
           },
         });
       } catch (err) {
-        console.error("❌ Erreur POST /operators:", err);
+        console.error(" Erreur POST /operators:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
@@ -246,13 +246,13 @@ export default (db) => {
 
         res.json({ message: "Opérateur mis à jour " });
       } catch (err) {
-        console.error("❌ Erreur PUT /operators/:id:", err);
+        console.error(" Erreur PUT /operators/:id:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
   );
 
-  // ❌ Supprimer un opérateur (écriture)
+  //  Supprimer un opérateur (écriture)
   router.delete(
     "/:id",
     checkPermission("operators_manage"),
@@ -290,13 +290,13 @@ export default (db) => {
 
         res.json({ message: `Opérateur #${id} supprimé ` });
       } catch (err) {
-        console.error("❌ Erreur DELETE /operators/:id:", err);
+        console.error(" Erreur DELETE /operators/:id:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }
   );
 
-  // 🔄 Réinitialiser mot de passe (écriture)
+  //  Réinitialiser mot de passe (écriture)
   router.post(
     "/:id/reset-password",
     checkPermission("operators_manage"),
@@ -341,7 +341,7 @@ export default (db) => {
           motDePasse: nouveauMdp,
         });
       } catch (err) {
-        console.error("❌ Erreur reset mot de passe opérateur:", err);
+        console.error(" Erreur reset mot de passe opérateur:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }

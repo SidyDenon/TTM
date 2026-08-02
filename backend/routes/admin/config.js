@@ -172,7 +172,7 @@ export default (db) => {
         operator_towing_radius_km: Number(cfg.operator_towing_radius_km ?? 100),
       });
     } catch (err) {
-      console.error("❌ Erreur GET /admin/config:", err);
+      console.error(" Erreur GET /admin/config:", err);
       res.status(500).json({ error: "Erreur chargement config" });
     }
   });
@@ -309,7 +309,7 @@ export default (db) => {
         operator_towing_radius_km: towingRadiusKm,
       });
     } catch (err) {
-      console.error("❌ Erreur PUT /admin/config:", err);
+      console.error(" Erreur PUT /admin/config:", err);
       res.status(500).json({ error: "Erreur mise à jour config" });
     }
   });
@@ -339,7 +339,7 @@ export default (db) => {
       await logAdminEvent(req.db, req.user?.id, "config_test_sms", { to });
       return res.json({ message: "SMS de test envoye", to });
     } catch (err) {
-      console.error("❌ Erreur POST /admin/config/test-sms:", err);
+      console.error(" Erreur POST /admin/config/test-sms:", err);
       return res.status(500).json({
         error: "Erreur envoi SMS",
         code: err?.code,
@@ -371,7 +371,7 @@ export default (db) => {
         }
         return res.json({ data: siteContent || {} });
       } catch (err) {
-        console.error("❌ Erreur GET /admin/config/site-content:", err);
+        console.error(" Erreur GET /admin/config/site-content:", err);
         return res.status(500).json({ error: "Erreur chargement contenu site" });
       }
     }
@@ -401,7 +401,7 @@ export default (db) => {
         });
         return res.json({ message: "Contenu site mis à jour ", data: payload });
       } catch (err) {
-        console.error("❌ Erreur PUT /admin/config/site-content:", err);
+        console.error(" Erreur PUT /admin/config/site-content:", err);
         return res.status(500).json({ error: "Erreur mise à jour contenu site" });
       }
     }

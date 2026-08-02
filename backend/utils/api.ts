@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 // ============================================================
-// 🌍 CONFIG LOCAL
+//  CONFIG LOCAL
 // ============================================================
 
 // 👉 ton IP locale (valide pour iPhone + Android réel)

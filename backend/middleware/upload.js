@@ -31,7 +31,7 @@ const fileFilter = (req, file, cb) => {
   if (mimetype || extname || genericImageMime) {
     cb(null, true);
   } else {
-    cb(new Error("❌ Seules les images sont autorisées"));
+    cb(new Error(" Seules les images sont autorisées"));
   }
 };
 
@@ -129,7 +129,7 @@ export async function validateUploadedFilesSignature(req, res, next) {
 
     return res.status(400).json({ error: "Fichier image invalide (signature non reconnue)" });
   } catch (err) {
-    console.error("❌ validateUploadedFilesSignature:", err);
+    console.error(" validateUploadedFilesSignature:", err);
     return res.status(500).json({ error: "Erreur validation upload" });
   }
 }

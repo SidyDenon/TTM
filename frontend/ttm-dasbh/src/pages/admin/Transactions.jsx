@@ -119,7 +119,7 @@ export default function Transactions() {
     if (!socket) return;
 
     const handleNewTransaction = (data) => {
-      console.log("🆕 Nouvelle transaction :", data);
+      console.log(" Nouvelle transaction :", data);
       showSystemNotification(
         "🧾 Nouvelle transaction",
         `Mission #${data.request_id} terminée`

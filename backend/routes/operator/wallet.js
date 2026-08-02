@@ -199,7 +199,7 @@ export default (db) => {
         transactions: historique,
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/wallet:", err);
+      console.error(" Erreur GET /operator/wallet:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -295,7 +295,7 @@ export default (db) => {
         data: { id: withdrawalId, amount: montant, status: "en_attente" },
       });
     } catch (err) {
-      console.error("❌ Erreur POST /operator/wallet/withdraw:", err);
+      console.error(" Erreur POST /operator/wallet/withdraw:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

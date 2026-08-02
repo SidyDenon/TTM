@@ -275,7 +275,7 @@ const fetchData = async (signal) => {
       if (!mission?.id) return;
       const status = String(mission.status || "").toLowerCase();
       console.debug("[WS][admin] mission:updated", mission.id, status);
-      showSystemNotification("🔄 Mission mise à jour", `Statut : ${mission.status}`);
+      showSystemNotification(" Mission mise à jour", `Statut : ${mission.status}`);
       upsertMission(mission);
     };
 
@@ -296,7 +296,7 @@ const fetchData = async (signal) => {
       const id = typeof idOrObj === "object" ? idOrObj?.id : idOrObj;
       if (!id) return;
       console.debug("[WS][admin] mission:deleted", id);
-      showSystemNotification("❌ Mission supprimée", `Mission #${id} retirée`);
+      showSystemNotification(" Mission supprimée", `Mission #${id} retirée`);
       removeMission(id);
     };
 

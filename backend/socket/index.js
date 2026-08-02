@@ -283,7 +283,7 @@ export function notifyUser(userId, event, data) {
     }
     return false;
   } catch (err) {
-    console.error("❌ [notifyUser] erreur :", err);
+    console.error(" [notifyUser] erreur :", err);
     return false;
   }
 }
@@ -321,7 +321,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
       console.log(` Authentifié: ${user.role} ${user.id}`);
       next();
     } catch (err) {
-      console.log("❌ Token invalide:", err.message);
+      console.log(" Token invalide:", err.message);
       next(new Error("Token invalide"));
     }
   });
@@ -354,7 +354,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
         socket.join(room);
         console.log(` ${socket.id} rejoint la room ${room}`);
       } catch (err) {
-        console.error("❌ join_request erreur:", err?.message || err);
+        console.error(" join_request erreur:", err?.message || err);
         socket.emit("join_request_denied", { requestId });
       }
     });
@@ -405,12 +405,12 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
     });
 
     socket.on("disconnect", (reason) => {
-      console.log(`❌ Déconnexion socket ${socket.id} (${reason})`);
+      console.log(` Déconnexion socket ${socket.id} (${reason})`);
       cleanupSocket(socket.id);
     });
 
     socket.on("error", (error) => {
-      console.error("❌ Erreur socket:", error);
+      console.error(" Erreur socket:", error);
     });
   });
 

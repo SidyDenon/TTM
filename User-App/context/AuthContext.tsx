@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔄 Charger la session locale
+  //  Charger la session locale
   useEffect(() => {
     let active = true;
 
@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             setUser(JSON.parse(storedUser));
           } catch (parseErr) {
-            console.error("❌ Erreur parsing storedUser:", parseErr);
+            console.error(" Erreur parsing storedUser:", parseErr);
             await AsyncStorage.removeItem("user");
           }
 
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               }
             } catch (jsonErr) {
-              console.error("❌ Erreur parsing /me response:", jsonErr);
+              console.error(" Erreur parsing /me response:", jsonErr);
             }
           } else {
             // Erreur temporaire (503, réseau, etc.) : on garde la session locale
@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err: any) {
         if (err?.name !== "AbortError") {
-          console.error("❌ Erreur loadSession:", err);
+          console.error(" Erreur loadSession:", err);
         }
         // ne pas forcer logout sur erreur réseau : on garde la session locale
       } finally {
@@ -127,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         data = await res.json();
       } catch (jsonErr) {
-        console.error("❌ Erreur parsing refreshUser response:", jsonErr);
+        console.error(" Erreur parsing refreshUser response:", jsonErr);
         return user;
       }
       const u = (data && (data.user || data)) || null;
@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return u;
     } catch (err) {
-      console.error("❌ Erreur refreshUser:", err);
+      console.error(" Erreur refreshUser:", err);
       // on ne force pas le logout sur erreur réseau
       return user;
     }
@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         data = JSON.parse(text);
       } catch (jsonErr) {
-        console.error("❌ Erreur parsing login response:", jsonErr);
+        console.error(" Erreur parsing login response:", jsonErr);
         throw new Error("Réponse invalide du serveur");
       }
 
@@ -184,12 +184,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return data.user as User;
     } catch (err) {
-      console.error("❌ Erreur login:", err);
+      console.error(" Erreur login:", err);
       throw err;
     }
   };
 
-  // 📝 Inscription
+  //  Inscription
   const register = async (name: string, phone: string, password: string): Promise<User> => {
     try {
       const res = await fetch(`${API_URL}/register`, {
@@ -202,19 +202,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         data = await res.json();
       } catch (jsonErr) {
-        console.error("❌ Erreur parsing register response:", jsonErr);
+        console.error(" Erreur parsing register response:", jsonErr);
         throw new Error("Réponse invalide du serveur");
       }
 
       if (!data.user) throw new Error("Réponse invalide du serveur (register)");
       return data.user as User;
     } catch (err) {
-      console.error("❌ Erreur register:", err);
+      console.error(" Erreur register:", err);
       throw err;
     }
   };
 
-  // 🚪 Déconnexion
+  //  Déconnexion
   const logout = async () => {
     setToken(null);
     setUser(null);
@@ -222,7 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AsyncStorage.removeItem("user");
   };
 
-  // 🌍 API centralisée typée
+  //  API centralisée typée
   const apiFetch = async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
     const storedToken = token || (await getStoredToken());
     const res = await fetch(`${API_URL}${endpoint}`, {

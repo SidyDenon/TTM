@@ -76,7 +76,7 @@ export default (db) => {
         // on continue quand même, au pire on aura seulement users.notification_token
       }
 
-      // 🔄 Compatibilité avec ton code existant : dernier device = notification_token
+      //  Compatibilité avec ton code existant : dernier device = notification_token
       try {
         await db.query(
           `UPDATE users
@@ -98,7 +98,7 @@ export default (db) => {
         platform: platform || null,
       });
     } catch (err) {
-      console.error("❌ Erreur POST /user/push-token :", err);
+      console.error(" Erreur POST /user/push-token :", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -144,7 +144,7 @@ export default (db) => {
         message: "Token Expo supprimé ",
       });
     } catch (err) {
-      console.error("❌ Erreur DELETE /user/push-token :", err);
+      console.error(" Erreur DELETE /user/push-token :", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

@@ -96,7 +96,7 @@ function HomeContent() {
         try {
           json = await res.json();
         } catch (jsonErr) {
-          console.error("❌ Erreur parsing mission active response:", jsonErr);
+          console.error(" Erreur parsing mission active response:", jsonErr);
           setLoading(false);
           return;
         }
@@ -108,7 +108,7 @@ function HomeContent() {
           return;
         }
       } catch (err) {
-        console.error("❌ Erreur lors de la vérification de mission active:", err);
+        console.error(" Erreur lors de la vérification de mission active:", err);
       } finally {
         setLoading(false);
       }
@@ -170,7 +170,7 @@ function HomeContent() {
         if (mapRef.current) mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
       }
     } catch (err) {
-      console.error("❌ Erreur recenter map:", err);
+      console.error(" Erreur recenter map:", err);
       setRegion(FALLBACK_REGION);
       if (mapRef.current) mapRef.current.animateToRegion(FALLBACK_REGION, 1000);
     }

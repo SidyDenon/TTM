@@ -94,7 +94,7 @@ export default function Resume() {
   //  Rediriger proprement si pas connecté
   useEffect(() => {
     if (!token) {
-      Alert.alert("❌ Erreur", "Vous devez être connecté pour faire une demande", [
+      Alert.alert(" Erreur", "Vous devez être connecté pour faire une demande", [
         { text: "OK", onPress: () => router.replace("/login") },
       ]);
     }
@@ -105,7 +105,7 @@ export default function Resume() {
   const handleConfirm = async () => {
     try {
       if (!service) {
-        Alert.alert("❌ Erreur", "Service manquant. Reprenez la demande.");
+        Alert.alert(" Erreur", "Service manquant. Reprenez la demande.");
         return;
       }
 
@@ -113,7 +113,7 @@ export default function Resume() {
 
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("❌ Permission refusée", "Impossible de récupérer la localisation.");
+        Alert.alert(" Permission refusée", "Impossible de récupérer la localisation.");
         setLoading(false);
         return;
       }
@@ -229,8 +229,8 @@ export default function Resume() {
         });
       }
     } catch (err: any) {
-      console.error("❌ Erreur envoi demande:", err);
-      Alert.alert("❌ Erreur", err.message || "Impossible d’envoyer");
+      console.error(" Erreur envoi demande:", err);
+      Alert.alert(" Erreur", err.message || "Impossible d’envoyer");
     } finally {
       setLoading(false);
     }

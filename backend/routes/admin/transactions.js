@@ -164,7 +164,7 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /transactions:", err);
+      console.error(" Erreur GET /transactions:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -202,7 +202,7 @@ export default (db) => {
 
       res.status(201).json({ message: "Transaction ajoutée ", id });
     } catch (err) {
-      console.error("❌ Erreur POST /transactions:", err);
+      console.error(" Erreur POST /transactions:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -233,7 +233,7 @@ export default (db) => {
         message: `Transaction #${id} ${status === "confirmée" ? "confirmée " : "mise en attente ⏳"}`,
       });
     } catch (err) {
-      console.error("❌ Erreur PATCH /transactions/:id/status:", err);
+      console.error(" Erreur PATCH /transactions/:id/status:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -369,7 +369,7 @@ export default (db) => {
         commission,
       });
     } catch (err) {
-      console.error("❌ Erreur PATCH /transactions/:id/confirm:", err);
+      console.error(" Erreur PATCH /transactions/:id/confirm:", err);
       if (connection) { await connection.rollback(); connection.release(); }
       res.status(500).json({ error: "Erreur serveur" });
     }

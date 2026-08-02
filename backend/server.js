@@ -137,7 +137,7 @@ app.use((req, res, next) => {
 
 // ---------------- ERREUR GLOBALE ----------------
 app.use((err, req, res, next) => {
-  console.error("❌ Erreur middleware globale:", err);
+  console.error(" Erreur middleware globale:", err);
   res.status(500).json({ error: "Erreur interne serveur" });
 });
 

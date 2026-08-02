@@ -64,7 +64,7 @@ export default function ChangePasswordScreen() {
         { text: "OK", onPress: () => router.replace("/user") },
       ]);
     } catch (err: any) {
-      console.error("❌ Erreur:", err.message);
+      console.error(" Erreur:", err.message);
       Alert.alert("Erreur", err.message || "Une erreur est survenue.");
     } finally {
       setLoading(false);

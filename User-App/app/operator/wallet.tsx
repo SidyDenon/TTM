@@ -110,7 +110,7 @@ export default function WalletScreen() {
       setSolde(data.solde || 0);
       setTransactions(data.transactions || []);
     } catch (err) {
-      console.error("❌ Erreur fetchWallet:", err);
+      console.error(" Erreur fetchWallet:", err);
       Alert.alert("Erreur", "Impossible de charger vos gains");
     } finally {
       setLoading(false);
@@ -157,7 +157,7 @@ export default function WalletScreen() {
       setMethod("Orange Money");
       fetchWallet();
     } catch (err) {
-      console.error("❌ Erreur retrait:", err);
+      console.error(" Erreur retrait:", err);
       Alert.alert("Erreur", "Impossible de demander un retrait");
     }
   };
@@ -246,7 +246,7 @@ export default function WalletScreen() {
         text1:
           data.status === "approuvée"
             ? "💸 Retrait approuvé !"
-            : "❌ Retrait rejeté",
+            : " Retrait rejeté",
         text2: data.message || "",
         visibilityTime: 3000,
       });

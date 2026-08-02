@@ -13,7 +13,7 @@ export function startCron({ db, emitMissionEvent }) {
       );
       console.log(`🧹 Nettoyage tokens expirés : ${result.affectedRows} ligne(s)`);
     } catch (err) {
-      console.error("❌ Erreur cron nettoyage:", err);
+      console.error(" Erreur cron nettoyage:", err);
     }
   });
 
@@ -99,7 +99,7 @@ export function startCron({ db, emitMissionEvent }) {
 
       console.log(`⏱️ Auto-cancel missions: ${rows.length}`);
     } catch (err) {
-      console.error("❌ Erreur cron auto-cancel:", err);
+      console.error(" Erreur cron auto-cancel:", err);
     }
   });
 }

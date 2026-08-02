@@ -337,7 +337,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
         data,
       });
     } catch (err) {
-      console.error("❌ Erreur GET /requests:", err);
+      console.error(" Erreur GET /requests:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -371,7 +371,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
 
       res.json({ data: { ...rows[0], photos } });
     } catch (err) {
-      console.error("❌ Erreur /requests/active:", err);
+      console.error(" Erreur /requests/active:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -403,7 +403,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
 
       res.json({ message: "Demande récupérée ", data: { ...rows[0], photos } });
     } catch (err) {
-      console.error("❌ Erreur GET /requests/:id:", err);
+      console.error(" Erreur GET /requests/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -442,7 +442,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
         data: rows,
       });
     } catch (err) {
-      console.error("❌ Erreur GET /requests/:id/events:", err);
+      console.error(" Erreur GET /requests/:id/events:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -507,7 +507,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
 
       res.json({ message: "Demande annulée ", data: payload });
     } catch (err) {
-      console.error("❌ Erreur /requests/:id/cancel:", err);
+      console.error(" Erreur /requests/:id/cancel:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   };
@@ -654,7 +654,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
       });
       emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
     } catch (err) {
-      console.error("❌ Erreur POST /requests/:id/retry:", err);
+      console.error(" Erreur POST /requests/:id/retry:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -865,7 +865,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     });
     emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
   } catch (err) {
-    console.error("❌ Erreur POST /requests:", err);
+    console.error(" Erreur POST /requests:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -984,7 +984,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
         data: { transaction_id: tx.id, status: "en_attente" },
       });
     } catch (err) {
-      console.error("❌ Erreur POST /requests/:id/confirm-payment:", err);
+      console.error(" Erreur POST /requests/:id/confirm-payment:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

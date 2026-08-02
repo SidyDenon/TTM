@@ -24,7 +24,7 @@ export default function usePushNotifications() {
       setPermission(result);
       return result;
     } catch (err) {
-      console.error("❌ Erreur permission notification:", err);
+      console.error(" Erreur permission notification:", err);
       return "error";
     }
   }, [supported]);

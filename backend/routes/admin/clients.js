@@ -50,7 +50,7 @@ export default (db) => {
       const [rows] = await req.db.query(sql);
       res.json({ message: "Liste des clients récupérée ", data: rows });
     } catch (err) {
-      console.error("❌ Erreur GET /clients:", err);
+      console.error(" Erreur GET /clients:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -146,7 +146,7 @@ Dépannage express – 24h/24
         },
       });
     } catch (err) {
-      console.error("❌ Erreur POST /clients:", err);
+      console.error(" Erreur POST /clients:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -209,12 +209,12 @@ Dépannage express – 24h/24
 
       res.json({ message: "Client mis à jour " });
     } catch (err) {
-      console.error("❌ Erreur PUT /clients/:id:", err);
+      console.error(" Erreur PUT /clients/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
 
-  // ❌ Supprimer un client (écriture)
+  //  Supprimer un client (écriture)
   router.delete("/:id", checkPermission("clients_manage"), async (req, res) => {
     try {
       const { id } = req.params;
@@ -299,12 +299,12 @@ Dépannage express – 24h/24
 
       res.json({ message: `Client #${id} supprimé ` });
     } catch (err) {
-      console.error("❌ Erreur DELETE /clients/:id:", err?.message || err, err?.code);
+      console.error(" Erreur DELETE /clients/:id:", err?.message || err, err?.code);
       res.status(500).json({ error: "Erreur serveur", detail: err?.message });
     }
   });
 
-  // 🔄 Réinitialiser mot de passe (écriture)
+  //  Réinitialiser mot de passe (écriture)
   router.post(
     "/:id/reinitialiser-mdp",
     checkPermission("clients_manage"),
@@ -351,7 +351,7 @@ Dépannage express – 24h/24
           motDePasse: nouveauMdp,
         });
       } catch (err) {
-        console.error("❌ Erreur reset mot de passe client:", err);
+        console.error(" Erreur reset mot de passe client:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }

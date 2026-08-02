@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 // ============================================================
-// 🌍 CONFIG BACKEND (auto local → prod) — aligné sur le dashboard
+//  CONFIG BACKEND (auto local → prod) — aligné sur le dashboard
 // ============================================================
 const PROD_BASE = "https://ttm-production-d022.up.railway.app";
 const DEFAULT_PORT = 5000;
@@ -93,7 +93,7 @@ export function getApiUrl() {
 }
 
 // ============================================================
-// 🌍 GOOGLE MAPS KEY (from env)
+//  GOOGLE MAPS KEY (from env)
 // ============================================================
 export const GOOGLE_MAPS_API_KEY =
   (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string) ||

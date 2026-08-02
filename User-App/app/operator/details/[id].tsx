@@ -105,7 +105,7 @@ export default function MissionDetails() {
           distance: Number.isFinite(distance) ? distance : null,
         });
       } catch (err) {
-        console.error("❌ Erreur détail mission:", err);
+        console.error(" Erreur détail mission:", err);
       } finally {
         setLoading(false);
       }
@@ -126,7 +126,7 @@ useEffect(() => {
       if (!canUseNotifications) return;
       await showLocalNotification(title, body);
     } catch (err) {
-      console.error("❌ Erreur triggerNotification:", err);
+      console.error(" Erreur triggerNotification:", err);
     }
   };
 
@@ -210,7 +210,7 @@ useEffect(() => {
         router.replace(`/operator/mission/${id}`);
       }, 1200);
     } catch (err) {
-      console.error("❌ Erreur acceptation:", err);
+      console.error(" Erreur acceptation:", err);
       Toast.show({
         type: "error",
         text1: "Erreur",
@@ -232,7 +232,7 @@ useEffect(() => {
   if (!mission) {
     return (
       <View style={styles.loader}>
-        <Text>❌ Mission introuvable</Text>
+        <Text> Mission introuvable</Text>
       </View>
     );
   }

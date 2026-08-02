@@ -83,7 +83,7 @@ export default function MissionsDetailsModal({
         } font-roboto`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ❌ Bouton fermer */}
+        {/*  Bouton fermer */}
         <button
           onClick={handleClose}
           className="absolute top-3 right-3 p-2 rounded-full bg-[var(--bg-main)] text-[var(--text-color)] hover:bg-[var(--accent)] hover:text-white transition-all shadow-md"

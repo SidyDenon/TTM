@@ -277,7 +277,7 @@ export default function MissionSuivi() {
     };
   }, [navigation, mission, isTerminalStatus]);
 
-  // 🔄 Charger mission + events
+  //  Charger mission + events
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     const fetchMission = async () => {
@@ -295,7 +295,7 @@ export default function MissionSuivi() {
         try {
           data = JSON.parse(text);
         } catch {
-          console.error("❌ Réponse non JSON — probablement du HTML");
+          console.error(" Réponse non JSON — probablement du HTML");
           throw new Error(text.slice(0, 200));
         }
 
@@ -349,7 +349,7 @@ export default function MissionSuivi() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Erreur inconnue";
         setFetchError(message);
-        console.warn("❌ Erreur fetch mission:", message);
+        console.warn(" Erreur fetch mission:", message);
         Toast.show({
           type: "error",
           text1: "Mission indisponible",
@@ -370,7 +370,7 @@ export default function MissionSuivi() {
         const data = await res.json();
         setEvents(data.data || []);
       } catch (err) {
-        console.error("❌ Erreur fetch events:", err);
+        console.error(" Erreur fetch events:", err);
       }
     };
 
@@ -614,7 +614,7 @@ export default function MissionSuivi() {
           animated: true,
         });
       } catch (err) {
-        console.error("❌ Erreur Google Directions:", err);
+        console.error(" Erreur Google Directions:", err);
       }
     }, 1500);
 
@@ -648,7 +648,7 @@ export default function MissionSuivi() {
     setMapType((prev) => (prev === "hybrid" ? "standard" : "hybrid"));
   };
 
-  // 🔄 Mettre à jour le statut
+  //  Mettre à jour le statut
   const updateStatus = async (action: string) => {
     try {
       const res = await fetch(`${API_URL}/operator/requests/${id}/${action}`, {
@@ -680,7 +680,7 @@ export default function MissionSuivi() {
         setTimeout(() => router.replace("/operator"), 1500);
       }
     } catch (err) {
-      console.error("❌ Erreur update statut:", err);
+      console.error(" Erreur update statut:", err);
     }
   };
 
@@ -749,7 +749,7 @@ export default function MissionSuivi() {
     const needsProfile = fetchError?.toLowerCase().includes("profil opérateur");
     return (
       <View style={styles.loader}>
-        <Text style={styles.emptyTitle}>❌ Mission introuvable</Text>
+        <Text style={styles.emptyTitle}> Mission introuvable</Text>
         <Text style={styles.emptyText}>
           {fetchError || "La mission demandée est introuvable ou n’est plus disponible."}
         </Text>

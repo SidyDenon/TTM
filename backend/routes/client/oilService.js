@@ -122,7 +122,7 @@ export default (db) => {
         data: rows || [],
       });
     } catch (err) {
-      console.error("❌ Erreur GET /oil-models/public:", err);
+      console.error(" Erreur GET /oil-models/public:", err);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -281,7 +281,7 @@ export default (db) => {
           },
         });
       } catch (err) {
-        console.error("❌ Erreur POST /requests/oil-service:", err);
+        console.error(" Erreur POST /requests/oil-service:", err);
         return res.status(500).json({ error: "Erreur serveur" });
       }
     }

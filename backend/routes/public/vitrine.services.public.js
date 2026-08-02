@@ -83,7 +83,7 @@ export default (db) => {
 
       res.json({ data, count: data.length });
     } catch (err) {
-      console.error("❌ GET /api/vitrine/services/public:", err);
+      console.error(" GET /api/vitrine/services/public:", err);
       res.status(500).json({ error: "Erreur serveur vitrine services" });
     }
   });

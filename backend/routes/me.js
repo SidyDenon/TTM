@@ -116,7 +116,7 @@ export default (db) => {
         role: user.role,
       });
     } catch (err) {
-      console.error("❌ /me:", err);
+      console.error(" /me:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   }

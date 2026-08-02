@@ -103,7 +103,7 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur register:", err);
+      console.error(" Erreur register:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -250,7 +250,7 @@ router.post("/login", authLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Erreur login:", err);
+    console.error(" Erreur login:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -283,7 +283,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    console.error("❌ POST /logout:", err);
+    console.error(" POST /logout:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -397,7 +397,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
 
       res.json({ message: " Code envoyé", channels: channels.join(", ") || "aucun canal" });
     } catch (err) {
-      console.error("❌ Erreur forgot-password:", err);
+      console.error(" Erreur forgot-password:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -415,7 +415,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
       }
       res.json({ message: " Code validé, vous pouvez réinitialiser le mot de passe" });
     } catch (err) {
-      console.error("❌ Erreur verify-code:", err);
+      console.error(" Erreur verify-code:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -463,7 +463,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
 
       res.json({ message: " Mot de passe réinitialisé avec succès" });
     } catch (err) {
-      console.error("❌ Erreur reset-password:", err);
+      console.error(" Erreur reset-password:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -505,7 +505,7 @@ router.put("/password", authMiddleware, async (req, res) => {
     ]);
     return res.json({ message: "Mot de passe mis à jour " });
   } catch (err) {
-    console.error("❌ PUT /auth/password:", err);
+    console.error(" PUT /auth/password:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -591,7 +591,7 @@ router.get("/me", authMiddleware, async (req, res) => {
       must_change_password: u.must_change_password,
     });
   } catch (err) {
-    console.error("❌ Erreur /me:", err);
+    console.error(" Erreur /me:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -651,7 +651,7 @@ if (!adm) {
 
       return res.json({ message: "Super admin bootstrapé ", id: userId });
     } catch (err) {
-      console.error("❌ bootstrap-admin:", err);
+      console.error(" bootstrap-admin:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });

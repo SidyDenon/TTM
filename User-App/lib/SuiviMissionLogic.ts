@@ -167,7 +167,7 @@ export function useSuiviMissionLogic() {
       try {
         const { granted } = await requestNotificationPermission();
         if (!granted) {
-          console.warn("❌ Permission notification refusée");
+          console.warn(" Permission notification refusée");
           return;
         }
         await setupNotificationChannel();
@@ -238,12 +238,12 @@ export function useSuiviMissionLogic() {
           if (m.operator_phone) setOperatorPhone(String(m.operator_phone));
         }
       } catch (e) {
-        console.error("❌ Erreur fetch mission active:", e);
+        console.error(" Erreur fetch mission active:", e);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    // 🔄 Re-check régulièrement (sécurité si socket manqué)
+    //  Re-check régulièrement (sécurité si socket manqué)
     interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_URL}/requests/active`, {
@@ -644,7 +644,7 @@ export function useSuiviMissionLogic() {
               router.replace("/user");
             }, 1200);
           } catch (err) {
-            console.error("❌ Erreur annulation mission:", err);
+            console.error(" Erreur annulation mission:", err);
             showNotificationInApp("Erreur lors de l’annulation.");
           }
         },

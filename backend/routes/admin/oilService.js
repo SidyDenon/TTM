@@ -81,7 +81,7 @@ router.get("/oil-models", requireAny(["services_view", "site_view", "site_manage
       data: rows || [],
     });
   } catch (err) {
-    console.error("❌ GET /admin/oil-models:", err);
+    console.error(" GET /admin/oil-models:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -140,7 +140,7 @@ router.post("/oil-models", requireAny(["services_manage", "site_manage"]), async
     if (err?.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "Ce modèle d'huile existe déjà" });
     }
-    console.error("❌ POST /admin/oil-models:", err);
+    console.error(" POST /admin/oil-models:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -202,7 +202,7 @@ router.put("/oil-models/:id", requireAny(["services_manage", "site_manage"]), as
       },
     });
   } catch (err) {
-    console.error("❌ PUT /admin/oil-models/:id:", err);
+    console.error(" PUT /admin/oil-models/:id:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -228,7 +228,7 @@ router.delete("/oil-models/:id", requireAny(["services_manage", "site_manage"]),
       message: " Modèle d'huile supprimé",
     });
   } catch (err) {
-    console.error("❌ DELETE /admin/oil-models/:id:", err);
+    console.error(" DELETE /admin/oil-models/:id:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -260,7 +260,7 @@ router.get("/oil-service-requests", requireAny(["requests_view", "requests_manag
       data: rows || [],
     });
   } catch (err) {
-    console.error("❌ GET /admin/oil-service-requests:", err);
+    console.error(" GET /admin/oil-service-requests:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -390,7 +390,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
       data: { requestId, operatorId: operator_id, status: assignedStatus },
     });
   } catch (err) {
-    console.error("❌ POST /admin/oil-service-requests/:requestId/assign:", err);
+    console.error(" POST /admin/oil-service-requests/:requestId/assign:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
 });
@@ -426,7 +426,7 @@ router.get("/oil-service-requests/:requestId", requireAny(["requests_view", "req
       data: mission,
     });
   } catch (err) {
-    console.error("❌ GET /admin/oil-service-requests/:requestId:", err);
+    console.error(" GET /admin/oil-service-requests/:requestId:", err);
     return res.status(500).json({ error: "Erreur serveur" });
   }
   });

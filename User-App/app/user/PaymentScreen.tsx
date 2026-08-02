@@ -92,7 +92,7 @@ export default function PaymentScreen() {
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("❌ Erreur fetch mission paiement:", err);
+          console.error(" Erreur fetch mission paiement:", err);
           Alert.alert("Erreur", "Impossible de charger la mission.");
         }
       } finally {
@@ -119,7 +119,7 @@ export default function PaymentScreen() {
   }
 
   if (!missionId) {
-    Alert.alert("❌ Erreur", "Mission inconnue.");
+    Alert.alert(" Erreur", "Mission inconnue.");
     return;
   }
 
@@ -151,7 +151,7 @@ export default function PaymentScreen() {
     );
   } catch (err: any) {
     Alert.alert(
-      "❌ Erreur",
+      " Erreur",
       err?.message || "Impossible d’effectuer le paiement."
     );
   } finally {

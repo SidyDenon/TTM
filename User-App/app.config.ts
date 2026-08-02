@@ -58,7 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     // 👉 package final pour Play Store
     package: "com.towtruckmali.app",
-    // ❌ on retire googleServicesFile pour le moment
+    //  on retire googleServicesFile pour le moment
     config: {
       googleMaps: {
         apiKey:

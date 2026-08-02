@@ -61,7 +61,7 @@ export default function OperatorHistory() {
 
         setMissions(normalized);
       } catch (err) {
-        console.error("❌ Erreur historique:", err);
+        console.error(" Erreur historique:", err);
       } finally {
         setLoading(false);
       }

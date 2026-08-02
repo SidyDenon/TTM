@@ -119,7 +119,7 @@ export default (db) => {
         count: data.length,
       });
     } catch (err) {
-      console.error("❌ Erreur lors du chargement des services publics :", err);
+      console.error(" Erreur lors du chargement des services publics :", err);
       res.status(500).json({
         error: "Erreur serveur lors de la récupération des services.",
       });

@@ -230,7 +230,7 @@ const missionToSocketPayload = (mission = {}, photos = []) => {
   };
 };
 
-/** 🌍 Haversine pour calculer les distances en km */
+/**  Haversine pour calculer les distances en km */
 const toRad = (v) => (v * Math.PI) / 180;
 const haversineKm = (lat1, lng1, lat2, lng2) => {
   const R = 6371;
@@ -571,7 +571,7 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/profile:", err);
+      console.error(" Erreur GET /operator/profile:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -604,7 +604,7 @@ export default (db) => {
         data: { pending_alerts_enabled: enabled == null ? 1 : enabled },
       });
     } catch (err) {
-      console.error("❌ Erreur PUT /operator/profile/alerts:", err);
+      console.error(" Erreur PUT /operator/profile/alerts:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -655,7 +655,7 @@ export default (db) => {
         data: { lat: latNum, lng: lngNum, ville: ville || null, quartier: quartier || null },
       });
     } catch (err) {
-      console.error("❌ Erreur PUT /operator/profile/location:", err);
+      console.error(" Erreur PUT /operator/profile/location:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -793,7 +793,7 @@ export default (db) => {
         ),
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/requests:", err);
+      console.error(" Erreur GET /operator/requests:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -906,7 +906,7 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/requests/:id:", err);
+      console.error(" Erreur GET /operator/requests/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -1175,7 +1175,7 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Erreur POST /operator/requests/:id/accepter:", err);
+    console.error(" Erreur POST /operator/requests/:id/accepter:", err);
     if (connection) {
       try {
         await connection.rollback();
@@ -1320,7 +1320,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         [req.user.id]
       );
       if (operatorNotif) {
-        let title = "🔄 Mise à jour de mission";
+        let title = " Mise à jour de mission";
         let body = `Votre mission #${id} est maintenant ${action}`;
         if (action === "terminee") body = `Votre mission #${id} est terminée `;
         await sendPushNotification(operatorNotif.notification_token, title, body);
@@ -1347,7 +1347,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         mission: updated,
       });
     } catch (err) {
-      console.error("❌ Erreur POST /operator/requests/:id/:action:", err);
+      console.error(" Erreur POST /operator/requests/:id/:action:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -1362,7 +1362,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       );
       res.json({ message: "Historique récupéré ", data: rows });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/requests/:id/events:", err);
+      console.error(" Erreur GET /operator/requests/:id/events:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -1396,7 +1396,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/active:", err);
+      console.error(" Erreur GET /operator/active:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -1444,7 +1444,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         })),
       });
     } catch (err) {
-      console.error("❌ Erreur GET /operator/history:", err);
+      console.error(" Erreur GET /operator/history:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
@@ -1478,7 +1478,7 @@ router.post("/requests/:id/refuser", authMiddleware, async (req, res) => {
 
     res.json({ message: "Mission refusée, remise en publication" });
   } catch (err) {
-    console.error("❌ Erreur POST /operator/requests/:id/refuser:", err);
+    console.error(" Erreur POST /operator/requests/:id/refuser:", err);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

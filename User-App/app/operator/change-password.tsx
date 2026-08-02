@@ -67,7 +67,7 @@ export default function OperatorChangePassword() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
-      console.error("❌ Erreur:", err.message);
+      console.error(" Erreur:", err.message);
       const message = err.message || "Une erreur est survenue.";
       setErrorMsg(message);
       Alert.alert("Erreur", message);

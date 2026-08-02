@@ -1,5 +1,5 @@
 export function errorHandler(err, req, res, next) {
-  console.error("❌ Erreur attrapée:", err);
+  console.error(" Erreur attrapée:", err);
 
   const isProd = process.env.NODE_ENV === "production";
   const status = Number(err?.status) || 500;

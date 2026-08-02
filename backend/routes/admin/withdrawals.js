@@ -129,12 +129,12 @@ export default (db) => {
         },
       });
     } catch (err) {
-      console.error("❌ Erreur GET /withdrawals:", err);
+      console.error(" Erreur GET /withdrawals:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
 
-  // 📝 Changer le statut (écriture)
+  //  Changer le statut (écriture)
   router.patch(
     "/:id/status",
     checkPermission("withdrawals_manage"),
@@ -193,7 +193,7 @@ export default (db) => {
           const message =
             status === "approuvée"
               ? ` Bonjour ${withdrawal.name}, votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé.`
-              : `❌ Bonjour ${withdrawal.name}, votre demande de retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejetée.`;
+              : ` Bonjour ${withdrawal.name}, votre demande de retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejetée.`;
           try {
             await sendPushNotification(
               withdrawal.notification_token,
@@ -225,7 +225,7 @@ export default (db) => {
               message:
                 status === "approuvée"
                   ? `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé `
-                  : `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejeté ❌`,
+                  : `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejeté `,
               updated_at: new Date().toISOString(),
             });
             console.log(
@@ -263,7 +263,7 @@ export default (db) => {
         //  Réponse
         res.json({
           message: `Retrait #${id} ${
-            status === "approuvée" ? "approuvé " : "rejeté ❌"
+            status === "approuvée" ? "approuvé " : "rejeté "
           }`,
           id,
           status,
@@ -277,7 +277,7 @@ export default (db) => {
           status,
         });
       } catch (err) {
-        console.error("❌ Erreur PATCH /withdrawals/:id/status:", err);
+        console.error(" Erreur PATCH /withdrawals/:id/status:", err);
         res.status(500).json({ error: "Erreur serveur" });
       }
     }

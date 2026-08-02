@@ -53,8 +53,8 @@ export default function FeedbackScreen() {
       ]);
     } catch (err) {
       setLoading(false);
-      console.error("❌ Erreur envoi feedback:", err);
-      Alert.alert("❌ Erreur", "Impossible d’envoyer votre avis. Réessayez plus tard.");
+      console.error(" Erreur envoi feedback:", err);
+      Alert.alert(" Erreur", "Impossible d’envoyer votre avis. Réessayez plus tard.");
     }
   };
 

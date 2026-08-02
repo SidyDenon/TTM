@@ -50,7 +50,7 @@ export default (db) => {
 
       return res.json({ ok: true, message: "Message envoyé " });
     } catch (err) {
-      console.error("❌ POST /api/contact/public:", err);
+      console.error(" POST /api/contact/public:", err);
       return res.status(500).json({ error: "Erreur envoi message" });
     }
   });

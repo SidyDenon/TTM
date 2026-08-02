@@ -63,21 +63,6 @@ export default function useNotifications(options = {}) {
       onRefreshWallet?.();
     };
 
-    const handleMissionUpdated = async (data) => {
-      if (!data?.id) return;
-      if (
-        user?.id &&
-        data.operator_id &&
-        Number(data.operator_id) !== Number(user.id)
-      ) {
-        return;
-      }
-      await triggerNotification(
-        "🚨 Nouvelle mission",
-        data.message || `Mission #${data.id}`
-      );
-    };
-
     const handlePaymentConfirmed = async (data) => {
       await triggerNotification(
         "💳 Paiement client validé",
@@ -87,7 +72,6 @@ export default function useNotifications(options = {}) {
 
     // Écoute les événements
     socket.on("withdrawal_update", handleWithdrawalUpdate);
-    socket.on("mission:updated", handleMissionUpdated);
     socket.on("payment_confirmed", handlePaymentConfirmed);
 
     // 4️⃣ Si l'utilisateur clique une notif → ouvre retraits
@@ -129,7 +113,6 @@ export default function useNotifications(options = {}) {
     // Cleanup
     return () => {
       socket.off("withdrawal_update", handleWithdrawalUpdate);
-      socket.off("mission:updated", handleMissionUpdated);
       socket.off("payment_confirmed", handlePaymentConfirmed);
       tapSub?.remove();
     };

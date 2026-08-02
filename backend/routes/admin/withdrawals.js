@@ -212,28 +212,30 @@ export default (db) => {
         // ⚡ Notification Socket.IO à l’opérateur concerné
         const io = getIo(req);
         const onlineUsers = getOnlineUsers(req);
+        if (io && withdrawal?.operator_id) {
+          io.to(`operator:${Number(withdrawal.operator_id)}`).emit("withdrawal_update", {
+            id: withdrawal.id,
+            status,
+            amount: withdrawal.amount,
+            currency: withdrawal.currency,
+            message:
+              status === "approuvée"
+                ? `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé `
+                : `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejeté `,
+            updated_at: new Date().toISOString(),
+          });
+        }
         if (io && onlineUsers?.operators instanceof Map) {
           const operatorSocketId = onlineUsers.operators.get(
             Number(withdrawal.operator_id)
           );
-          if (operatorSocketId) {
-            io.to(operatorSocketId).emit("withdrawal_update", {
-              id: withdrawal.id,
-              status,
-              amount: withdrawal.amount,
-              currency: withdrawal.currency,
-              message:
-                status === "approuvée"
-                  ? `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé `
-                  : `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejeté `,
-              updated_at: new Date().toISOString(),
-            });
+          if (!operatorSocketId) {
             console.log(
-              `📡 [SOCKET] withdrawal_update → opérateur ${withdrawal.operator_id}`
+              ` Opérateur ${withdrawal.operator_id} non connecté via socket`
             );
           } else {
             console.log(
-              ` Opérateur ${withdrawal.operator_id} non connecté via socket`
+              `📡 [SOCKET] withdrawal_update émis via room operator:${withdrawal.operator_id}`
             );
           }
         }

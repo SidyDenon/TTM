@@ -962,14 +962,18 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
             "SELECT notification_token, name FROM users WHERE id = ? LIMIT 1",
             [mission.operator_id]
           );
+          const title = "Paiement client validé";
+          const body = `Le client a validé la mission #${id}.`;
+
+          // Socket: doit partir même si le token push est absent
+          req.app?.get?.("io")?.to(`operator:${Number(mission.operator_id)}`).emit("payment_confirmed", {
+            request_id: Number(id),
+            transaction_id: tx.id,
+            status: "en_attente",
+            message: body,
+          });
+
           if (opUser?.notification_token) {
-            const title = "Paiement client validé";
-            const body = `Le client a validé la mission #${id}.`;
-            req.app?.get?.("io")?.to(`operator:${Number(mission.operator_id)}`).emit("payment_confirmed", {
-              request_id: Number(id),
-              transaction_id: tx.id,
-              status: "en_attente",
-            });
             // push
             const { sendPushNotification } = await import("../../utils/sendPush.js");
             await sendPushNotification(opUser.notification_token, title, body);

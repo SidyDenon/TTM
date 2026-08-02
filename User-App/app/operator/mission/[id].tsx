@@ -312,11 +312,13 @@ export default function MissionSuivi() {
         }
         const status = String(m.status || "").toLowerCase();
         if (status === "annulee_admin" || status === "annulee_client") {
-          Toast.show({
-            type: "error",
-            text1: "Mission annulée",
-            text2: "Cette mission a été annulée.",
-          });
+          if (status !== "annulee_client") {
+            Toast.show({
+              type: "error",
+              text1: "Mission annulée",
+              text2: "Cette mission a été annulée.",
+            });
+          }
           setMission((prev) =>
             prev ? { ...prev, status: status as any } : prev
           );
@@ -452,11 +454,13 @@ export default function MissionSuivi() {
       if (missionId !== Number(mission.id)) return;
 
       if (status === "annulee_admin" || status === "annulee_client") {
-        Toast.show({
-          type: "error",
-          text1: "Mission annulée",
-          text2: "Cette mission a été annulée par l’administrateur.",
-        });
+        if (status !== "annulee_client") {
+          Toast.show({
+            type: "error",
+            text1: "Mission annulée",
+            text2: "Cette mission a été annulée par l’administrateur.",
+          });
+        }
         allowLeaveRef.current = true;
         router.replace("/operator");
       }

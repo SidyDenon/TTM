@@ -4,7 +4,7 @@ import Notifications, { isExpoGo } from "./expoNotifications";
 const DEFAULT_NOTIFICATION_SOUND = "default";
 const CUSTOM_NOTIFICATION_SOUND = "notify.wav";
 const DEFAULT_CHANNEL_ID = "default";
-const MISSION_CHANNEL_ID = "mission";
+const MISSION_CHANNEL_ID = "mission_v2";
 
 let expoGoWarned = false;
 const warnExpoGo = () => {

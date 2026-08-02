@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Platform } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { API_URL } from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
@@ -8,6 +8,8 @@ import Loader from "../../components/Loader";
 import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { useSocket } from "../../context/SocketContext";
+import { useIsFocused } from "@react-navigation/native";
+import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
 
 type Transaction = {
   id: number;
@@ -31,6 +33,7 @@ const DANGER = "#EF4444";
 export default function WithdrawHistoryScreen() {
   const { token } = useAuth();
   const { socket } = useSocket();
+  const isFocused = useIsFocused();
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +67,7 @@ export default function WithdrawHistoryScreen() {
   }, []);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isFocused) return;
 
     type WithdrawalEvent = {
       id?: number;
@@ -81,6 +84,12 @@ export default function WithdrawHistoryScreen() {
         text2: "Votre demande est en attente d’approbation",
         visibilityTime: 2500,
       });
+      if (canUseNotifications && Platform.OS !== "web") {
+        showLocalNotification(
+          "💸 Demande de retrait envoyée",
+          "Votre demande est en attente d’approbation"
+        ).catch(() => {});
+      }
       setTransactions((prev) => [
         {
           id: data.id || Date.now(),
@@ -118,14 +127,25 @@ export default function WithdrawHistoryScreen() {
       );
     };
 
+    const handlePaymentConfirmed = (data: any) => {
+      Toast.show({
+        type: "info",
+        text1: " Paiement client validé",
+        text2: `Mission #${data?.request_id || "-"} en attente de confirmation admin`,
+        visibilityTime: 2600,
+      });
+    };
+
     socket.on("withdrawal_created", handleCreated);
     socket.on("withdrawal_update", handleUpdated);
+    socket.on("payment_confirmed", handlePaymentConfirmed);
 
     return () => {
       socket.off("withdrawal_created", handleCreated);
       socket.off("withdrawal_update", handleUpdated);
+      socket.off("payment_confirmed", handlePaymentConfirmed);
     };
-  }, [socket]);
+  }, [socket, isFocused]);
 
   if (loading) {
     return (

@@ -37,7 +37,6 @@ import { OPERATOR_MISSION_RADIUS_KM } from "../../constants/operator";
 import Toast from "react-native-toast-message";
 import { API_BASE } from "../../utils/api";
 import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
-import useNotifications from "../../hooks/useNotifications";
 
 const logoutAnim = require("../../assets/animations/ttmload.json");
 
@@ -156,8 +155,6 @@ export default function OperatorScreen() {
   const [checkingActiveMission, setCheckingActiveMission] = useState(true);
   const [isInternal, setIsInternal] = useState(false);
   const mapProvider = Platform.OS === "ios" ? PROVIDER_GOOGLE : undefined;
-
-  useNotifications();
 
   const router = useRouter();
   const { token, logout, user, apiFetch } = useAuth();
@@ -443,6 +440,9 @@ useEffect(() => {
     updateLocalMission(normalized);
 
     notify("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`, "info");
+    if (canUseNotifications && Platform.OS !== "web") {
+      showLocalNotification("🚨 Nouvelle mission", `Mission #${normalized.id} disponible`).catch(() => {});
+    }
   };
 
   const onMissionUpdated = (mission: any) => {
@@ -457,7 +457,9 @@ useEffect(() => {
     if (removalStatuses.has(status)) {
       console.log("🗑 Suppression via updated");
       removeLocalMission(normalized.id);
-      notify("Mission retirée", `#${normalized.id} indisponible`, "error");
+      if (status !== "annulee_client") {
+        notify("Mission retirée", `#${normalized.id} indisponible`, "error");
+      }
       return;
     }
 
@@ -473,7 +475,9 @@ useEffect(() => {
 
     if (removalStatuses.has(status)) {
       removeLocalMission(id);
-      notify("Mission annulée", `Mission #${id} retirée`, "error");
+      if (status !== "annulee_client") {
+        notify("Mission annulée", `Mission #${id} retirée`, "error");
+      }
       return;
     }
 

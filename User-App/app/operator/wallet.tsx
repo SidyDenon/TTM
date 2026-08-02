@@ -25,6 +25,8 @@ import Toast from "react-native-toast-message";
 import { useSocket } from "../../context/SocketContext";
 import Loader from "../../components/Loader";
 import { SvgXml } from "react-native-svg/lib/commonjs";
+import { useIsFocused } from "@react-navigation/native";
+import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
 
 const RED = "#E53935";
 const BG = "#F6F6F6";
@@ -52,6 +54,7 @@ const DEFAULT_COMMISSION = 12; // % aligné avec dashboard admin
 export default function WalletScreen() {
   const { token } = useAuth();
   const { socket } = useSocket();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const heroTranslate = React.useRef(new Animated.Value(-30)).current;
@@ -202,7 +205,7 @@ export default function WalletScreen() {
 
   // ---------------------- SOCKET EVENTS ----------------------
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !isFocused) return;
 
     type WithdrawalEvent = {
       id?: number;
@@ -222,6 +225,12 @@ export default function WalletScreen() {
         text2: "Votre demande est en attente d’approbation",
         visibilityTime: 2500,
       });
+      if (canUseNotifications && Platform.OS !== "web") {
+        showLocalNotification(
+          "💸 Demande de retrait envoyée",
+          "Votre demande est en attente d’approbation"
+        ).catch(() => {});
+      }
       setTransactions((prev) => [
         {
           id: data.id || Date.now(),
@@ -304,7 +313,7 @@ export default function WalletScreen() {
       socket.off("payment_confirmed", handlePaymentConfirmed);
       socket.off("transaction_confirmed", handleNewTransaction);
     };
-  }, [socket]);
+  }, [socket, isFocused]);
 
   const gainsList = transactions.filter((t) => t.type === "gain");
 

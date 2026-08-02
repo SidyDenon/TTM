@@ -143,13 +143,14 @@ useEffect(() => {
     if (Number(missionId) === Number(id)) {
       setMission((prev) => (prev ? { ...prev, status } : prev));
 
-      Toast.show({
-        type: "info",
-        text1: "Mise à jour en direct",
-        text2: message || `Mission ${status}`,
-      });
-
-      triggerNotification("📡 Mise à jour de la mission", message || `Statut : ${status}`);
+      if (status !== "annulee_client") {
+        Toast.show({
+          type: "info",
+          text1: "Mise à jour en direct",
+          text2: message || `Mission ${status}`,
+        });
+        triggerNotification("📡 Mise à jour de la mission", message || `Statut : ${status}`);
+      }
 
       if (status === "annulee_admin" || status === "annulee_client") {
         router.replace("/operator");

@@ -1195,9 +1195,13 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
-router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
+router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
   if (!isOperatorRole(req.user.role))
     return res.status(403).json({ error: "Accès refusé" });
+
+    if (String(req.params?.action || "").toLowerCase() === "confirm-cash-payment") {
+      return next();
+    }
 
     try {
       const { id, action } = req.params;

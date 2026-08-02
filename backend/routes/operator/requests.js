@@ -837,6 +837,15 @@ export default (db) => {
                   op.id   AS operator_profile_id,
                   ou.name AS operator_name,
                   ou.phone AS operator_phone,
+                  t.status AS payment_status,
+                  t.payment_method AS payment_method,
+                  EXISTS(
+                    SELECT 1
+                    FROM request_events re
+                    WHERE re.request_id = r.id
+                      AND re.type = 'cash_received_operator'
+                    LIMIT 1
+                  ) AS cash_received_by_operator,
                   ${serviceInternalSelect.slice(2)},
                   (6371 * ACOS(
                     COS(RADIANS(?)) * COS(RADIANS(r.lat)) *
@@ -847,6 +856,7 @@ export default (db) => {
            JOIN users u ON u.id = r.user_id
            LEFT JOIN users ou ON ou.id = r.operator_id
            LEFT JOIN operators op ON op.user_id = ou.id
+           LEFT JOIN transactions t ON t.request_id = r.id
            LEFT JOIN services s ON LOWER(TRIM(s.name)) = LOWER(TRIM(r.service))
            WHERE r.id = ?
          ) AS q
@@ -1371,6 +1381,16 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
           );
         }
       }
+      // Ensure payment_method exists on transactions
+      try {
+        await req.db.query("SELECT payment_method FROM transactions LIMIT 1");
+      } catch (e) {
+        if (e?.code === "ER_BAD_FIELD_ERROR") {
+          await req.db.query(
+            "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
+          );
+        }
+      }
 
       const [[mission]] = await req.db.query(
         `SELECT r.*, u.notification_token AS client_notification_token
@@ -1396,8 +1416,6 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         : 0;
       const currency = mission.currency || "FCFA";
       const commissionPercent = await getCommissionPercent(req.db);
-      const commission = grossAmount * (commissionPercent / 100);
-      const netAmount = grossAmount - commission;
 
       const [existingRows] = await req.db.query(
         "SELECT * FROM transactions WHERE request_id = ? LIMIT 1",
@@ -1405,83 +1423,122 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       );
 
       let txId;
-      let alreadyConfirmed = false;
       if (!existingRows.length) {
         const [insertTx] = await req.db.query(
           `INSERT INTO transactions
-             (operator_id, request_id, amount, currency, status, commission_percent, commission, confirmed_at, created_at)
-           VALUES (?, ?, ?, ?, 'confirmée', ?, ?, NOW(), NOW())`,
-          [req.user.id, id, grossAmount, currency, commissionPercent, commission]
+             (operator_id, request_id, amount, currency, status, commission_percent, payment_method, created_at)
+           VALUES (?, ?, ?, ?, 'en_attente', ?, 'cash', NOW())`,
+          [req.user.id, id, grossAmount, currency, commissionPercent]
         );
         txId = insertTx.insertId;
       } else {
         const tx = existingRows[0];
         txId = tx.id;
 
+        if (String(tx.status || "") === "confirmée") {
+          return res.status(400).json({
+            error: "Transaction déjà validée définitivement par l'administration",
+          });
+        }
+
+        if (tx.payment_method && String(tx.payment_method).toLowerCase() !== "cash") {
+          return res.status(400).json({
+            error: "Le client n'a pas choisi le paiement espèces pour cette mission",
+          });
+        }
+
         if (String(tx.status || "") !== "confirmée") {
           await req.db.query(
             `UPDATE transactions
-             SET status = 'confirmée',
+             SET status = 'en_attente',
                  amount = ?,
                  currency = ?,
                  commission_percent = ?,
-                 commission = ?,
-                 confirmed_at = NOW()
+                 payment_method = 'cash',
              WHERE id = ?`,
-            [grossAmount, currency, commissionPercent, commission, txId]
+            [grossAmount, currency, commissionPercent, txId]
           );
-        } else {
-          alreadyConfirmed = true;
         }
       }
 
-      if (alreadyConfirmed) {
+      const [[alreadyCashReceivedRow]] = await req.db.query(
+        `SELECT id FROM request_events
+         WHERE request_id = ? AND type = 'cash_received_operator'
+         ORDER BY id DESC
+         LIMIT 1`,
+        [id]
+      );
+
+      if (alreadyCashReceivedRow) {
         return res.json({
-          message: "Paiement espèces déjà confirmé",
+          message: "Paiement espèces déjà signalé",
           data: {
             request_id: Number(id),
             transaction_id: Number(txId),
             amount: grossAmount,
             currency,
-            status: "confirmée",
+            status: "en_attente",
+            cash_received_by_operator: true,
             already_confirmed: true,
           },
         });
       }
 
+      await req.db.query(
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'cash_received_operator', ?, NOW())",
+        [
+          id,
+          JSON.stringify({
+            operator_id: Number(req.user.id),
+            transaction_id: Number(txId),
+            payment_method: "cash",
+          }),
+        ]
+      );
+
       // Temps réel admin + opérateur
-      io.to("admins").emit("transaction_confirmed", {
+      io.to("admins").emit("transaction_updated", {
         id: Number(txId),
         operator_id: req.user.id,
         request_id: Number(id),
         amount: grossAmount,
-        netAmount,
-        commission,
         commission_percent: commissionPercent,
-        status: "confirmée",
-        message: `Paiement espèces confirmé par l'opérateur pour mission #${id}`,
+        payment_method: "cash",
+        status: "en_attente",
+        cash_received_by_operator: true,
+        message: `Paiement espèces déclaré reçu par l'opérateur pour mission #${id}`,
       });
 
-      io.to(`operator:${Number(req.user.id)}`).emit("transaction_confirmed", {
+      io.to("admins").emit("dashboard_update", {
+        type: "transaction",
+        action: "updated",
+        id: Number(txId),
+        status: "en_attente",
+        payment_method: "cash",
+      });
+
+      io.to(`operator:${Number(req.user.id)}`).emit("payment_cash_received", {
         id: Number(txId),
         request_id: Number(id),
         amount: grossAmount,
         currency,
-        netAmount,
-        commission,
         commission_percent: commissionPercent,
-        status: "confirmée",
-        message: `Paiement espèces confirmé pour mission #${id}.`,
+        payment_method: "cash",
+        status: "en_attente",
+        cash_received_by_operator: true,
+        message: `Paiement espèces reçu pour mission #${id}. Validation admin en cours.`,
       });
 
       // Message user: in-app (socket) si ouvert, push fallback s'il est fermé
-      const userMessage = `L'opérateur a confirmé le paiement en espèces de la mission #${id}.`;
+      const userMessage = `L'opérateur a confirmé la réception du paiement en espèces pour la mission #${id}. Validation administrative en cours.`;
       io.to(`client:${Number(mission.user_id)}`).emit("payment_cash_confirmed", {
         request_id: Number(id),
         transaction_id: Number(txId),
         amount: grossAmount,
         currency,
-        status: "confirmée",
+        status: "en_attente",
+        payment_method: "cash",
+        cash_received_by_operator: true,
         message: userMessage,
       });
 
@@ -1494,19 +1551,23 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
             type: "payment_cash_confirmed",
             request_id: Number(id),
             transaction_id: Number(txId),
-            status: "confirmée",
+            status: "en_attente",
+            payment_method: "cash",
+            cash_received_by_operator: true,
           }
         );
       }
 
       res.json({
-        message: "Paiement espèces confirmé",
+        message: "Paiement espèces reçu par l'opérateur. Validation admin en cours",
         data: {
           request_id: Number(id),
           transaction_id: Number(txId),
           amount: grossAmount,
           currency,
-          status: "confirmée",
+          status: "en_attente",
+          payment_method: "cash",
+          cash_received_by_operator: true,
         },
       });
     } catch (err) {

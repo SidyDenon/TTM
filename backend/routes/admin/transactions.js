@@ -38,6 +38,26 @@ export default (db) => {
     }
     return hasCommissionColumn;
   };
+
+  let hasPaymentMethodColumn = null;
+  const ensureTxPaymentMethodColumn = async () => {
+    if (hasPaymentMethodColumn !== null) return hasPaymentMethodColumn;
+    try {
+      const [[col]] = await db.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'payment_method'`
+      );
+      if (!col) {
+        await db.query(
+          "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
+        );
+      }
+      hasPaymentMethodColumn = true;
+    } catch {
+      hasPaymentMethodColumn = false;
+    }
+    return hasPaymentMethodColumn;
+  };
   // Injecte la DB
   router.use((req, _res, next) => {
     req.db = db;
@@ -51,8 +71,10 @@ export default (db) => {
   router.get("/", checkPermission("transactions_view"), async (req, res) => {
     try {
       await ensureTxCommissionColumn();
-      const { status } = req.query;
+      await ensureTxPaymentMethodColumn();
+      const { status, method } = req.query;
       const normalizedStatus = String(status || "").toLowerCase().replace(/\s+/g, "_");
+      const normalizedMethod = String(method || "").toLowerCase().replace(/\s+/g, "_");
       let sql = `
         SELECT 
           t.*, 
@@ -73,6 +95,11 @@ export default (db) => {
       if (status && normalizedStatus !== "toutes") {
         sql += " AND (LOWER(REPLACE(t.status,' ','_')) = ?)";
         params.push(normalizedStatus);
+      }
+
+      if (method && normalizedMethod !== "toutes" && normalizedMethod !== "all") {
+        sql += " AND (LOWER(REPLACE(COALESCE(t.payment_method,'mobile_money'),' ','_')) = ?)";
+        params.push(normalizedMethod);
       }
 
       sql += " ORDER BY t.created_at DESC";
@@ -173,7 +200,12 @@ export default (db) => {
   router.post("/", checkPermission("transactions_manage"), async (req, res) => {
     try {
       await ensureTxCommissionColumn();
+      await ensureTxPaymentMethodColumn();
       const { operator_id, request_id, amount, currency = "FCFA", status = "en_attente" } = req.body;
+      const paymentMethod =
+        String(req.body?.payment_method || "mobile_money").toLowerCase() === "cash"
+          ? "cash"
+          : "mobile_money";
 
       if (!operator_id || !request_id || !amount) {
         return res.status(400).json({ error: "Champs requis manquants" });
@@ -182,9 +214,9 @@ export default (db) => {
       const commissionPercent = await getCommissionPercent(req.db);
 
       const [result] = await req.db.query(
-        `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-        [operator_id, request_id, amount, currency, status, commissionPercent]
+        `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, payment_method, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [operator_id, request_id, amount, currency, status, commissionPercent, paymentMethod]
       );
 
       const id = result?.insertId;
@@ -196,6 +228,7 @@ export default (db) => {
         amount,
         currency,
         status,
+        payment_method: paymentMethod,
         created_at: new Date().toISOString(),
       });
       io.to("admins").emit("dashboard_update", { type: "transaction", action: "created", id });
@@ -211,6 +244,7 @@ export default (db) => {
   router.patch("/:id/status", checkPermission("transactions_manage"), async (req, res) => {
     try {
       await ensureTxCommissionColumn();
+      await ensureTxPaymentMethodColumn();
       const { id } = req.params;
       const { status } = req.body;
 
@@ -243,6 +277,7 @@ export default (db) => {
     let connection;
     try {
       await ensureTxCommissionColumn();
+      await ensureTxPaymentMethodColumn();
       const { id } = req.params;
 
       connection = await req.db.getConnection();
@@ -306,6 +341,7 @@ export default (db) => {
       io.to("admins").emit("transaction_confirmed", {
         id,
         operator_id: tx.operator_id,
+        payment_method: tx.payment_method || "mobile_money",
         amount: txAmount,
         netAmount,
         commission,
@@ -318,6 +354,7 @@ export default (db) => {
         request_id: tx.request_id,
         amount: txAmount,
         currency: tx.currency || "FCFA",
+        payment_method: tx.payment_method || "mobile_money",
         netAmount,
         commission,
         commission_percent: commissionPercent,
@@ -355,6 +392,7 @@ export default (db) => {
           amount: txAmount,
           netAmount,
           commission,
+          payment_method: tx.payment_method || "mobile_money",
           status: "confirmée",
           confirmed_by_admin: req.user?.name || null,
         },

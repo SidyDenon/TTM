@@ -31,6 +31,7 @@ type MissionPayment = {
 };
 
 type OperatorType = "orange" | "wave" | "moov";
+type PaymentMethod = "mobile_money" | "cash";
 
 export default function PaymentScreen() {
   const router = useRouter();
@@ -44,11 +45,13 @@ export default function PaymentScreen() {
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
   const [cashPaymentConfirmed, setCashPaymentConfirmed] = useState(cashConfirmed === "1");
+  const [cashPending, setCashPending] = useState(false);
 
   //  Modal paiement
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [phone, setPhone] = useState("");
   const [operator, setOperator] = useState<OperatorType | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile_money");
   const [formError, setFormError] = useState<string | null>(null);
 
   // 🔙 Bloquer le retour tant que le paiement n'est pas confirmé
@@ -69,6 +72,7 @@ export default function PaymentScreen() {
   useEffect(() => {
     if (cashConfirmed === "1") {
       setCashPaymentConfirmed(true);
+      setCashPending(false);
       setPaid(true);
     }
   }, [cashConfirmed]);
@@ -123,13 +127,15 @@ export default function PaymentScreen() {
   const handleConfirmPayment = async () => {
   setFormError(null);
 
-  if (!phone.trim() || phone.trim().length < 6) {
-    setFormError("Entre un numéro de téléphone valide.");
-    return;
-  }
-  if (!operator) {
-    setFormError("Choisis ton opérateur de paiement.");
-    return;
+  if (paymentMethod === "mobile_money") {
+    if (!phone.trim() || phone.trim().length < 6) {
+      setFormError("Entre un numéro de téléphone valide.");
+      return;
+    }
+    if (!operator) {
+      setFormError("Choisis ton opérateur de paiement.");
+      return;
+    }
   }
 
   if (!missionId) {
@@ -148,8 +154,13 @@ export default function PaymentScreen() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          phone: phone.trim(),
-          operator, // "orange" | "wave" | "moov"
+          payment_method: paymentMethod,
+          ...(paymentMethod === "mobile_money"
+            ? {
+                phone: phone.trim(),
+                operator,
+              }
+            : {}),
         }),
       }
     );
@@ -157,11 +168,18 @@ export default function PaymentScreen() {
     if (!res.ok) {
       throw new Error(data.error || "Impossible de confirmer le paiement.");
     }
-    setPaid(true);
+    if (paymentMethod === "cash") {
+      setCashPending(true);
+      setPaid(false);
+    } else {
+      setPaid(true);
+    }
     setPayModalVisible(false);
     Alert.alert(
       " Paiement transmis",
-      "Ton paiement est envoyé. Il sera validé par notre équipe."
+      paymentMethod === "cash"
+        ? "Le client a signalé un paiement espèces. L'opérateur doit maintenant confirmer \"argent reçu\"."
+        : "Ton paiement est envoyé. Il sera validé par notre équipe."
     );
   } catch (err: any) {
     Alert.alert(
@@ -233,14 +251,16 @@ export default function PaymentScreen() {
           style={styles.lottie}
         />
         <Text style={[styles.bannerTitle, { fontSize: isCompact ? 18 : 20 }]}>
-          {paid ? "Paiement confirmé " : "Mission terminée 🎉"}
+          {paid ? "Paiement confirmé " : cashPending ? "Confirmation en attente" : "Mission terminée 🎉"}
         </Text>
         <Text style={styles.bannerText}>
           {paid
             ? cashPaymentConfirmed
               ? "Paiement espèces validé. Tu peux maintenant nous laisser ton avis."
               : "Merci, ton paiement a bien été transmis. Tu peux maintenant nous laisser ton avis."
-            : "Clique sur « Payer maintenant » pour régler par mobile money et finaliser la mission."}
+            : cashPending
+            ? "Paiement espèces déclaré. Attends la confirmation de l'opérateur."
+            : "Choisis ton mode de paiement pour finaliser la mission."}
         </Text>
 
         {cashPaymentConfirmed && (
@@ -287,8 +307,7 @@ export default function PaymentScreen() {
               <Text style={styles.amountLabel}>Montant à payer</Text>
               <Text style={styles.amountValue}>{displayPrice}</Text>
               <Text style={styles.amountHint}>
-                Paiement via mobile money avec ton opérateur (Orange, Wave,
-                Moov).
+                Paiement possible via mobile money ou en espèces.
               </Text>
             </View>
           </View>
@@ -298,12 +317,18 @@ export default function PaymentScreen() {
 
       {/* CTA principal */}
       {!paid ? (
-        <TouchableOpacity
-          style={styles.btn}
-          onPress={() => setPayModalVisible(true)}
-        >
-          <Text style={styles.btnText}>Payer maintenant</Text>
-        </TouchableOpacity>
+        cashPending ? (
+          <View style={[styles.btn, { backgroundColor: "#607D8B" }]}>
+            <Text style={styles.btnText}>En attente confirmation opérateur</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.btn}
+            onPress={() => setPayModalVisible(true)}
+          >
+            <Text style={styles.btnText}>Choisir le paiement</Text>
+          </TouchableOpacity>
+        )
       ) : (
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: "#4CAF50" }]}
@@ -347,7 +372,7 @@ export default function PaymentScreen() {
           <View style={[styles.modalContent, { maxHeight: screenHeight * 0.82 }]}>
             <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Paiement mobile money</Text>
+              <Text style={styles.modalTitle}>Choix du paiement</Text>
               <TouchableOpacity
                 onPress={() => !loading && setPayModalVisible(false)}
               >
@@ -356,74 +381,120 @@ export default function PaymentScreen() {
             </View>
 
             <Text style={styles.modalText}>
-              Entre ton numéro de téléphone et choisis ton opérateur pour
-              confirmer le paiement.
+              Choisis le mode de paiement, puis confirme.
             </Text>
 
-            <Text style={styles.modalLabel}>Numéro de téléphone</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="phone-pad"
-              placeholder="Ex : 77 12 34 56"
-              value={phone}
-              onChangeText={setPhone}
-            />
-
-            <Text style={[styles.modalLabel, { marginTop: 12 }]}>
-              Opérateur
-            </Text>
+            <Text style={styles.modalLabel}>Mode de paiement</Text>
             <View style={styles.operatorRow}>
               <TouchableOpacity
                 style={[
                   styles.operatorChip,
-                  operator === "orange" && styles.operatorChipActiveOrange,
+                  paymentMethod === "mobile_money" && styles.operatorChipActiveWave,
                 ]}
-                onPress={() => setOperator("orange")}
+                onPress={() => setPaymentMethod("mobile_money")}
               >
                 <Text
                   style={[
                     styles.operatorChipText,
-                    operator === "orange" && styles.operatorChipTextActive,
+                    paymentMethod === "mobile_money" && styles.operatorChipTextActive,
                   ]}
                 >
-                  Orange Money
+                  Mobile money
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.operatorChip,
-                  operator === "wave" && styles.operatorChipActiveWave,
+                  paymentMethod === "cash" && styles.operatorChipActiveMoov,
                 ]}
-                onPress={() => setOperator("wave")}
+                onPress={() => setPaymentMethod("cash")}
               >
                 <Text
                   style={[
                     styles.operatorChipText,
-                    operator === "wave" && styles.operatorChipTextActive,
+                    paymentMethod === "cash" && styles.operatorChipTextActive,
                   ]}
                 >
-                  Wave
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.operatorChip,
-                  operator === "moov" && styles.operatorChipActiveMoov,
-                ]}
-                onPress={() => setOperator("moov")}
-              >
-                <Text
-                  style={[
-                    styles.operatorChipText,
-                    operator === "moov" && styles.operatorChipTextActive,
-                  ]}
-                >
-                  Moov
+                  Espèces
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {paymentMethod === "cash" && (
+              <View style={styles.cashInfoBox}>
+                <Text style={styles.cashInfoText}>
+                  Paiement en espèces à la livraison/service terminé. L'opérateur confirmera ensuite la réception.
+                </Text>
+              </View>
+            )}
+
+            {paymentMethod === "mobile_money" && (
+              <>
+                <Text style={styles.modalLabel}>Numéro de téléphone</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="phone-pad"
+                  placeholder="Ex : 77 12 34 56"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
+
+                <Text style={[styles.modalLabel, { marginTop: 12 }]}>Opérateur</Text>
+                <View style={styles.operatorRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.operatorChip,
+                      operator === "orange" && styles.operatorChipActiveOrange,
+                    ]}
+                    onPress={() => setOperator("orange")}
+                  >
+                    <Text
+                      style={[
+                        styles.operatorChipText,
+                        operator === "orange" && styles.operatorChipTextActive,
+                      ]}
+                    >
+                      Orange Money
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.operatorChip,
+                      operator === "wave" && styles.operatorChipActiveWave,
+                    ]}
+                    onPress={() => setOperator("wave")}
+                  >
+                    <Text
+                      style={[
+                        styles.operatorChipText,
+                        operator === "wave" && styles.operatorChipTextActive,
+                      ]}
+                    >
+                      Wave
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.operatorChip,
+                      operator === "moov" && styles.operatorChipActiveMoov,
+                    ]}
+                    onPress={() => setOperator("moov")}
+                  >
+                    <Text
+                      style={[
+                        styles.operatorChipText,
+                        operator === "moov" && styles.operatorChipTextActive,
+                      ]}
+                    >
+                      Moov
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             {formError && (
               <Text style={styles.formError}>{formError}</Text>
@@ -440,7 +511,9 @@ export default function PaymentScreen() {
               {loading ? (
                 <Loader />
               ) : (
-                <Text style={styles.modalBtnText}>Valider le paiement</Text>
+                <Text style={styles.modalBtnText}>
+                  {paymentMethod === "cash" ? "Valider et attendre l'opérateur" : "Valider le paiement"}
+                </Text>
               )}
             </TouchableOpacity>
             </ScrollView>
@@ -594,6 +667,21 @@ const styles = StyleSheet.create({
   amountHint: {
     fontSize: 11,
     color: "#8D6E63",
+  },
+  cashInfoBox: {
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: "#FFF8E1",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FBC02D",
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+  },
+  cashInfoText: {
+    color: "#8D6E63",
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   btn: {

@@ -147,10 +147,21 @@ const mapStatus = (path, status, ignore = STATUS_IGNORE) => {
   return `${path}${joiner}status=${encodeURIComponent(value)}`;
 };
 
+const appendQuery = (path, key, value, ignore = STATUS_IGNORE) => {
+  const v = String(value ?? "").trim();
+  if (!v) return path;
+  if (ignore.has(v.toLowerCase())) return path;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${path}${joiner}${encodeURIComponent(key)}=${encodeURIComponent(v)}`;
+};
+
 export const ADMIN_API = {
   withdrawals: (status) => apiUrl(mapStatus("/admin/withdrawals", status)),
   withdrawalStatus: (id) => apiUrl(`/admin/withdrawals/${id}/status`),
-  transactions: (status) => apiUrl(mapStatus("/admin/transactions", status)),
+  transactions: (status, method = "") => {
+    const withStatus = mapStatus("/admin/transactions", status);
+    return apiUrl(appendQuery(withStatus, "method", method));
+  },
   transactionConfirm: (id) => apiUrl(`/admin/transactions/${id}/confirm`),
   requests: (query = "") => apiUrl(`/admin/requests${query}`),
   dashboard: () => apiUrl("/admin/dashboard"),

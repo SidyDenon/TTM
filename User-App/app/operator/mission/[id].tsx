@@ -92,6 +92,9 @@ type Mission = {
   dest_lat?: number | null;
   dest_lng?: number | null;
   operator_id?: number | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  cash_received_by_operator?: boolean;
 };
 
 type Event = {
@@ -405,6 +408,11 @@ export default function MissionSuivi() {
           status: m.status,
           photos: m.photos || [],
           operator_id: m.operator_id ?? null,
+          payment_status: m.payment_status ?? null,
+          payment_method: m.payment_method ?? null,
+          cash_received_by_operator:
+            Number(m.cash_received_by_operator || 0) === 1 ||
+            m.cash_received_by_operator === true,
           estimated_price: m.estimated_price != null ? Number(m.estimated_price) : undefined,
           preview_final_price:
             m.preview_final_price != null ? Number(m.preview_final_price) : null,
@@ -803,9 +811,20 @@ export default function MissionSuivi() {
 
       Toast.show({
         type: "success",
-        text1: "Paiement espèces confirmé",
-        text2: "Le client a été notifié.",
+        text1: "Réception espèces confirmée",
+        text2: "Client notifié, validation admin en attente.",
       });
+
+      setMission((prev) =>
+        prev
+          ? {
+              ...prev,
+              payment_status: "en_attente",
+              payment_method: "cash",
+              cash_received_by_operator: true,
+            }
+          : prev
+      );
 
       setTimeout(() => router.replace("/operator"), 1000);
     } catch (err) {
@@ -1412,16 +1431,47 @@ export default function MissionSuivi() {
             )}
 
             {mission.status === "terminee" && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: "#2E7D32", opacity: confirmingCash ? 0.7 : 1 }]}
-                onPress={confirmCashPayment}
-                disabled={confirmingCash}
-              >
-                <MaterialIcons name="payments" size={22} color="#fff" />
-                <Text style={styles.btnText}>
-                  {confirmingCash ? "Confirmation..." : "Confirmer paiement espèces"}
-                </Text>
-              </TouchableOpacity>
+              <>
+                {String(mission.payment_method || "").toLowerCase() === "cash" &&
+                String(mission.payment_status || "").toLowerCase() !== "confirmée" &&
+                !mission.cash_received_by_operator ? (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: "#2E7D32", opacity: confirmingCash ? 0.7 : 1 }]}
+                    onPress={confirmCashPayment}
+                    disabled={confirmingCash}
+                  >
+                    <MaterialIcons name="payments" size={22} color="#fff" />
+                    <Text style={styles.btnText}>
+                      {confirmingCash ? "Confirmation..." : "Confirmer paiement espèces"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {String(mission.payment_method || "").toLowerCase() === "cash" &&
+                String(mission.payment_status || "").toLowerCase() === "confirmée" ? (
+                  <View style={[styles.actionBtn, { backgroundColor: "#1B5E20" }]}>
+                    <MaterialIcons name="verified" size={22} color="#fff" />
+                    <Text style={styles.btnText}>Paiement espèces déjà confirmé</Text>
+                  </View>
+                ) : null}
+
+                {String(mission.payment_method || "").toLowerCase() === "cash" &&
+                String(mission.payment_status || "").toLowerCase() !== "confirmée" &&
+                mission.cash_received_by_operator ? (
+                  <View style={[styles.actionBtn, { backgroundColor: "#546E7A" }]}>
+                    <MaterialIcons name="hourglass-top" size={22} color="#fff" />
+                    <Text style={styles.btnText}>Réception espèces signalée, attente validation admin</Text>
+                  </View>
+                ) : null}
+
+                {(!mission.payment_method ||
+                  String(mission.payment_method).toLowerCase() === "mobile_money") && (
+                  <View style={[styles.actionBtn, { backgroundColor: "#607D8B" }]}>
+                    <MaterialIcons name="hourglass-top" size={22} color="#fff" />
+                    <Text style={styles.btnText}>En attente du choix de paiement client</Text>
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}

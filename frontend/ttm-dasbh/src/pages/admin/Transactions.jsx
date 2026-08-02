@@ -12,6 +12,7 @@ export default function Transactions() {
 
   const [transactions, setTransactions] = useState([]);
   const [statusFilter, setStatusFilter] = useState("toutes");
+  const [methodFilter, setMethodFilter] = useState("toutes");
   const [monthFilter, setMonthFilter] = useState("all");
   const [stats, setStats] = useState({
     total: 0,
@@ -37,6 +38,12 @@ export default function Transactions() {
       maximumFractionDigits: 0,
     });
 
+  const methodLabel = (method) => {
+    const normalized = String(method || "mobile_money").toLowerCase();
+    if (normalized === "cash") return "Especes";
+    return "Mobile Money";
+  };
+
   const showSystemNotification = (title, body) => {
     if (
       typeof Notification !== "undefined" &&
@@ -61,7 +68,7 @@ export default function Transactions() {
 
     setLoading(true);
     try {
-      const res = await fetch(ADMIN_API.transactions(statusFilter), {
+      const res = await fetch(ADMIN_API.transactions(statusFilter, methodFilter), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -120,11 +127,18 @@ export default function Transactions() {
 
     const handleNewTransaction = (data) => {
       console.log(" Nouvelle transaction :", data);
+      const isCash = String(data?.payment_method || "").toLowerCase() === "cash";
       showSystemNotification(
         "🧾 Nouvelle transaction",
-        `Mission #${data.request_id} terminée`
+        isCash
+          ? `Paiement en especes declare pour mission #${data.request_id}`
+          : `Mission #${data.request_id} terminee`
       );
-      toast.info(`Nouvelle mission terminée (#${data.request_id})`);
+      toast.info(
+        isCash
+          ? `Paiement en especes declare (#${data.request_id})`
+          : `Nouvelle mission terminee (#${data.request_id})`
+      );
       if (canTxView) loadTransactions();
     };
 
@@ -151,12 +165,12 @@ export default function Transactions() {
       socket.off("transaction_confirmed", handleTransactionConfirmed);
       socket.off("transaction_updated", handleTransactionUpdated);
     };
-  }, [token, canTxView, statusFilter]);
+  }, [token, canTxView, statusFilter, methodFilter]);
 
   useEffect(() => {
     if (!token) return;
     loadTransactions();
-  }, [token, statusFilter, canTxView]);
+  }, [token, statusFilter, methodFilter, canTxView]);
 
   const filteredTransactions =
     monthFilter === "all"
@@ -195,6 +209,7 @@ export default function Transactions() {
             <td>#${t.id}</td>
             <td>${t.operator_name || "—"}</td>
             <td>${t.request_id ? `#${t.request_id}` : "—"}</td>
+            <td>${methodLabel(t.payment_method)}</td>
             <td>${formatAmount(t.amount)} ${t.currency || ""}</td>
             <td>${t.status || ""}</td>
             <td>${t.confirmed_by_admin || "—"}</td>
@@ -220,7 +235,7 @@ export default function Transactions() {
           <table>
             <thead>
               <tr>
-                <th>#ID</th><th>Opérateur</th><th>Mission</th><th>Montant</th><th>Statut</th><th>Confirmée par</th><th>Date</th>
+                <th>#ID</th><th>Operateur</th><th>Mission</th><th>Methode</th><th>Montant</th><th>Statut</th><th>Confirmee par</th><th>Date</th>
               </tr>
             </thead>
             <tbody>${rowsHtml}</tbody>
@@ -304,6 +319,20 @@ export default function Transactions() {
             <option value="toutes">Toutes</option>
             <option value="en_attente">En attente</option>
             <option value="confirmée">Confirmées</option>
+          </select>
+          <select
+            value={methodFilter}
+            onChange={(e) => setMethodFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border"
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-color)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <option value="toutes">Toutes methodes</option>
+            <option value="mobile_money">Mobile Money</option>
+            <option value="cash">Especes</option>
           </select>
           <button
             onClick={loadTransactions}
@@ -411,6 +440,7 @@ export default function Transactions() {
                 <th className="px-3 py-2 text-left">#ID</th>
                 <th className="px-3 py-2 text-left">Opérateur</th>
                 <th className="px-3 py-2 text-left">Mission</th>
+                <th className="px-3 py-2 text-left">Méthode</th>
                 <th className="px-3 py-2 text-left">Montant</th>
                 <th className="px-3 py-2 text-left">Statut</th>
                 <th className="px-3 py-2 text-left">Confirmée par</th>
@@ -433,6 +463,27 @@ export default function Transactions() {
                   </td>
                   <td className="px-3 py-2" style={{ color: "var(--text-color)" }}>
                     {t.request_id ? `#${t.request_id}` : "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className="px-2 py-1 rounded-full text-xs font-semibold"
+                      style={{
+                        background:
+                          String(t.payment_method || "mobile_money").toLowerCase() === "cash"
+                            ? "rgba(251,146,60,0.18)"
+                            : "rgba(59,130,246,0.18)",
+                        color:
+                          String(t.payment_method || "mobile_money").toLowerCase() === "cash"
+                            ? "#c2410c"
+                            : "#1d4ed8",
+                        border:
+                          String(t.payment_method || "mobile_money").toLowerCase() === "cash"
+                            ? "1px solid rgba(194,65,12,0.25)"
+                            : "1px solid rgba(29,78,216,0.25)",
+                      }}
+                    >
+                      {methodLabel(t.payment_method)}
+                    </span>
                   </td>
                   <td
                     className="px-3 py-2"

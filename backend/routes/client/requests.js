@@ -876,7 +876,26 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
           );
         }
       }
+      // Ensure payment_method column exists
+      try {
+        await req.db.query(
+          "SELECT payment_method FROM transactions LIMIT 1"
+        );
+      } catch (e) {
+        if (e?.code === "ER_BAD_FIELD_ERROR") {
+          await req.db.query(
+            "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
+          );
+        }
+      }
       const { id } = req.params;
+      const rawMethod = String(req.body?.payment_method || "").toLowerCase().trim();
+      if (!rawMethod || !["mobile_money", "cash"].includes(rawMethod)) {
+        return res.status(400).json({
+          error: "payment_method est requis (mobile_money ou cash)",
+        });
+      }
+      const paymentMethod = rawMethod;
       const [[mission]] = await req.db.query(
         "SELECT * FROM requests WHERE id = ? AND user_id = ? LIMIT 1",
         [id, req.user.id]
@@ -900,9 +919,9 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
         const currency = mission.currency || "FCFA";
         const commissionPercent = await getCommissionPercent(req.db);
         const [result] = await req.db.query(
-          `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, created_at)
-           VALUES (?, ?, ?, ?, 'en_attente', ?, NOW())`,
-          [mission.operator_id, id, gross, currency, commissionPercent]
+          `INSERT INTO transactions (operator_id, request_id, amount, currency, status, commission_percent, payment_method, created_at)
+           VALUES (?, ?, ?, ?, 'en_attente', ?, ?, NOW())`,
+          [mission.operator_id, id, gross, currency, commissionPercent, paymentMethod]
         );
         tx = {
           id: result.insertId,
@@ -911,6 +930,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
           amount: gross,
           currency,
           status: "en_attente",
+          payment_method: paymentMethod,
         };
         const ioTmp = getIo(req);
         if (ioTmp) {
@@ -921,6 +941,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
             amount: gross,
             currency,
             status: "en_attente",
+            payment_method: paymentMethod,
             created_at: new Date().toISOString(),
             message: `Mission #${id} confirmée par le client.`,
           });
@@ -930,8 +951,11 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
         return res.status(400).json({ error: "Cette mission est déjà confirmée." });
       }
 
-      if (tx.status !== "en_attente") {
-        await req.db.query("UPDATE transactions SET status = 'en_attente' WHERE id = ?", [tx.id]);
+      if (tx.status !== "en_attente" || tx.payment_method !== paymentMethod) {
+        await req.db.query(
+          "UPDATE transactions SET status = 'en_attente', payment_method = ? WHERE id = ?",
+          [paymentMethod, tx.id]
+        );
       }
 
       const io = getIo(req);
@@ -942,6 +966,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
           action: "updated",
           id: tx.id,
           status: "en_attente",
+          payment_method: paymentMethod,
           message: `Paiement client mission #${id} prêt à être validé.`,
         });
       }
@@ -953,14 +978,21 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
             "SELECT notification_token, name FROM users WHERE id = ? LIMIT 1",
             [mission.operator_id]
           );
-          const title = "Paiement client validé";
-          const body = `Le client a validé la mission #${id}.`;
+          const title =
+            paymentMethod === "cash"
+              ? "Paiement espèces à confirmer"
+              : "Paiement client validé";
+          const body =
+            paymentMethod === "cash"
+              ? `Le client a choisi paiement espèces pour la mission #${id}. Confirmez \"argent reçu\".`
+              : `Le client a validé la mission #${id}.`;
 
           // Socket: doit partir même si le token push est absent
           req.app?.get?.("io")?.to(`operator:${Number(mission.operator_id)}`).emit("payment_confirmed", {
             request_id: Number(id),
             transaction_id: tx.id,
             status: "en_attente",
+            payment_method: paymentMethod,
             message: body,
           });
 
@@ -975,8 +1007,11 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       }
 
       res.json({
-        message: "Paiement transmis, en attente de validation ",
-        data: { transaction_id: tx.id, status: "en_attente" },
+        message:
+          paymentMethod === "cash"
+            ? "Paiement espèces enregistré, en attente de confirmation opérateur"
+            : "Paiement transmis, en attente de validation ",
+        data: { transaction_id: tx.id, status: "en_attente", payment_method: paymentMethod },
       });
     } catch (err) {
       console.error(" Erreur POST /requests/:id/confirm-payment:", err);

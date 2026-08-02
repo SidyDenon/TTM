@@ -259,7 +259,7 @@ const closeMenu = () => {
     return () => loop.stop();
   }, [missionBounce]);
 
-  // ✅ Vérifie mission active à chaque focus
+  //  Vérifie mission active à chaque focus
   useFocusEffect(
     React.useCallback(() => {
       let cancelled = false;
@@ -297,7 +297,7 @@ const closeMenu = () => {
     }, [token, router])
   );
 
-  // ✅ Recharge le statut des alertes à chaque retour sur l'écran
+  //  Recharge le statut des alertes à chaque retour sur l'écran
   useFocusEffect(
     React.useCallback(() => {
       let cancelled = false;
@@ -344,12 +344,12 @@ const closeMenu = () => {
         await syncOperatorLocation(token, coords);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn("⚠️ Sync profil opérateur:", msg);
+        console.warn(" Sync profil opérateur:", msg);
       }
     },
     [token]
   );
-// 🔗 Connexion socket.io
+//  Connexion socket.io
 useEffect(() => {
   if (isConnected && user) {
     // socket already available from context
@@ -832,20 +832,20 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
       }
 
       if (Platform.OS === "android") {
-        ToastAndroid.show("✅ Mission acceptee !", ToastAndroid.SHORT);
+        ToastAndroid.show(" Mission acceptee !", ToastAndroid.SHORT);
       } else {
-        Alert.alert("✅ Mission acceptee !");
+        Alert.alert(" Mission acceptee !");
       }
 
-      // ✅ Activation du tracking
+      //  Activation du tracking
       setActiveMissionId(id);
 
-      // ✅ Mise à jour locale
+      //  Mise à jour locale
       setMissions((prev) =>
         prev.map((m) => (m.id === id ? { ...m, ...data.mission, status: "active" } : m))
       );
 
-      // ✅ Redirection vers la page de mission
+      //  Redirection vers la page de mission
       router.replace(`/operator/mission/${id}`);
     } catch (err) {
       console.error("❌ Erreur acceptation mission:", err);
@@ -882,7 +882,7 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
         <LottieView source={logoutAnim} autoPlay loop style={styles.logoutAnim} />
       </View>
     )}
-    {/* ✅ Barre top avec logo + icône profil */}
+    {/*  Barre top avec logo + icône profil */}
     <View style={styles.topBar}>
       <Text style={styles.logo}>
         <Text style={{ color: "#E53935" }}>TT</Text>
@@ -955,7 +955,7 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
 
 
 
-    {/* ✅ Bottom Sheet missions (Reanimated, 10%/60%) */}
+    {/*  Bottom Sheet missions (Reanimated, 10%/60%) */}
     <GestureDetector gesture={panGesture}>
       <Animated.View style={[styles.panel, sheetStyle]}>
       <View style={styles.handle} />
@@ -1089,7 +1089,7 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
       </Animated.View>
     </GestureDetector>
 
-    {/* ✅ Menu latéral */}
+    {/*  Menu latéral */}
     {menuVisible && (
       <RNAnimated.View
         style={[styles.menuOverlay, { opacity: fadeAnim }]} // overlay fade in/out
@@ -1201,7 +1201,7 @@ const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
   map: { flex: 1 },
 
-  // ✅ Top bar
+  //  Top bar
   topBar: {
     position: "absolute",
     top: 0,

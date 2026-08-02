@@ -59,7 +59,7 @@ export default (db) => {
           ORDER BY u.created_at DESC
         `;
         const [rows] = await req.db.query(sql);
-        res.json({ message: "Liste des opérateurs récupérée ✅", data: rows });
+        res.json({ message: "Liste des opérateurs récupérée ", data: rows });
       } catch (err) {
         console.error("❌ Erreur GET /operators:", err);
         res.status(500).json({ error: "Erreur serveur" });
@@ -129,15 +129,15 @@ export default (db) => {
             await sendMail(
               email,
               "🚚 Vos identifiants TTM",
-              `Bonjour ${name},\n\nVotre compte opérateur a été créé.\n\n📱 Téléphone: ${phone}\n🔑 Mot de passe provisoire: ${motDePasseClair}\n\n⚠️ Merci de le modifier lors de votre première connexion.\n\n🚀 L'équipe TTM`
+              `Bonjour ${name},\n\nVotre compte opérateur a été créé.\n\n📱 Téléphone: ${phone}\n🔑 Mot de passe provisoire: ${motDePasseClair}\n\n Merci de le modifier lors de votre première connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
-            console.warn("⚠️ Erreur envoi email:", mailErr.message);
+            console.warn(" Erreur envoi email:", mailErr.message);
           }
         }
 
         res.status(201).json({
-          message: "Opérateur créé ✅",
+          message: "Opérateur créé ",
           motDePasse: motDePasseClair,
           data: {
             id: userId,
@@ -244,7 +244,7 @@ export default (db) => {
           operator_id: id,
         });
 
-        res.json({ message: "Opérateur mis à jour ✅" });
+        res.json({ message: "Opérateur mis à jour " });
       } catch (err) {
         console.error("❌ Erreur PUT /operators/:id:", err);
         res.status(500).json({ error: "Erreur serveur" });
@@ -288,7 +288,7 @@ export default (db) => {
           operator_id: id,
         });
 
-        res.json({ message: `Opérateur #${id} supprimé ✅` });
+        res.json({ message: `Opérateur #${id} supprimé ` });
       } catch (err) {
         console.error("❌ Erreur DELETE /operators/:id:", err);
         res.status(500).json({ error: "Erreur serveur" });
@@ -327,17 +327,17 @@ export default (db) => {
             await sendMail(
               user.email,
               "🔑 Réinitialisation du mot de passe TTM",
-              `Bonjour ${user.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n⚠️ Merci de le modifier lors de votre prochaine connexion.\n\n🚀 L'équipe TTM`
+              `Bonjour ${user.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
-            console.warn("⚠️ Erreur email:", mailErr.message);
+            console.warn(" Erreur email:", mailErr.message);
           }
         }
 
         res.json({
           message: user.email
-            ? "Mot de passe réinitialisé et envoyé par email ✅"
-            : "Mot de passe réinitialisé ✅ (pas d’email trouvé)",
+            ? "Mot de passe réinitialisé et envoyé par email "
+            : "Mot de passe réinitialisé  (pas d’email trouvé)",
           motDePasse: nouveauMdp,
         });
       } catch (err) {

@@ -69,7 +69,7 @@ const logAdminEvent = async (db, adminId, action, meta = {}) => {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (rbac.roles):", e?.message || e);
+    console.warn(" log admin_events (rbac.roles):", e?.message || e);
   }
 };
 
@@ -81,7 +81,7 @@ export default (db) => {
   // GET /api/admin/rbac/roles
   router.get("/", checkPermission("rbac_roles_view"), async (req, res) => {
     try {
-      // ⚠️ entourer `system` avec des backticks
+      //  entourer `system` avec des backticks
       const [rows] = await req.db.query(
         "SELECT id, name, slug, `system`, permissions, created_at FROM admin_roles ORDER BY id DESC"
       );
@@ -95,7 +95,7 @@ export default (db) => {
         created_at: r.created_at,
       }));
 
-      res.json({ message: "Rôles récupérés ✅", data, catalog: CATALOG });
+      res.json({ message: "Rôles récupérés ", data, catalog: CATALOG });
     } catch (e) {
       console.error("❌ GET /rbac/roles:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -130,7 +130,7 @@ export default (db) => {
         permissions_count: Array.isArray(permissions) ? permissions.length : normalizePerms(permissions).length,
       });
 
-      res.status(201).json({ message: "Rôle créé ✅", id: r.insertId });
+      res.status(201).json({ message: "Rôle créé ", id: r.insertId });
     } catch (e) {
       console.error("❌ POST /rbac/roles:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -176,7 +176,7 @@ export default (db) => {
         permissions_count: normalizePerms(permissions ?? role.permissions).length,
       });
 
-      res.json({ message: "Rôle mis à jour ✅" });
+      res.json({ message: "Rôle mis à jour " });
     } catch (e) {
       console.error("❌ PUT /rbac/roles/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -200,7 +200,7 @@ export default (db) => {
         name: role.name,
         slug: role.slug,
       });
-      res.json({ message: "Rôle supprimé ✅" });
+      res.json({ message: "Rôle supprimé " });
     } catch (e) {
       console.error("❌ DELETE /rbac/roles/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });

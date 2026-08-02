@@ -9,7 +9,7 @@ export default function Protected({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !token) {
-      router.replace("/login"); // ✅ redirection après rendu
+      router.replace("/login"); //  redirection après rendu
     }
   }, [loading, token]);
 

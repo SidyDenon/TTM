@@ -28,7 +28,7 @@ async function test() {
   }
 
   const client = users[0];
-  console.log(`\n✅ Client trouvé : ${client.name} (ID: ${client.id})`);
+  console.log(`\n Client trouvé : ${client.name} (ID: ${client.id})`);
   console.log(`   Email: ${client.email}`);
   console.log(`   Phone: ${client.phone}`);
   console.log(`   Role: ${client.role}`);
@@ -42,7 +42,7 @@ async function test() {
       "Ceci est un email de test.",
       "<h2>Test Email</h2><p>Si vous lisez ceci, le système d'email fonctionne!</p>"
     );
-    console.log("✅ Email envoyé avec succès!");
+    console.log(" Email envoyé avec succès!");
     console.log("Réponse:", result);
   } catch (err) {
     console.error("❌ ERREUR lors de l'envoi:", err.message);

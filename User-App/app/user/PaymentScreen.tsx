@@ -38,7 +38,7 @@ export default function PaymentScreen() {
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
 
-  // 🔐 Modal paiement
+  //  Modal paiement
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [phone, setPhone] = useState("");
   const [operator, setOperator] = useState<OperatorType | null>(null);
@@ -146,7 +146,7 @@ export default function PaymentScreen() {
     setPaid(true);
     setPayModalVisible(false);
     Alert.alert(
-      "✅ Paiement transmis",
+      " Paiement transmis",
       "Ton paiement est envoyé. Il sera validé par notre équipe."
     );
   } catch (err: any) {
@@ -218,7 +218,7 @@ export default function PaymentScreen() {
           style={styles.lottie}
         />
         <Text style={styles.bannerTitle}>
-          {paid ? "Paiement confirmé ✅" : "Mission terminée 🎉"}
+          {paid ? "Paiement confirmé " : "Mission terminée 🎉"}
         </Text>
         <Text style={styles.bannerText}>
           {paid
@@ -306,7 +306,7 @@ export default function PaymentScreen() {
         </TouchableOpacity>
       )}
 
-      {/* 🔐 MODAL DE PAIEMENT */}
+      {/*  MODAL DE PAIEMENT */}
       <Modal
         visible={payModalVisible}
         transparent
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // 🔐 Modal paiement
+  //  Modal paiement
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

@@ -121,7 +121,7 @@ const getOilModelPriceByLiters = (
   return null;
 };
 
-// 💰 Formatage des prix en FCFA, sans .00
+//  Formatage des prix en FCFA, sans .00
 const formatPrice = (price: number | string): string => {
   const numeric = typeof price === "string" ? Number(price) : price;
   if (Number.isNaN(numeric)) return `${price} FCFA`;

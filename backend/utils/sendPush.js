@@ -94,7 +94,7 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
         body,
       });
     } else {
-      console.log("⚠️ Erreur API Expo :", result);
+      console.log(" Erreur API Expo :", result);
     }
   } catch (err) {
     console.error("❌ Erreur envoi notification Expo :", err);

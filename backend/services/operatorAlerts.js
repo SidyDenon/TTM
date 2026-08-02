@@ -252,7 +252,7 @@ async function runPendingMissionAlerts(db) {
         zones,
       });
     } catch (err) {
-      console.warn("⚠️ Push missions_pending échoué:", err?.message || err);
+      console.warn(" Push missions_pending échoué:", err?.message || err);
     }
   }
 }
@@ -263,7 +263,7 @@ export function startOperatorAlerts(db) {
   }
   return setInterval(() => {
     runPendingMissionAlerts(db).catch((err) =>
-      console.warn("⚠️ runPendingMissionAlerts:", err?.message || err)
+      console.warn(" runPendingMissionAlerts:", err?.message || err)
     );
   }, OPERATOR_ALERT_INTERVAL_MS);
 }

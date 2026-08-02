@@ -16,7 +16,7 @@ export default function usePushNotifications() {
     }
   }, []);
 
-  // ✅ Demande la permission à l’utilisateur
+  //  Demande la permission à l’utilisateur
   const requestPermission = useCallback(async () => {
     if (!supported) return "unsupported";
     try {
@@ -29,7 +29,7 @@ export default function usePushNotifications() {
     }
   }, [supported]);
 
-  // ✅ Envoie une notification locale
+  //  Envoie une notification locale
   const sendNotification = useCallback(
     (title, options = {}) => {
       if (!supported) return console.warn("Notifications non supportées.");
@@ -47,7 +47,7 @@ export default function usePushNotifications() {
       });
 
       notif.onclick = () => {
-        console.log("🔔 Notification cliquée !");
+        console.log(" Notification cliquée !");
         if (options.onClick) options.onClick();
       };
 

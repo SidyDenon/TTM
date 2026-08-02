@@ -116,7 +116,7 @@ app.use("/api/contact/public", contactPublicRoutes(db));
 app.use("/api/operator", operatorRoutes(db));
 app.use("/api/directions", directionsRoutes());
 app.use("/api", meRoutes(db));
-// ✅ Toutes les routes /api/admin sont protégées automatiquement
+//  Toutes les routes /api/admin sont protégées automatiquement
 app.use("/api", authRoutes(db));
 
 // Routes de debug désactivées en production

@@ -13,7 +13,7 @@ async function logAdminEvent(db, adminId, action, meta = {}) {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (withdrawals):", e?.message || e);
+    console.warn(" log admin_events (withdrawals):", e?.message || e);
   }
 }
 
@@ -120,7 +120,7 @@ export default (db) => {
       }
 
       res.json({
-        message: "Liste des retraits ✅",
+        message: "Liste des retraits ",
         data: rows,
         stats: {
           total_attente,
@@ -143,7 +143,7 @@ export default (db) => {
         const { id } = req.params;
         const { status } = req.body;
 
-        // ✅ Validation stricte du statut demandé
+        //  Validation stricte du statut demandé
         if (!["approuvée", "rejetée"].includes(status)) {
           return res.status(400).json({ error: "Statut invalide" });
         }
@@ -171,7 +171,7 @@ export default (db) => {
             .json({ error: "Ce retrait a déjà été traité." });
         }
 
-        // ✅ Mise à jour en base (tolérante pour l'état initial)
+        //  Mise à jour en base (tolérante pour l'état initial)
         const [result] = await req.db.query(
           `UPDATE withdrawals
              SET status = ?, updated_at = NOW()
@@ -187,12 +187,12 @@ export default (db) => {
           });
         }
 
-        // 🔔 Notification push Expo
+        //  Notification push Expo
         if (withdrawal.notification_token) {
           const title = "💸 Mise à jour de votre retrait";
           const message =
             status === "approuvée"
-              ? `✅ Bonjour ${withdrawal.name}, votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé.`
+              ? ` Bonjour ${withdrawal.name}, votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé.`
               : `❌ Bonjour ${withdrawal.name}, votre demande de retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejetée.`;
           try {
             await sendPushNotification(
@@ -203,7 +203,7 @@ export default (db) => {
             console.log(`📲 Push envoyé à ${withdrawal.name}`);
           } catch (pushErr) {
             console.warn(
-              "⚠️ Erreur d’envoi push:",
+              " Erreur d’envoi push:",
               pushErr?.message || pushErr
             );
           }
@@ -224,7 +224,7 @@ export default (db) => {
               currency: withdrawal.currency,
               message:
                 status === "approuvée"
-                  ? `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé ✅`
+                  ? `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été approuvé `
                   : `Votre retrait de ${withdrawal.amount} ${withdrawal.currency} a été rejeté ❌`,
               updated_at: new Date().toISOString(),
             });
@@ -233,7 +233,7 @@ export default (db) => {
             );
           } else {
             console.log(
-              `⚠️ Opérateur ${withdrawal.operator_id} non connecté via socket`
+              ` Opérateur ${withdrawal.operator_id} non connecté via socket`
             );
           }
         }
@@ -251,7 +251,7 @@ export default (db) => {
           });
           console.log("📢 [SOCKET] withdrawal_updated_admin → admins");
 
-          // 🔔 Mise à jour tableau de bord (stats)
+          //  Mise à jour tableau de bord (stats)
           io.to("admins").emit("dashboard_update", {
             type: "withdrawal",
             action: "updated",
@@ -260,10 +260,10 @@ export default (db) => {
           });
         }
 
-        // ✅ Réponse
+        //  Réponse
         res.json({
           message: `Retrait #${id} ${
-            status === "approuvée" ? "approuvé ✅" : "rejeté ❌"
+            status === "approuvée" ? "approuvé " : "rejeté ❌"
           }`,
           id,
           status,

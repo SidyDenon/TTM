@@ -30,12 +30,12 @@ const emitToAdmins = (req, event, payload) => {
   try {
     const io = req.io || req.app?.get?.("io");
     if (!io) {
-      console.warn("⚠️ io non injecté sur req (req.io / req.app) pour l'événement", event);
+      console.warn(" io non injecté sur req (req.io / req.app) pour l'événement", event);
       return;
     }
     io.to("admins").emit(event, payload);
   } catch (err) {
-    console.warn("⚠️ Impossible d'émettre l'événement admin:", event, err?.message || err);
+    console.warn(" Impossible d'émettre l'événement admin:", event, err?.message || err);
   }
 };
 
@@ -100,7 +100,7 @@ export default (db, io, emitMissionEvent) => {
       await req.db.query(sql, [...params, id]);
 
       return res.json({
-        message: "Profil mis à jour ✅",
+        message: "Profil mis à jour ",
         user: { id, name, email, phone, ...(avatarCol ? { avatar_url } : {}) },
       });
     } catch (err) {
@@ -115,7 +115,7 @@ export default (db, io, emitMissionEvent) => {
   router.get("/utilisateurs", checkPermission("users_view"), async (req, res) => {
     try {
       const [rows] = await req.db.query("SELECT id, name, phone, role FROM users");
-      res.json({ message: "Liste des utilisateurs récupérée ✅", data: rows });
+      res.json({ message: "Liste des utilisateurs récupérée ", data: rows });
     } catch (err) {
       console.error("❌ Erreur GET /utilisateurs:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -145,7 +145,7 @@ export default (db, io, emitMissionEvent) => {
       await req.db.query("UPDATE requests SET estimated_price = ? WHERE id = ?", [price, id]);
 
       res.json({
-        message: "Prix estimé calculé ✅",
+        message: "Prix estimé calculé ",
         data: { demandeId: id, prixEstime: price, distance },
       });
     } catch (err) {
@@ -234,7 +234,7 @@ export default (db, io, emitMissionEvent) => {
           id: Number(id),
         });
         dashboardCache = { data: null, lastFetch: 0 }; // invalidate cache
-        res.json({ message: "Mission publiee ✅", data: payload });
+        res.json({ message: "Mission publiee ", data: payload });
       } catch (err) {
         console.error("❌ Erreur POST /requests/:id/publier:", err);
         res.status(500).json({ error: "Erreur serveur" });
@@ -292,7 +292,7 @@ export default (db, io, emitMissionEvent) => {
           id: Number(id),
         });
         dashboardCache = { data: null, lastFetch: 0 };
-        res.json({ message: "Mission annulee par l’admin ✅", data: payload });
+        res.json({ message: "Mission annulee par l’admin ", data: payload });
       } catch (err) {
         console.error("❌ Erreur PATCH /requests/:id/annuler:", err);
         res.status(500).json({ error: "Erreur serveur" });
@@ -301,7 +301,7 @@ export default (db, io, emitMissionEvent) => {
   );
 
   // =========================================================
-  // ✅ ROUTE PRINCIPALE ATTENDUE PAR LE FRONT
+  //  ROUTE PRINCIPALE ATTENDUE PAR LE FRONT
   // GET /api/admin/dashboard
   // =========================================================
   router.get("/", checkPermission("dashboard_view"), async (req, res) => {
@@ -309,7 +309,7 @@ export default (db, io, emitMissionEvent) => {
     // cache 30s
     if (dashboardCache.data && now - dashboardCache.lastFetch < 30000) {
       return res.json({
-        message: "Statistiques dashboard (cache) ✅",
+        message: "Statistiques dashboard (cache) ",
         data: dashboardCache.data,
         cached: true,
       });
@@ -353,7 +353,7 @@ export default (db, io, emitMissionEvent) => {
 
       dashboardCache = { data, lastFetch: now };
       res.json({
-        message: "Statistiques dashboard (live) ✅",
+        message: "Statistiques dashboard (live) ",
         data,
         cached: false,
       });
@@ -385,7 +385,7 @@ export default (db, io, emitMissionEvent) => {
       const missions = rows.map((r) => Number(r.missions || 0));
 
       res.json({
-        message: "Revenus sur 7 jours ✅",
+        message: "Revenus sur 7 jours ",
         data: { labels, revenues, missions },
       });
     } catch (err) {
@@ -413,7 +413,7 @@ export default (db, io, emitMissionEvent) => {
         LIMIT 5
       `);
 
-        res.json({ message: "Top 5 services ✅", data: rows });
+        res.json({ message: "Top 5 services ", data: rows });
       } catch (err) {
         console.error("❌ Erreur GET /top-services:", err);
         res.status(500).json({ error: "Erreur serveur" });

@@ -14,7 +14,7 @@ import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
+import { can, isSuper } from "../../utils/rbac"; //  RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Settings() {
@@ -370,7 +370,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur chargement config");
 
-      // ✅ map sur la réponse du backend
+      //  map sur la réponse du backend
       setCommission(String(data.commission_percent ?? "0"));
       setTowingPricePerKm(String(data.towing_price_per_km ?? "0"));
       setTowingBasePrice(String(data.towing_base_price ?? "0"));
@@ -433,7 +433,7 @@ export default function Settings() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour profil");
-      toast.success("Profil mis à jour ✅");
+      toast.success("Profil mis à jour ");
       updateUser({
         name: profile.name,
         email: profile.email,
@@ -476,7 +476,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur changement mot de passe");
-      toast.success("Mot de passe mis à jour ✅");
+      toast.success("Mot de passe mis à jour ");
       setPwd({ current: "", next: "", confirm: "" });
       setClosingPasswordModal(true);
       setTimeout(() => {
@@ -511,7 +511,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour prix");
-      toast.success(`Prix de "${srv.name}" mis à jour ✅`);
+      toast.success(`Prix de "${srv.name}" mis à jour `);
       setServices((prev) =>
         prev.map((s) => (s.id === srv.id ? { ...s, price } : s))
       );
@@ -548,8 +548,8 @@ export default function Settings() {
 
       toast.success(
         next === 1
-          ? `Service "${srv.name}" affiché ✅`
-          : `Service "${srv.name}" masqué ✅`
+          ? `Service "${srv.name}" affiché `
+          : `Service "${srv.name}" masqué `
       );
 
       setServices((prev) =>
@@ -592,8 +592,8 @@ export default function Settings() {
 
       toast.success(
         next === 1
-          ? `Service "${srv.name}" passé en interne ✅`
-          : `Service "${srv.name}" passé en public ✅`
+          ? `Service "${srv.name}" passé en interne `
+          : `Service "${srv.name}" passé en public `
       );
 
       setServices((prev) =>
@@ -630,7 +630,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur suppression service");
-      toast.success(`Service "${srv.name}" supprimé ✅`);
+      toast.success(`Service "${srv.name}" supprimé `);
       setServices((prev) => sortPinnedServices(prev.filter((s) => s.id !== srv.id)));
       return true;
     } catch (e) {
@@ -678,7 +678,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
-      toast.success("Service ajouté ✅");
+      toast.success("Service ajouté ");
       setAddForm({ name: "", price: "", icon: "", is_internal: false });
       setIconPickerOpen(false);
       setClosingAddServiceModal(true);
@@ -738,7 +738,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour icône");
-      toast.success(`Icône de "${editingServiceIcon.name}" mise à jour ✅`);
+      toast.success(`Icône de "${editingServiceIcon.name}" mise à jour `);
       setServices((prev) =>
         sortPinnedServices(
           prev.map((s) =>
@@ -818,7 +818,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour modèle d'huile");
-      toast.success("Modèle d'huile mis à jour ✅");
+      toast.success("Modèle d'huile mis à jour ");
       setOilModels((prev) =>
         prev.map((m) =>
           m.id === model.id
@@ -854,7 +854,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur suppression modèle d'huile");
-      toast.success("Modèle d'huile supprimé ✅");
+      toast.success("Modèle d'huile supprimé ");
       setOilModels((prev) => prev.filter((m) => m.id !== id));
     } catch (e) {
       toast.error(e.message);
@@ -905,7 +905,7 @@ export default function Settings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout modèle d'huile");
-      toast.success("Modèle d'huile ajouté ✅");
+      toast.success("Modèle d'huile ajouté ");
       setNewOilModel({
         name: "",
         price_1l: "",
@@ -976,7 +976,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur mise à jour configuration");
-      toast.success("Paramètres business mis à jour ✅");
+      toast.success("Paramètres business mis à jour ");
       setCurrency(curr);
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
@@ -1014,7 +1014,7 @@ export default function Settings() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur mise à jour coordonneés");
-      toast.success("Coordonnées service client mises à jour ✅");
+      toast.success("Coordonnées service client mises à jour ");
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
       setSupportEmail(data.support_email || "");

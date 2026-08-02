@@ -5,7 +5,7 @@ import L from "leaflet";
 export function getServiceIcon(serviceName, status) {
   const s = status?.toLowerCase()?.trim();
 
-  let color = "#ef4444"; // 🔴 rouge (publiee)
+  let color = "#ef4444"; //  rouge (publiee)
   if (["acceptee", "assignee", "en_route", "sur_place", "en_cours"].includes(s)) color = "#facc15"; // 🟡 jaune
   else if (["terminee"].includes(s)) color = "#22c55e"; // 🟢 vert
   else if (["annulee", "annulee_admin", "annulee_client"].includes(s)) color = "#9ca3af"; // ⚪ gris
@@ -13,7 +13,7 @@ export function getServiceIcon(serviceName, status) {
   // 🌟 Détection mission active (publiee)
   const pulse = s === "publiee";
 
-  // ✅ SVG du pin
+  //  SVG du pin
   const svgIcon = `
     <div class="pin-wrapper ${pulse ? "pulse-halo" : ""}">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">

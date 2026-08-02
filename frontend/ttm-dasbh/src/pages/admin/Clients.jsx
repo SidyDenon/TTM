@@ -5,11 +5,11 @@ import { API_BASE } from "../../config/urls";
 import { ClipboardIcon, EllipsisHorizontalIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";
 import { PencilSquareIcon, TrashIcon, KeyIcon } from "@heroicons/react/24/solid";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { can, isSuper } from "../../utils/rbac"; //  RBAC
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Clients() {
-  const { token, user } = useAuth(); // ✅ on récupère user
+  const { token, user } = useAuth(); //  on récupère user
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -34,7 +34,7 @@ export default function Clients() {
     return () => document.removeEventListener("mousedown", closeMenus);
   }, []);
 
-  // ✅ Permissions
+  //  Permissions
   const canView   = isSuper(user) || can(user, "clients_view");
   const canCreate = isSuper(user) || can(user, "clients_create");
   const canUpdate = isSuper(user) || can(user, "clients_update");
@@ -43,7 +43,7 @@ export default function Clients() {
 
   // Charger les clients
   const loadClients = async () => {
-    if (!canView) return; // ✅ pas d’appel si pas le droit
+    if (!canView) return; //  pas d’appel si pas le droit
     setLoading(true);
     setError("");
     try {
@@ -92,7 +92,7 @@ export default function Clients() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur modification");
-        toast.success("Client modifié ✅");
+        toast.success("Client modifié ");
       } else {
         if (!canCreate) {
           toast.error("Permission refusée : création de client");
@@ -117,7 +117,7 @@ export default function Clients() {
 
         toast.success(
           <div>
-            <p>Client ajouté ✅</p>
+            <p>Client ajouté </p>
             {password && (
               <p>
                 🔑 Mot de passe : <b>{password}</b>
@@ -164,7 +164,7 @@ export default function Clients() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur suppression");
-      toast.success("Client supprimé ✅");
+      toast.success("Client supprimé ");
       await loadClients();
       return true;
     } catch (err) {
@@ -233,7 +233,7 @@ export default function Clients() {
     setConfirmAction({ action, client });
   };
 
-  // ✅ Blocage vue si pas la permission
+  //  Blocage vue si pas la permission
   if (!canView) {
     return (
       <div
@@ -277,7 +277,7 @@ export default function Clients() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">👥 Clients</h2>
 
-        {/* ✅ bouton visible seulement si création autorisée */}
+        {/*  bouton visible seulement si création autorisée */}
         {canCreate && (
           <button
             onClick={() => {
@@ -501,7 +501,7 @@ export default function Clients() {
               >
                 Annuler
               </button>
-              {/* ✅ bouton submit désactivé si pas la permission */}
+              {/*  bouton submit désactivé si pas la permission */}
               <button
                 onClick={saveClient}
                 disabled={(editing && !canUpdate) || (!editing && !canCreate)}

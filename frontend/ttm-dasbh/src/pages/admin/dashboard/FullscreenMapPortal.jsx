@@ -20,7 +20,7 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
   const [userLocation, setUserLocation] = useState(null);
   const modalRef = useModalOrigin(true);
 
-  // ✅ Filtrer uniquement les missions actives
+  //  Filtrer uniquement les missions actives
   const active = (requests || []).filter((r) => {
     const s = r.status?.toLowerCase();
     return [
@@ -57,7 +57,7 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
     };
   }, []);
 
-  // ✅ Règle RBAC : seuls les admins avec droit de lecture peuvent voir la carte
+  //  Règle RBAC : seuls les admins avec droit de lecture peuvent voir la carte
   if (!user || (!isSuper(user) && !can(user, "requests_view"))) {
     return createPortal(
       <div

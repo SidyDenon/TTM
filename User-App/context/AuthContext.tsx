@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } else {
             // Erreur temporaire (503, réseau, etc.) : on garde la session locale
-            console.warn("⚠️ Impossible de rafraîchir la session (statut)", res.status);
+            console.warn(" Impossible de rafraîchir la session (statut)", res.status);
           }
         }
       } catch (err: any) {
@@ -119,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (!res.ok) {
         // Erreur non auth : on garde la session locale
-        console.warn("⚠️ refreshUser non 200 :", res.status);
+        console.warn(" refreshUser non 200 :", res.status);
         return user;
       }
 
@@ -235,7 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (res.status === 401) {
-      console.log("⚠️ Session expirée — déconnexion automatique");
+      console.log(" Session expirée — déconnexion automatique");
       await logout();
       throw new Error("Session expirée, veuillez vous reconnecter.");
     }

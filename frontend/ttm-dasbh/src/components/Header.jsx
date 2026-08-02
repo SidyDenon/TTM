@@ -135,7 +135,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
     }
   };
 
-  // 🔔 Clic -> ouvrir/fermer menu interactif
+  //  Clic -> ouvrir/fermer menu interactif
   const handleNotificationsClick = () => {
     if (!canUseBell) return;
 
@@ -155,7 +155,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
     // permission === "default"
     Notification.requestPermission().then((perm) => {
       if (perm === "granted") {
-        toast.success("🔔 Notifications activées !");
+        toast.success(" Notifications activées !");
       } else {
         toast.warn("Notifications refusées");
       }
@@ -206,7 +206,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
           icon: "/logoApp.png",
         });
       }
-      toast.info("🔔 Nouvelle mission Service à Domicile publiée");
+      toast.info(" Nouvelle mission Service à Domicile publiée");
       fetchBellMissions();
     };
 
@@ -227,8 +227,8 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
       }
       toast.info(
         missionId
-          ? `🔔 Nouvelle mission interne #${missionId} (${serviceLabel})`
-          : `🔔 Nouvelle mission interne (${serviceLabel})`
+          ? ` Nouvelle mission interne #${missionId} (${serviceLabel})`
+          : ` Nouvelle mission interne (${serviceLabel})`
       );
     };
 
@@ -279,10 +279,10 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
         </h2>
       </div>
 
-      {/* 🔔 Notifications + Thème + Profil */}
+      {/*  Notifications + Thème + Profil */}
       <div className="flex items-center gap-4 lg:gap-8">
 
-        {/* 🔔 Icône Notifications */}
+        {/*  Icône Notifications */}
         {canUseBell && (
           <div
             className="relative cursor-pointer"

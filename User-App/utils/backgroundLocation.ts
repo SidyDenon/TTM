@@ -37,7 +37,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         lng: loc.coords.longitude,
       });
     } catch (e) {
-      console.warn("⚠️ Background socket emit échoué:", (e as any)?.message || e);
+      console.warn(" Background socket emit échoué:", (e as any)?.message || e);
     }
   }
 });

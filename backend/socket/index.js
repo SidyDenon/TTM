@@ -40,7 +40,7 @@ async function emitOperatorsOnline(target) {
       const activeSet = new Set(rows.map((r) => Number(r.operator_id)));
       operators = ids.map((id) => ({ id, has_active_mission: activeSet.has(Number(id)) }));
     } catch (err) {
-      console.warn("⚠️ operators_online active missions:", err?.message || err);
+      console.warn(" operators_online active missions:", err?.message || err);
     }
   }
   const payload = { ids, operators };
@@ -76,7 +76,7 @@ function joinRoleRooms(user, socket, meta = {}) {
     try {
       socket.join(room);
     } catch (err) {
-      console.warn(`⚠️ Impossible de rejoindre la room ${room}:`, err?.message || err);
+      console.warn(` Impossible de rejoindre la room ${room}:`, err?.message || err);
     }
   });
   if (rooms.size) {
@@ -138,7 +138,7 @@ export function emitMissionEvent(event, mission = {}, options = {}) {
     try {
       io.to(room).emit(event, payload);
     } catch (err) {
-      console.warn(`⚠️ Emission ${event} vers ${room} échouée:`, err?.message || err);
+      console.warn(` Emission ${event} vers ${room} échouée:`, err?.message || err);
     }
   }
 }
@@ -149,7 +149,7 @@ async function registerSocket(user, socket) {
 
   const map = onlineUsers[`${role}s`];
   if (!map) {
-    console.log("⚠️ Rôle inconnu:", role);
+    console.log(" Rôle inconnu:", role);
     return;
   }
 
@@ -159,7 +159,7 @@ async function registerSocket(user, socket) {
     if (oldSocket) {
       oldSocket.emit("session_replaced", { message: "Une nouvelle connexion a été établie" });
       oldSocket.disconnect(true);
-      console.log(`⚠️ Ancienne session ${role} ${id} fermée`);
+      console.log(` Ancienne session ${role} ${id} fermée`);
     }
   }
 
@@ -187,7 +187,7 @@ async function registerSocket(user, socket) {
       }
       operatorMeta.set(id, meta);
     } catch (err) {
-      console.warn("⚠️ Impossible de récupérer is_internal:", err?.message || err);
+      console.warn(" Impossible de récupérer is_internal:", err?.message || err);
     }
   }
 
@@ -199,7 +199,7 @@ async function registerSocket(user, socket) {
     admins: onlineUsers.admins.size,
   });
 
-  console.log(`✅ ${role} ${id} enregistré sur socket ${socket.id}`);
+  console.log(` ${role} ${id} enregistré sur socket ${socket.id}`);
   socket.emit("register_success", { userId: id });
 
   if (role === "admin") {
@@ -232,7 +232,7 @@ function cleanupSocket(socketId) {
     }
   }
   if (!found) {
-    console.log(`⚠️ Socket ${socketId} non trouvé dans onlineUsers`);
+    console.log(` Socket ${socketId} non trouvé dans onlineUsers`);
   }
   if (adminsChanged) {
     emitAdminsOnline();
@@ -242,7 +242,7 @@ function cleanupSocket(socketId) {
   }
 }
 
-// ✅ notifyOperators : Socket.IO **uniquement**
+//  notifyOperators : Socket.IO **uniquement**
 export async function notifyOperators(event, payload, options = {}) {
   const { targetInternal = null } = options; // null = tous, true = internes, false = externes
   let count = 0;
@@ -255,7 +255,7 @@ export async function notifyOperators(event, payload, options = {}) {
       socket.emit(event, payload);
       count++;
     } else {
-      console.log(`⚠️ Socket ${socketId} n'existe plus pour opérateur ${opId}`);
+      console.log(` Socket ${socketId} n'existe plus pour opérateur ${opId}`);
       onlineUsers.operators.delete(opId);
       operatorMeta.delete(Number(opId));
     }
@@ -275,11 +275,11 @@ export function notifyUser(userId, event, data) {
         socket.emit(event, data);
         return true;
       } else {
-        console.log(`⚠️ [notifyUser] socket ${socketId} introuvable pour user ${uid} (cleanup)`);
+        console.log(` [notifyUser] socket ${socketId} introuvable pour user ${uid} (cleanup)`);
         onlineUsers.clients.delete(uid);
       }
     } else {
-      console.log(`⚠️ [notifyUser] user ${uid} non connecté (event:${event})`);
+      console.log(` [notifyUser] user ${uid} non connecté (event:${event})`);
     }
     return false;
   } catch (err) {
@@ -339,20 +339,20 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
 
     socket.on("join_request", async ({ requestId }) => {
       if (!socket.user) {
-        console.log("⚠️ join_request refusé: utilisateur non authentifié");
+        console.log(" join_request refusé: utilisateur non authentifié");
         return;
       }
       if (!requestId) return;
       try {
         const allowed = await canJoinMissionRoom(socket.user, requestId);
         if (!allowed) {
-          console.log(`⚠️ join_request refusé: accès non autorisé à mission_${requestId}`);
+          console.log(` join_request refusé: accès non autorisé à mission_${requestId}`);
           socket.emit("join_request_denied", { requestId });
           return;
         }
         const room = `mission_${Number(requestId)}`;
         socket.join(room);
-        console.log(`✅ ${socket.id} rejoint la room ${room}`);
+        console.log(` ${socket.id} rejoint la room ${room}`);
       } catch (err) {
         console.error("❌ join_request erreur:", err?.message || err);
         socket.emit("join_request_denied", { requestId });
@@ -362,7 +362,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
     socket.on("operator_location", async (data) => {
       const role = String(socket.user?.role || "").toLowerCase();
       if (!socket.user || !["operator", "operateur", "opérateur"].includes(role)) {
-        console.log("⚠️ operator_location refusé: role non autorisé ou non authentifié");
+        console.log(" operator_location refusé: role non autorisé ou non authentifié");
         return;
       }
       const { requestId, operatorId, lat, lng } = data || {};
@@ -371,7 +371,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
       if (!requestId || !Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
       if (Number(operatorId) !== Number(socket.user.id)) {
         console.log(
-          `⚠️ operator_location rejeté: operatorId ${operatorId} ≠ user.id ${socket.user.id}`
+          ` operator_location rejeté: operatorId ${operatorId} ≠ user.id ${socket.user.id}`
         );
         return;
       }
@@ -389,7 +389,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
     socket.on("leave_request", ({ requestId }) => {
       if (!socket.user || !requestId) return;
       socket.leave(`mission_${requestId}`);
-      console.log(`👋 ${socket.user?.role} ${socket.user?.id} quitte ${requestId}`);
+      console.log(` ${socket.user?.role} ${socket.user?.id} quitte ${requestId}`);
     });
 
     socket.on("admins_online_request", () => {

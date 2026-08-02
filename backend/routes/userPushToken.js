@@ -6,7 +6,7 @@ const router = express.Router();
 export default (db) => {
   router.use(authMiddleware);
 
-  // ✅ Vérification basique d’un token Expo
+  //  Vérification basique d’un token Expo
   const isValidExpoToken = (token) =>
     typeof token === "string" &&
     (token.startsWith("ExponentPushToken[") ||
@@ -29,7 +29,7 @@ export default (db) => {
     `);
   };
 
-  // ✅ Enregistrement / mise à jour du token Expo Push
+  //  Enregistrement / mise à jour du token Expo Push
   router.post("/push-token", async (req, res) => {
     try {
       const { token, platform } = req.body;
@@ -55,7 +55,7 @@ export default (db) => {
       try {
         await ensureDeviceTokensTable();
       } catch (e) {
-        console.error("⚠️ Impossible de créer/verifier device_tokens:", e.message || e);
+        console.error(" Impossible de créer/verifier device_tokens:", e.message || e);
       }
 
       // 🧱 Upsert dans device_tokens (multi-appareils)
@@ -72,7 +72,7 @@ export default (db) => {
           [req.user.id, token, platform || null]
         );
       } catch (e) {
-        console.error("⚠️ Erreur INSERT device_tokens:", e.message || e);
+        console.error(" Erreur INSERT device_tokens:", e.message || e);
         // on continue quand même, au pire on aura seulement users.notification_token
       }
 
@@ -85,7 +85,7 @@ export default (db) => {
           [token, req.user.id]
         );
       } catch (e) {
-        console.error("⚠️ Erreur update users.notification_token:", e.message || e);
+        console.error(" Erreur update users.notification_token:", e.message || e);
       }
 
       console.log(
@@ -93,7 +93,7 @@ export default (db) => {
       );
 
       res.json({
-        message: "Token Expo enregistré avec succès ✅",
+        message: "Token Expo enregistré avec succès ",
         token,
         platform: platform || null,
       });
@@ -120,7 +120,7 @@ export default (db) => {
         );
       } catch (e) {
         if (e?.code !== "ER_NO_SUCH_TABLE") {
-          console.error("⚠️ Erreur delete device_tokens:", e.message || e);
+          console.error(" Erreur delete device_tokens:", e.message || e);
         }
       }
 
@@ -133,7 +133,7 @@ export default (db) => {
           [req.user.id, token]
         );
       } catch (e) {
-        console.error("⚠️ Erreur update users.notification_token (delete):", e.message || e);
+        console.error(" Erreur update users.notification_token (delete):", e.message || e);
       }
 
       console.log(
@@ -141,7 +141,7 @@ export default (db) => {
       );
 
       res.json({
-        message: "Token Expo supprimé ✅",
+        message: "Token Expo supprimé ",
       });
     } catch (err) {
       console.error("❌ Erreur DELETE /user/push-token :", err);

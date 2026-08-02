@@ -12,18 +12,18 @@ const logAdminEvent = async (db, adminId, action, meta = {}) => {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (settings):", e?.message || e);
+    console.warn(" log admin_events (settings):", e?.message || e);
   }
 };
 
 export default (db) => {
-  // 🔗 Injection de la DB
+  //  Injection de la DB
   router.use((req, _res, next) => {
     req.db = db;
     next();
   });
 
-  // 🔐 Auth + permissions pour tout le module
+  //  Auth + permissions pour tout le module
   router.use(authMiddleware, loadAdminPermissions);
 
   // =========================
@@ -52,7 +52,7 @@ export default (db) => {
         price: numPrice,
       });
 
-      res.json({ message: "Service ajouté ✅", id: result.insertId });
+      res.json({ message: "Service ajouté ", id: result.insertId });
     } catch (err) {
       console.error("❌ Erreur ajout service:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -105,7 +105,7 @@ export default (db) => {
         price: numPrice,
       });
 
-      res.json({ message: "Service mis à jour ✅" });
+      res.json({ message: "Service mis à jour " });
     } catch (err) {
       console.error("❌ Erreur update service:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -125,7 +125,7 @@ export default (db) => {
         name: rows[0]?.name ?? null,
         price: rows[0]?.price != null ? Number(rows[0].price) : null,
       });
-      res.json({ message: "Service supprimé ✅" });
+      res.json({ message: "Service supprimé " });
     } catch (err) {
       console.error("❌ Erreur delete service:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -235,7 +235,7 @@ export default (db) => {
         currency: newCurrency,
       });
 
-      res.json({ message: "Configuration mise à jour ✅" });
+      res.json({ message: "Configuration mise à jour " });
     } catch (err) {
       console.error("❌ Erreur update config:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -339,7 +339,7 @@ router.put("/tow-pricing", checkPermission("config_manage"), async (req, res) =>
     });
 
     res.json({
-      message: "Tarifs remorquage mis à jour ✅",
+      message: "Tarifs remorquage mis à jour ",
       tow_base_price: base,
       tow_price_per_km: perKm,
     });

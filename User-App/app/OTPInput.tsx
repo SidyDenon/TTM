@@ -6,7 +6,7 @@ interface OTPInputProps {
   code: string;
   setCode: (val: string) => void;
   length?: number;
-  onComplete?: (val: string) => void; // ✅ callback auto-submit
+  onComplete?: (val: string) => void; //  callback auto-submit
 }
 
 export default function OTPInput({ code, setCode, length = 6, onComplete }: OTPInputProps) {
@@ -34,7 +34,7 @@ export default function OTPInput({ code, setCode, length = 6, onComplete }: OTPI
     }
 
     if (finalCode.length === length) {
-      onComplete?.(finalCode); // ✅ déclenche quand 6 chiffres saisis
+      onComplete?.(finalCode); //  déclenche quand 6 chiffres saisis
     }
   };
 

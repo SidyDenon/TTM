@@ -24,14 +24,14 @@ export default function FeedbackScreen() {
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert("⚠️ Attention", "Veuillez donner une note avant d’envoyer.");
+      Alert.alert(" Attention", "Veuillez donner une note avant d’envoyer.");
       return;
     }
 
     try {
       setLoading(true);
 
-      // ✅ Envoi du feedback à ton backend
+      //  Envoi du feedback à ton backend
       await fetch(`${API_URL}/feedback`, {
         method: "POST",
         headers: {
@@ -45,7 +45,7 @@ export default function FeedbackScreen() {
       });
 
       setLoading(false);
-      Alert.alert("✅ Merci !", "Votre avis a bien été enregistré.", [
+      Alert.alert(" Merci !", "Votre avis a bien été enregistré.", [
         {
           text: "OK",
           onPress: () => router.replace("/user"),

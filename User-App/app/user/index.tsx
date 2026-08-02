@@ -84,7 +84,7 @@ function HomeContent() {
     ]).start(() => setMenuVisible(false));
   };
 
-  // 🚀 Vérifie si une mission est active avant d'afficher la carte
+  //  Vérifie si une mission est active avant d'afficher la carte
   useEffect(() => {
     const checkActiveMission = async () => {
       try {
@@ -259,7 +259,7 @@ function HomeContent() {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ Menu latéral */}
+      {/*  Menu latéral */}
       {menuVisible && (
         <Animated.View style={[styles.menuOverlay, { opacity: fadeAnim }]}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeMenu}>
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
 
-  // ✅ Styles menu latéral
+  //  Styles menu latéral
   menuOverlay: {
     position: "absolute",
     top: 0,

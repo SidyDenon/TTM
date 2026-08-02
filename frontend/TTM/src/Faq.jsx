@@ -387,7 +387,7 @@ export default function Faq() {
                         if (!sent) {
                           throw lastErr || new Error("Erreur envoi");
                         }
-                        setContactFeedback("Message envoyé ✅");
+                        setContactFeedback("Message envoyé ");
                         setContactForm({ name: "", email: "", message: "" });
                       } catch (err) {
                         setContactFeedback(err.message || "Erreur envoi");

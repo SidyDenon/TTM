@@ -38,7 +38,7 @@ async function ensureOperatorAlertsColumn(db) {
     alertsColumnCache = "pending_alerts_enabled";
     return alertsColumnCache;
   } catch (err) {
-    console.warn("⚠️ pending_alerts_enabled column missing and cannot be created:", err?.message || err);
+    console.warn(" pending_alerts_enabled column missing and cannot be created:", err?.message || err);
     alertsColumnCache = null;
     return null;
   }
@@ -537,7 +537,7 @@ export default (db) => {
         }
       }
     } catch (err) {
-      console.warn("⚠️ Vérification disponibilité opérateur échouée:", err?.message || err);
+      console.warn(" Vérification disponibilité opérateur échouée:", err?.message || err);
     }
     next();
   });
@@ -559,7 +559,7 @@ export default (db) => {
         return res.status(404).json({ error: "Profil opérateur introuvable" });
       }
       res.json({
-        message: "Profil opérateur récupéré ✅",
+        message: "Profil opérateur récupéré ",
         data: {
           name: req.user.name || null,
           phone: req.user.phone || null,
@@ -600,7 +600,7 @@ export default (db) => {
       );
 
       res.json({
-        message: "Préférence d’alertes mise à jour ✅",
+        message: "Préférence d’alertes mise à jour ",
         data: { pending_alerts_enabled: enabled == null ? 1 : enabled },
       });
     } catch (err) {
@@ -651,7 +651,7 @@ export default (db) => {
       }
 
       res.json({
-        message: "Coordonnées opérateur mises à jour ✅",
+        message: "Coordonnées opérateur mises à jour ",
         data: { lat: latNum, lng: lngNum, ville: ville || null, quartier: quartier || null },
       });
     } catch (err) {
@@ -774,7 +774,7 @@ export default (db) => {
       const operatorCoords = { lat: Number(profile.lat), lng: Number(profile.lng) };
 
       res.json({
-        message: "Missions disponibles ✅",
+        message: "Missions disponibles ",
         data: await Promise.all(
           rows.map(async (r) => {
             let preview = null;
@@ -897,7 +897,7 @@ export default (db) => {
       }
 
       res.json({
-        message: "Détail mission récupéré ✅",
+        message: "Détail mission récupéré ",
         data: {
           ...rows[0],
           photos: photosRows.map((p) => buildPhotoURL(p.url)),
@@ -1167,7 +1167,7 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     }
 
     res.json({
-      message: "Mission acceptée ✅",
+      message: "Mission acceptée ",
       mission: {
         ...mission,
         estimated_price: finalPrice,
@@ -1322,7 +1322,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       if (operatorNotif) {
         let title = "🔄 Mise à jour de mission";
         let body = `Votre mission #${id} est maintenant ${action}`;
-        if (action === "terminee") body = `Votre mission #${id} est terminée ✅`;
+        if (action === "terminee") body = `Votre mission #${id} est terminée `;
         await sendPushNotification(operatorNotif.notification_token, title, body);
       }
 
@@ -1332,7 +1332,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       );
       if (clientNotif) {
         let body = `Votre mission #${id} mise à jour: ${action}`;
-        if (action === "terminee") body = `Votre mission #${id} est terminée ✅`;
+        if (action === "terminee") body = `Votre mission #${id} est terminée `;
         await sendPushNotification(
           clientNotif.notification_token,
           "Mise à jour TowTruck",
@@ -1343,7 +1343,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       res.json({
         message: `Mission ${
           action === "terminee" ? "terminée" : action.replace("_", " ")
-        } ✅`,
+        } `,
         mission: updated,
       });
     } catch (err) {
@@ -1360,7 +1360,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
         "SELECT * FROM request_events WHERE request_id = ? ORDER BY created_at ASC",
         [id]
       );
-      res.json({ message: "Historique récupéré ✅", data: rows });
+      res.json({ message: "Historique récupéré ", data: rows });
     } catch (err) {
       console.error("❌ Erreur GET /operator/requests/:id/events:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -1437,7 +1437,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
       }
 
       res.json({
-        message: "Historique récupéré ✅",
+        message: "Historique récupéré ",
         data: rows.map((r) => ({
           ...r,
           photos: (photosByReq.get(r.id) || []).map((u) => buildPhotoURL(u)),

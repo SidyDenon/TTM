@@ -3,14 +3,14 @@ import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
 import { toast } from "../../utils/toast";
 import { getSocketInstance } from "../../utils/socket";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { can, isSuper } from "../../utils/rbac"; //  RBAC
 import { ArrowPathIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Withdrawals() {
   const { token, user } = useAuth();
 
-  // ✅ Permissions
+  //  Permissions
   const canView = isSuper(user) || can(user, "withdrawals_view");
   const canApprove = isSuper(user) || can(user, "withdrawals_approve");
   const canReject = isSuper(user) || can(user, "withdrawals_reject");
@@ -87,7 +87,7 @@ export default function Withdrawals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l’approbation");
 
-      toast.success(`✅ Retrait #${id} approuvé`, {
+      toast.success(` Retrait #${id} approuvé`, {
         toastId: getStatusToastId(id, "approuvée"),
       });
       // 🔄 recharge la liste locale
@@ -115,7 +115,7 @@ export default function Withdrawals() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors du rejet");
 
-      toast.info(`⚠️ Retrait #${id} rejeté`, {
+      toast.info(` Retrait #${id} rejeté`, {
         toastId: getStatusToastId(id, "rejetée"),
       });
       loadWithdrawals();
@@ -455,7 +455,7 @@ export default function Withdrawals() {
                             style={{ background: "rgba(34,197,94,0.1)", color: "#22c55e", borderColor: "#22c55e" }}
                             title="Approuver le retrait"
                           >
-                            ✅ Approuver
+                             Approuver
                           </button>
                         )}
                         {canReject && (

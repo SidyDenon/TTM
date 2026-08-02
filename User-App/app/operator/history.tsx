@@ -186,7 +186,7 @@ export default function OperatorHistory() {
       {/* Liste missions */}
       {filteredMissions.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={{ color: "#888" }}>⚠️ Aucun historique disponible</Text>
+          <Text style={{ color: "#888" }}> Aucun historique disponible</Text>
         </View>
       ) : (
         <FlatList

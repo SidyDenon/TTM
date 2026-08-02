@@ -42,10 +42,10 @@ export default function LoginScreen() {
   const { login, register } = useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
 
-  // ✅ animated pill (0 = login, 1 = register)
+  //  animated pill (0 = login, 1 = register)
   const pillAnim = useRef(new Animated.Value(initialMode === "login" ? 0 : 1)).current;
 
-  // ✅ for responsive translateX
+  //  for responsive translateX
   const [segmentWidth, setSegmentWidth] = useState(0);
   const pillTranslateX = pillAnim.interpolate({
     inputRange: [0, 1],
@@ -122,7 +122,7 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.card}>
-        {/* ✅ TOGGLE */}
+        {/*  TOGGLE */}
         <View
           style={styles.segment}
           onLayout={(e) => setSegmentWidth(e.nativeEvent.layout.width)}

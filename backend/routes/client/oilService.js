@@ -92,7 +92,7 @@ export default (db) => {
     }
   };
 
-  // ✅ Passer db à req
+  //  Passer db à req
   router.use((req, res, next) => {
     req.db = db;
     next();
@@ -118,7 +118,7 @@ export default (db) => {
       );
 
       return res.json({
-        message: "✅ Modèles d'huile récupérés",
+        message: " Modèles d'huile récupérés",
         data: rows || [],
       });
     } catch (err) {
@@ -147,7 +147,7 @@ export default (db) => {
           return res.status(401).json({ error: "Non authentifié" });
         }
 
-    // ✅ Validation champs obligatoires
+    //  Validation champs obligatoires
         if (!vehicle_type || !oil_liters || !oil_model_id) {
           return res.status(400).json({
             error: "Champs obligatoires manquants: vehicle_type, oil_liters, oil_model_id",
@@ -176,7 +176,7 @@ export default (db) => {
 
         const totalOilLiters = oilLiters * oilQuantity;
 
-    // ✅ Vérifier que le modèle d'huile existe et est actif
+    //  Vérifier que le modèle d'huile existe et est actif
         const [[oilModel]] = await req.db.query(
           "SELECT id, unit_price, price_1l, price_4l, price_5l, price_20l FROM oil_models WHERE id = ? AND is_active = 1",
           [oil_model_id]
@@ -201,7 +201,7 @@ export default (db) => {
           });
         }
 
-    // ✅ Traiter photos si présentes
+    //  Traiter photos si présentes
         const photosArray = (req.files || [])
           .map((f) => `/uploads/requests/${f.filename}`)
           .filter(Boolean);
@@ -214,7 +214,7 @@ export default (db) => {
           ? Number(hasOilPart ? oilPart : 0) + Number(hasBasePart ? basePart : 0)
           : null;
 
-    // ✅ Créer la mission
+    //  Créer la mission
         const [result] = await req.db.query(
           `INSERT INTO requests 
            (user_id, service, service_type, vehicle_type, oil_liters, oil_model_id, 
@@ -248,14 +248,14 @@ export default (db) => {
           }
         }
 
-    // ✅ Enregistrer événement
+    //  Enregistrer événement
         await req.db.query(
           `INSERT INTO request_events (request_id, type, meta, created_at)
            VALUES (?, ?, ?, NOW())`,
           [requestId, "publiee", JSON.stringify({ user_id: userId, service: "oil_service" })]
         );
 
-    // ✅ Notifier les admins en temps réel (socket)
+    //  Notifier les admins en temps réel (socket)
         const io = getIo(req);
         if (io) {
           io.to("admins").emit("new_oil_service_request", {
@@ -268,7 +268,7 @@ export default (db) => {
         }
 
         return res.status(201).json({
-          message: "✅ Demande Service à Domicile créée avec succès",
+          message: " Demande Service à Domicile créée avec succès",
           data: {
             id: requestId,
             service: "oil_service",

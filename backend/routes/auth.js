@@ -92,7 +92,7 @@ export default (db) => {
       );
 
       res.status(201).json({
-        message: "Compte créé avec succès ✅",
+        message: "Compte créé avec succès ",
         user: {
           id: result.insertId,
           name,
@@ -208,7 +208,7 @@ router.post("/login", authLimiter, async (req, res) => {
       }
     }
       } catch (e) {
-        console.warn("⚠️ Vérification blocage opérateur échouée:", e?.message || e);
+        console.warn(" Vérification blocage opérateur échouée:", e?.message || e);
       }
     }
 
@@ -233,12 +233,12 @@ router.post("/login", authLimiter, async (req, res) => {
           ]
         );
       } catch (e) {
-        console.warn("⚠️ log admin_events (login):", e?.message || e);
+        console.warn(" log admin_events (login):", e?.message || e);
       }
     }
 
     return res.json({
-      message: "Connexion réussie ✅",
+      message: "Connexion réussie ",
       token,
       user: {
         id: u.id,
@@ -278,7 +278,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
           ]
         );
       } catch (e) {
-        console.warn("⚠️ log admin_events (logout):", e?.message || e);
+        console.warn(" log admin_events (logout):", e?.message || e);
       }
     }
     res.json({ ok: true });
@@ -374,7 +374,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
           );
           channels.push("sms");
         } catch (smsError) {
-          console.warn("⚠️ Envoi SMS reset échoué:", smsError?.message || smsError);
+          console.warn(" Envoi SMS reset échoué:", smsError?.message || smsError);
         }
       }
 
@@ -383,19 +383,19 @@ router.post("/logout", authMiddleware, async (req, res) => {
           await sendMail(
             user.email,
             "Code de réinitialisation",
-            `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n⚠️ Ce code est valable 15 minutes.`,
+            `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n Ce code est valable 15 minutes.`,
             `<h2>Bonjour ${user.name || "utilisateur"},</h2>
              <p>Voici votre code de réinitialisation :</p>
              <h1 style="color:#E53935">${resetCode}</h1>
-             <p>⚠️ Ce code est valable 15 minutes.</p>`
+             <p> Ce code est valable 15 minutes.</p>`
           );
           channels.push("email");
         } catch (emailError) {
-          console.warn("⚠️ Envoi email reset échoué:", emailError?.message || emailError);
+          console.warn(" Envoi email reset échoué:", emailError?.message || emailError);
         }
       }
 
-      res.json({ message: "✅ Code envoyé", channels: channels.join(", ") || "aucun canal" });
+      res.json({ message: " Code envoyé", channels: channels.join(", ") || "aucun canal" });
     } catch (err) {
       console.error("❌ Erreur forgot-password:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -413,7 +413,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
       if (rows.length === 0) {
         return res.status(400).json({ error: "Code invalide ou expiré" });
       }
-      res.json({ message: "✅ Code validé, vous pouvez réinitialiser le mot de passe" });
+      res.json({ message: " Code validé, vous pouvez réinitialiser le mot de passe" });
     } catch (err) {
       console.error("❌ Erreur verify-code:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -461,14 +461,14 @@ router.post("/logout", authMiddleware, async (req, res) => {
         );
       }
 
-      res.json({ message: "✅ Mot de passe réinitialisé avec succès" });
+      res.json({ message: " Mot de passe réinitialisé avec succès" });
     } catch (err) {
       console.error("❌ Erreur reset-password:", err);
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
 
-// 🔐 Changer son mot de passe (session)
+//  Changer son mot de passe (session)
 router.put("/password", authMiddleware, async (req, res) => {
   try {
     const { current, new: next, confirm } = req.body || {};
@@ -491,7 +491,7 @@ router.put("/password", authMiddleware, async (req, res) => {
         "UPDATE admin_users SET password_hash = ?, must_change_password = 0, updated_at = NOW() WHERE id = ?",
         [hashed, id]
       );
-      return res.json({ message: "Mot de passe admin mis à jour ✅" });
+      return res.json({ message: "Mot de passe admin mis à jour " });
     }
 
     const [[u]] = await db.query("SELECT id, password FROM users WHERE id = ?", [id]);
@@ -503,7 +503,7 @@ router.put("/password", authMiddleware, async (req, res) => {
       hashed,
       id,
     ]);
-    return res.json({ message: "Mot de passe mis à jour ✅" });
+    return res.json({ message: "Mot de passe mis à jour " });
   } catch (err) {
     console.error("❌ PUT /auth/password:", err);
     res.status(500).json({ error: "Erreur serveur" });
@@ -649,7 +649,7 @@ if (!adm) {
 }
 
 
-      return res.json({ message: "Super admin bootstrapé ✅", id: userId });
+      return res.json({ message: "Super admin bootstrapé ", id: userId });
     } catch (err) {
       console.error("❌ bootstrap-admin:", err);
       res.status(500).json({ error: "Erreur serveur" });

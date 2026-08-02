@@ -22,13 +22,13 @@ function RootNavigator() {
   const pushTokenRef = useRef<string | null>(null);
   const registeredForUser = useRef<string | number | null>(null);
 
-  // 🕐 Splash de 2,5 secondes
+  //  Splash de 2,5 secondes
   useEffect(() => {
     const timer = setTimeout(() => setSplashDone(true), 1200);
     return () => clearTimeout(timer);
   }, []);
 
-  // 🔔 Prépare notifications (permissions + token) uniquement après authentification
+  //  Prépare notifications (permissions + token) uniquement après authentification
   useEffect(() => {
     if (!user?.id || !token) return;
 
@@ -48,7 +48,7 @@ function RootNavigator() {
           console.log("📱 Expo push token prêt:", result.token);
         } else {
           pushTokenRef.current = null;
-          console.log("⚠️ Token push indisponible:", result.reason);
+          console.log(" Token push indisponible:", result.reason);
         }
       } catch (err) {
         if (!cancelled) {
@@ -62,7 +62,7 @@ function RootNavigator() {
     };
   }, [user?.id, token]);
 
-  // 🔗 Envoi du token au backend lorsque l'utilisateur est authentifié
+  //  Envoi du token au backend lorsque l'utilisateur est authentifié
   useEffect(() => {
     const expoPushToken = pushTokenRef.current;
     const userId = user?.id ?? null;
@@ -78,13 +78,13 @@ function RootNavigator() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          // 🔴 AVANT: { expoPushToken }
-          // ✅ MAINTENANT: { token } pour matcher le backend
+          //  AVANT: { expoPushToken }
+          //  MAINTENANT: { token } pour matcher le backend
           body: JSON.stringify({ token: expoPushToken }),
           signal: controller.signal,
         });
         registeredForUser.current = userId;
-        console.log("✅ Token push enregistré sur le backend");
+        console.log(" Token push enregistré sur le backend");
       } catch (err: any) {
         if (err?.name !== "AbortError") {
           console.error("❌ Erreur enregistrement token push:", err);
@@ -95,7 +95,7 @@ function RootNavigator() {
     return () => controller.abort();
   }, [user, token]);
 
-  // 🚀 Vérifie si c’est la première ouverture → Onboarding
+  //  Vérifie si c’est la première ouverture → Onboarding
   useEffect(() => {
     if (loading || !splashDone) return;
 
@@ -103,18 +103,18 @@ function RootNavigator() {
       try {
         const seen = await AsyncStorage.getItem("hasSeenOnboarding");
         if (!seen && !user) {
-          console.log("👋 Première ouverture : redirection vers onboarding");
+          console.log(" Première ouverture : redirection vers onboarding");
           router.replace("/OnboardingScreen");
         }
       } catch (e) {
-        console.warn("⚠️ Erreur vérif onboarding:", e);
+        console.warn(" Erreur vérif onboarding:", e);
       }
     };
 
     checkFirstLaunch();
   }, [loading, splashDone, user]);
 
-  // 🔐 Oblige le changement de mot de passe si nécessaire
+  //  Oblige le changement de mot de passe si nécessaire
   useEffect(() => {
     if (!user || !token) return;
     const needsPasswordChange = !!user.must_change_password;
@@ -131,12 +131,12 @@ function RootNavigator() {
     }
   }, [user?.must_change_password, user?.role, token, pathname, router]);
 
-  // 🕐 Affiche splash tant que non prêt
+  //  Affiche splash tant que non prêt
   if (!splashDone || loading) {
     return <SplashScreen />;
   }
 
-  // ✅ Navigation principale
+  //  Navigation principale
   return (
     <Stack
       screenOptions={{
@@ -158,9 +158,9 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* ✅ AuthProvider d’abord pour fournir useAuth() */}
+      {/*  AuthProvider d’abord pour fournir useAuth() */}
       <AuthProvider>
-        {/* ✅ Puis SocketProvider (maintenant il peut lire user/token) */}
+        {/*  Puis SocketProvider (maintenant il peut lire user/token) */}
         <SocketProvider>
           <RequestProvider>
             <RootNavigator />

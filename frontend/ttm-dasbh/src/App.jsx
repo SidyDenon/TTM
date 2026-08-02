@@ -89,7 +89,7 @@ function Layout() {
       if (welcomeNotifiedRef.current) return;
       welcomeNotifiedRef.current = true;
     }
-    sendNotification("🚀 Tow Truck Mali", {
+    sendNotification(" Tow Truck Mali", {
       body: "Bienvenue, administrateur ! Votre tableau de bord est bien opérationnel.",
       icon: "/logoApp.png",
     });

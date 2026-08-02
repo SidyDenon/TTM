@@ -51,7 +51,7 @@ export default function MissionCompleteScreen() {
           { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
         ]}
       >
-        {/* ✅ Animation Lottie (camion ou succès) */}
+        {/*  Animation Lottie (camion ou succès) */}
         <LottieView
           source={require("../../assets/animations/success.json")} // 🔧 à placer dans /assets/animations
           autoPlay
@@ -70,7 +70,7 @@ export default function MissionCompleteScreen() {
 
         <View style={styles.card}>
           <Text style={styles.info}>
-            ✅ Votre dépanneur a bien terminé la mission.
+             Votre dépanneur a bien terminé la mission.
           </Text>
           <Text style={styles.info}>
             Nous espérons que tout s’est bien passé !

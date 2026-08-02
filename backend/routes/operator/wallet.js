@@ -62,7 +62,7 @@ export default (db) => {
     next();
   });
 
-  // 💰 Récupérer solde + historique complet
+  //  Récupérer solde + historique complet
   router.get("/", authMiddleware, async (req, res) => {
     const role = String(req.user.role || "").toLowerCase();
     if (!OPERATOR_ROLES.includes(role)) {
@@ -83,7 +83,7 @@ export default (db) => {
       const operatorId = operator.id; // id dans table operators
       const operatorUserId = req.user.id; // id dans table users
 
-      // 💰 Total des gains nets confirmés (en fonction de la commission)
+      //  Total des gains nets confirmés (en fonction de la commission)
       const commissionPercentRaw = await getCommissionPercent(req.db);
       const commissionPercent =
         operator?.is_internal ? 0 : commissionPercentRaw;
@@ -93,7 +93,7 @@ export default (db) => {
       // 💸 Total des retraits approuvés
       const totalRetraits = await getTotalRetraits(req.db, operatorId);
 
-      // ✅ Solde disponible pour retrait = gains nets confirmés - retraits approuvés
+      //  Solde disponible pour retrait = gains nets confirmés - retraits approuvés
       const solde = totalGainsNet - totalRetraits;
 
       // 📜 Historique des transactions (toutes, même en_attente)
@@ -189,7 +189,7 @@ export default (db) => {
       );
 
       res.json({
-        message: "💰 Wallet chargé avec succès",
+        message: " Wallet chargé avec succès",
         solde,
         // infos complémentaires (optionnel pour ton front)
         balance: Number(operator.balance || 0),
@@ -236,7 +236,7 @@ export default (db) => {
       const operatorId = operator.id; // operators.id
       const operatorUserId = req.user.id; // users.id
 
-      // 💰 Recalculer solde disponible
+      //  Recalculer solde disponible
       const totalGainsNet = await getTotalGainsNet(req.db, operatorUserId);
       const totalRetraits = await getTotalRetraits(req.db, operatorId);
       const soldeDispo = totalGainsNet - totalRetraits;
@@ -247,7 +247,7 @@ export default (db) => {
           .json({ error: "Montant supérieur au solde disponible" });
       }
 
-      // ✅ Insérer la demande
+      //  Insérer la demande
       const [result] = await req.db.query(
         `INSERT INTO withdrawals (operator_id, amount, currency, status, phone, method, created_at)
          VALUES (?, ?, 'FCFA', 'en_attente', ?, ?, NOW())`,
@@ -291,7 +291,7 @@ export default (db) => {
       );
 
       res.json({
-        message: "✅ Demande de retrait enregistrée",
+        message: " Demande de retrait enregistrée",
         data: { id: withdrawalId, amount: montant, status: "en_attente" },
       });
     } catch (err) {

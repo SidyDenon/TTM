@@ -60,7 +60,7 @@ export default function OperatorChangePassword() {
       }
 
       await refreshUser();
-      Alert.alert("✅ Succès", "Mot de passe mis à jour.", [
+      Alert.alert(" Succès", "Mot de passe mis à jour.", [
         { text: "OK", onPress: () => router.replace("/operator") },
       ]);
       setCurrentPassword("");

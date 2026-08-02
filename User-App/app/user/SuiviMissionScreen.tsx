@@ -523,7 +523,7 @@ export default function SuiviMissionScreen() {
         </Animated.View>
       )}
 
-      {/* 🔴 BOX INFOS OPÉRATEUR */}
+      {/*  BOX INFOS OPÉRATEUR */}
       {operatorBoxVisible && (
         <TouchableOpacity
           style={styles.operatorOverlay}

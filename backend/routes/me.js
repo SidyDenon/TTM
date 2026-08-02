@@ -24,7 +24,7 @@ function safeParsePermissions(raw) {
       return safeParsePermissions(parsed);
     }
   } catch (err) {
-    console.warn("⚠️ Permissions JSON invalide:", err.message);
+    console.warn(" Permissions JSON invalide:", err.message);
   }
   return [];
 }

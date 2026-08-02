@@ -15,7 +15,7 @@ export default (db) => {
         [adminId, action, JSON.stringify(meta)]
       );
     } catch (e) {
-      console.warn("⚠️ log admin_events (transactions):", e?.message || e);
+      console.warn(" log admin_events (transactions):", e?.message || e);
     }
   }
 
@@ -152,7 +152,7 @@ export default (db) => {
       const remaining = afterCommission - (stats.total_confirme || 0);
 
       res.json({
-        message: "Transactions récupérées ✅",
+        message: "Transactions récupérées ",
         data: rows,
         stats: {
           total: stats.total,
@@ -200,7 +200,7 @@ export default (db) => {
       });
       io.to("admins").emit("dashboard_update", { type: "transaction", action: "created", id });
 
-      res.status(201).json({ message: "Transaction ajoutée ✅", id });
+      res.status(201).json({ message: "Transaction ajoutée ", id });
     } catch (err) {
       console.error("❌ Erreur POST /transactions:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -230,7 +230,7 @@ export default (db) => {
       io.to("admins").emit("dashboard_update", { type: "transaction", action: "updated", id: Number(id), status });
 
       res.json({
-        message: `Transaction #${id} ${status === "confirmée" ? "confirmée ✅" : "mise en attente ⏳"}`,
+        message: `Transaction #${id} ${status === "confirmée" ? "confirmée " : "mise en attente ⏳"}`,
       });
     } catch (err) {
       console.error("❌ Erreur PATCH /transactions/:id/status:", err);
@@ -238,7 +238,7 @@ export default (db) => {
     }
   });
 
-  // ✅ Confirmation + crédit opérateur (écriture)
+  //  Confirmation + crédit opérateur (écriture)
   router.patch("/:id/confirm", checkPermission("transactions_manage"), async (req, res) => {
     let connection;
     try {
@@ -310,7 +310,7 @@ export default (db) => {
         netAmount,
         commission,
         confirmed_by_admin: req.user?.name || null,
-        message: `Transaction #${id} confirmée ✅`,
+        message: `Transaction #${id} confirmée `,
       });
 
       io.to(`operator:${Number(op.user_id)}`).emit("transaction_confirmed", {
@@ -344,11 +344,11 @@ export default (db) => {
           );
         }
       } catch (pushErr) {
-        console.warn("⚠️ Push opérateur transaction_confirmed échoué:", pushErr?.message || pushErr);
+        console.warn(" Push opérateur transaction_confirmed échoué:", pushErr?.message || pushErr);
       }
 
       res.json({
-        message: `Transaction #${id} confirmée ✅`,
+        message: `Transaction #${id} confirmée `,
         data: {
           id,
           operator_id: tx.operator_id,

@@ -53,7 +53,7 @@ type Mission = {
   user_phone?: string;
   status: string;
   photos?: string[];
-  estimated_price?: number; // ✅ ajouté pour TS
+  estimated_price?: number; //  ajouté pour TS
   preview_final_price?: number | null;
   preview_total_km?: number | null;
   destination?: string | null;
@@ -668,7 +668,7 @@ export default function MissionSuivi() {
 
       Toast.show({
         type: "success",
-        text1: "✅ Succès",
+        text1: " Succès",
         text2: `Mission ${action}`,
       });
 
@@ -1229,7 +1229,7 @@ export default function MissionSuivi() {
                   await updateStatus("sur_place");
                   Toast.show({
                     type: "info",
-                    text1: "✅ Statut mis à jour",
+                    text1: " Statut mis à jour",
                     text2: "Vous êtes arrivé sur le lieu d’intervention",
                   });
                 }}

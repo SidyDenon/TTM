@@ -26,6 +26,6 @@ export default function ProtectedRoute({ children, perm, permAny, superOnly }) {
   // 🔑 Une parmi plusieurs permissions possibles
   if (permAny && !permAny.some((key) => can(user, key))) return <Navigate to="/403" replace />;
 
-  // ✅ Autorisé
+  //  Autorisé
   return children;
 }

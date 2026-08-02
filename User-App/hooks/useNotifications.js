@@ -136,7 +136,7 @@ export default function useNotifications(options = {}) {
   }, [token, socket, user?.id, user?.role, onRefreshWallet, onOpenWithdrawals, router]);
 }
 
-// 🔔 Notification locale + vibration
+//  Notification locale + vibration
 async function triggerNotification(title, body) {
   try {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -161,7 +161,7 @@ async function registerForPushNotificationsAsync() {
   await setupNotificationChannel();
   const result = await getExpoPushTokenSafe();
   if (!result.token) {
-    console.log("⚠️ Impossible d'obtenir un token push:", result.reason);
+    console.log(" Impossible d'obtenir un token push:", result.reason);
     return null;
   }
 

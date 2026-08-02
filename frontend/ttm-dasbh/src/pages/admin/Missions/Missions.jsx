@@ -130,7 +130,7 @@ export default function Missions() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec publication");
-      toast.success(`Mission #${mission.id} publiée ✅`);
+      toast.success(`Mission #${mission.id} publiée `);
       await loadRequests();
     } catch (err) {
       toast.error(err.message);
@@ -168,7 +168,7 @@ export default function Missions() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec assignation");
-      toast.success(`Mission #${mission.id} assignée ✅`);
+      toast.success(`Mission #${mission.id} assignée `);
       await loadRequests();
     } catch (err) {
       toast.error(err.message);
@@ -218,7 +218,7 @@ export default function Missions() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Échec suppression");
-      toast.success(`Mission #${id} supprimée ✅`);
+      toast.success(`Mission #${id} supprimée `);
       await loadRequests();
     } catch (err) {
       toast.error(err.message);

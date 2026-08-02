@@ -18,7 +18,7 @@ export default function useRequireAuth(requiredRole) {
     }
   }, [user, loading, requiredRole, navigate, location]);
 
-  // ✅ renvoie null tant qu’on charge (évite les rendus fantômes)
+  //  renvoie null tant qu’on charge (évite les rendus fantômes)
   if (loading) return null;
 
   return user;

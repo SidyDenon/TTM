@@ -7,7 +7,7 @@
     "icon": "./assets/images/ttm-icon-app.png",
     "scheme": "userapp",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.towtruckmali.app",

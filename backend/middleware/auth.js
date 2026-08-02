@@ -22,7 +22,7 @@ function normalizePermissions(raw) {
       return normalizePermissions(JSON.parse(str));
     }
   } catch (err) {
-    console.warn("⚠️ Permissions JSON invalide:", err.message);
+    console.warn(" Permissions JSON invalide:", err.message);
   }
   return [];
 }

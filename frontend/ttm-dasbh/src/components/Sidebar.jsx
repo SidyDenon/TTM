@@ -75,7 +75,7 @@ export default function Sidebar({ open = false, onClose }) {
   const canSeeFinance = canViewWithdrawals || canViewTransactions;
   const canViewMissions = isSuperAdmin || canAny(user, missionViewPerms);
 
-  // ✅ règles d’accès
+  //  règles d’accès
   const menu = useMemo(
     () => [
       {

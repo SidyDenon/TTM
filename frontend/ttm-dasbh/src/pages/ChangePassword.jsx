@@ -29,7 +29,7 @@ export default function ChangePassword() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "Erreur serveur");
-      setMessage("✅ Code envoyé ! Consultez votre boite mail/SMS.");
+      setMessage(" Code envoyé ! Consultez votre boite mail/SMS.");
       setStep(2);
     } catch (err) {
       setMessage(`❌ ${err.message}`);
@@ -58,7 +58,7 @@ export default function ChangePassword() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message || "Erreur serveur");
-      setMessage("✅ Mot de passe mis à jour ! Redirection en cours...");
+      setMessage(" Mot de passe mis à jour ! Redirection en cours...");
       setTimeout(() => navigate("/login", { replace: true }), 1500);
     } catch (err) {
       setMessage(`❌ ${err.message}`);
@@ -88,7 +88,7 @@ export default function ChangePassword() {
             {message && (
               <div
                 className={`mt-5 w-full max-w-[400px] rounded-xl px-4 py-3 text-sm border ${
-                  message.startsWith("✅")
+                  message.startsWith("")
                     ? "bg-green-500/20 border-green-200/50 text-white"
                     : "bg-red-500/20 border-red-200/50 text-white"
                 }`}

@@ -7,7 +7,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { can, isSuper } from "../../../utils/rbac"; // ✅ RBAC intégré
+import { can, isSuper } from "../../../utils/rbac"; //  RBAC intégré
 import { useAuth } from "../../../context/AuthContext";
 
 export default function DashboardChart({ requests }) {

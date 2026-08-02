@@ -92,7 +92,7 @@ export function AuthProvider({ children }) {
      
   }, []);
 
-  // ✅ LOGIN sur /api/auth/login (identifier + password)
+  //  LOGIN sur /api/auth/login (identifier + password)
   const login = async (identifier, password) => {
     const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
       method: "POST",

@@ -77,7 +77,7 @@ router.get("/oil-models", requireAny(["services_view", "site_view", "site_manage
     );
 
     return res.json({
-      message: "✅ Modèles d'huile récupérés",
+      message: " Modèles d'huile récupérés",
       data: rows || [],
     });
   } catch (err) {
@@ -123,7 +123,7 @@ router.post("/oil-models", requireAny(["services_manage", "site_manage"]), async
     );
 
     return res.status(201).json({
-      message: "✅ Modèle d'huile créé",
+      message: " Modèle d'huile créé",
       data: {
         id: result.insertId,
         name,
@@ -188,7 +188,7 @@ router.put("/oil-models/:id", requireAny(["services_manage", "site_manage"]), as
     }
 
     return res.json({
-      message: "✅ Modèle d'huile mis à jour",
+      message: " Modèle d'huile mis à jour",
       data: {
         id: Number(id),
         name,
@@ -225,7 +225,7 @@ router.delete("/oil-models/:id", requireAny(["services_manage", "site_manage"]),
     }
 
     return res.json({
-      message: "✅ Modèle d'huile supprimé",
+      message: " Modèle d'huile supprimé",
     });
   } catch (err) {
     console.error("❌ DELETE /admin/oil-models/:id:", err);
@@ -256,7 +256,7 @@ router.get("/oil-service-requests", requireAny(["requests_view", "requests_manag
     );
 
     return res.json({
-      message: "✅ Missions Service à Domicile récupérées",
+      message: " Missions Service à Domicile récupérées",
       data: rows || [],
     });
   } catch (err) {
@@ -279,7 +279,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
       return res.status(400).json({ error: "operator_id requis" });
     }
 
-    // ✅ Vérifier que la mission existe et est bien domicile
+    //  Vérifier que la mission existe et est bien domicile
     const [[mission]] = await req.db.query(
       "SELECT id, service_type, service, status, operator_id FROM requests WHERE id = ?",
       [requestId]
@@ -309,7 +309,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
         });
       }
 
-    // ✅ Vérifier que l'opérateur est INTERNE uniquement
+    //  Vérifier que l'opérateur est INTERNE uniquement
     const { operatorInternal } = await getSchemaColumns(req.db);
     const internalCol = operatorInternal || "is_internal";
 
@@ -323,13 +323,13 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
     }
 
     if (!operator.is_internal || Number(operator.is_internal) !== 1) {
-      console.log(`⚠️ Tentative d'assigner mission domicile à opérateur EXTERNE (ID: ${operator_id})`);
+      console.log(` Tentative d'assigner mission domicile à opérateur EXTERNE (ID: ${operator_id})`);
       return res.status(403).json({
         error: "🔒 Seuls les opérateurs internes TTM peuvent assigner des missions domicile",
       });
     }
 
-    // ✅ Mettre à jour la mission
+    //  Mettre à jour la mission
     // Certaines bases n'acceptent pas 'assignee' dans l'enum status.
     // On tente 'assignee' puis on fallback vers 'publiee' si nécessaire.
     let assignedStatus = "assignee";
@@ -358,7 +358,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
       return res.status(400).json({ error: "Impossible de mettre à jour la mission" });
     }
 
-    // ✅ Enregistrer événement
+    //  Enregistrer événement
     await req.db.query(
       `INSERT INTO request_events (request_id, type, meta, created_at)
        VALUES (?, ?, ?, NOW())`,
@@ -372,7 +372,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
       ]
     );
 
-    // ✅ Notifier via socket
+    //  Notifier via socket
     const io = req.app?.get?.("io");
     if (io) {
       io.to(`operator:${Number(operator_id)}`).emit("oil_service_assigned", {
@@ -386,7 +386,7 @@ router.post("/oil-service-requests/:requestId/assign", requireAny(["requests_man
     }
 
     return res.json({
-      message: "✅ Mission Service à Domicile assignée à l'opérateur interne",
+      message: " Mission Service à Domicile assignée à l'opérateur interne",
       data: { requestId, operatorId: operator_id, status: assignedStatus },
     });
   } catch (err) {
@@ -422,7 +422,7 @@ router.get("/oil-service-requests/:requestId", requireAny(["requests_view", "req
     }
 
     return res.json({
-      message: "✅ Détails mission récupérés",
+      message: " Détails mission récupérés",
       data: mission,
     });
   } catch (err) {

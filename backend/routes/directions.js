@@ -68,7 +68,7 @@ export default () => {
           return res.status(200).json(json);
         }
         console.warn(
-          "⚠️ Directions Google non OK ou sans route:",
+          " Directions Google non OK ou sans route:",
           status,
           json?.status,
           json?.error_message || json?.error || ""
@@ -106,7 +106,7 @@ export default () => {
       } = await fetchJsonCompat(osrmUrl);
       if (!okOsrm || osrm?.code !== "Ok" || !osrm?.routes?.length) {
         const msg = `OSRM échec: ${statusOsrm} ${osrm?.code || ""}`.trim();
-        console.warn("⚠️ Fallback OSRM sans route:", msg);
+        console.warn(" Fallback OSRM sans route:", msg);
         return res.status(502).json({
           error: googleTried ? "Aucune route Google et OSRM" : "Aucune route OSRM",
           detail: msg,

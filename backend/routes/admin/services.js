@@ -20,7 +20,7 @@ const logAdminEvent = async (db, adminId, action, meta = {}) => {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (services):", e?.message || e);
+    console.warn(" log admin_events (services):", e?.message || e);
   }
 };
 
@@ -125,7 +125,7 @@ const isPinnedProtectedServiceName = (name = "") => {
 
 /**
  * 🔹 Mapping type de service -> icône par défaut
- * ⚠️ Tu dois placer ces fichiers dans /uploads/services :
+ *  Tu dois placer ces fichiers dans /uploads/services :
  *    - remorquage.png
  *    - depannage.png
  *    - batterie.png
@@ -203,7 +203,7 @@ export default (db) => {
           name: f,
           url: `/service-icons/${f}`,
         }));
-      res.json({ message: "Icônes disponibles ✅", data: icons });
+      res.json({ message: "Icônes disponibles ", data: icons });
     } catch (err) {
       console.error("❌ Erreur GET /services/icons:", err);
       res.status(500).json({ error: "Erreur chargement icônes" });
@@ -269,7 +269,7 @@ export default (db) => {
         };
       });
 
-      res.json({ message: "Liste des services ✅", data });
+      res.json({ message: "Liste des services ", data });
     } catch (err) {
       console.error("❌ Erreur GET /services:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -334,7 +334,7 @@ export default (db) => {
         };
       });
 
-      res.json({ message: "Services disponibles ✅", data });
+      res.json({ message: "Services disponibles ", data });
     } catch (err) {
       console.error("❌ Erreur GET /services/public:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -475,7 +475,7 @@ export default (db) => {
           price: Number(price),
         });
 
-        res.json({ message: "Service ajouté ✅", data: newService });
+        res.json({ message: "Service ajouté ", data: newService });
       } catch (err) {
         console.error("❌ Erreur POST /services:", err);
         res.status(500).json({ error: "Erreur ajout service" });
@@ -618,7 +618,7 @@ export default (db) => {
       });
 
       res.json({
-        message: "Service mis à jour ✅",
+        message: "Service mis à jour ",
         data: {
           ...updated,
           description: hasDescriptionColumn ? updated.description || "" : "",
@@ -676,7 +676,7 @@ export default (db) => {
           name: service?.name ?? null,
           price: service?.price != null ? Number(service.price) : null,
         });
-        res.json({ message: "Service supprimé ✅" });
+        res.json({ message: "Service supprimé " });
       } catch (err) {
         console.error("❌ Erreur DELETE /services:", err);
         res.status(500).json({ error: "Erreur suppression service" });

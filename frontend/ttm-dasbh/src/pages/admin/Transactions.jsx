@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { ADMIN_API } from "../../config/urls";
 import { toast } from "../../utils/toast";
 import { getSocketInstance } from "../../utils/socket";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { can, isSuper } from "../../utils/rbac"; //  RBAC
 import { ArrowPathIcon, BanknotesIcon, CheckCircleIcon, PrinterIcon } from "@heroicons/react/24/outline";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
@@ -96,7 +96,7 @@ export default function Transactions() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur confirmation");
 
-      toast.success(`✅ Transaction #${id} validée et créditée avec succès`, {
+      toast.success(` Transaction #${id} validée et créditée avec succès`, {
         toastId: `tx-confirm-${id}`,
       });
       await loadTransactions();
@@ -111,7 +111,7 @@ export default function Transactions() {
     }
   }, []);
 
-  // ✅ SOCKET TEMPS RÉEL (transactions seulement)
+  //  SOCKET TEMPS RÉEL (transactions seulement)
   useEffect(() => {
     if (!token) return;
 
@@ -129,9 +129,9 @@ export default function Transactions() {
     };
 
     const handleTransactionConfirmed = (data) => {
-      console.log("💰 Transaction confirmée :", data);
-      showSystemNotification("💰 Transaction confirmée", `Transaction #${data.id} validée`);
-      toast.success(`✅ Transaction #${data.id} validée et créditée`, {
+      console.log(" Transaction confirmée :", data);
+      showSystemNotification(" Transaction confirmée", `Transaction #${data.id} validée`);
+      toast.success(` Transaction #${data.id} validée et créditée`, {
         toastId: `tx-confirm-${data.id}`,
       });
       if (canTxView) loadTransactions();

@@ -93,7 +93,7 @@ export function startCron({ db, emitMissionEvent }) {
             );
           }
         } catch (err) {
-          console.warn("⚠️ Push mission_timeout échoué:", err?.message || err);
+          console.warn(" Push mission_timeout échoué:", err?.message || err);
         }
       }
 

@@ -46,7 +46,7 @@ const PERM_LABELS = {
   site_view: "Voir le site vitrine",
   site_manage: "Gérer le site vitrine",
 
-  // 💰 Transactions & retraits
+  //  Transactions & retraits
   transactions_view: "Voir les transactions",
   transactions_manage: "Gérer les transactions",
   withdrawals_view: "Voir les retraits",
@@ -444,7 +444,7 @@ export default function AdminUsers() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Erreur suppression");
-      toast.success("Administrateur supprimé ✅");
+      toast.success("Administrateur supprimé ");
       await loadAll();
       return true;
     } catch (e) {
@@ -477,8 +477,8 @@ export default function AdminUsers() {
 
       toast.success(
         j?.temp_password
-          ? `Admin créé ✅ — Email envoyé. 🔑 MDP provisoire: ${j.temp_password}`
-          : "Admin créé ✅ — Un email de bienvenue a été envoyé."
+          ? `Admin créé  — Email envoyé. 🔑 MDP provisoire: ${j.temp_password}`
+          : "Admin créé  — Un email de bienvenue a été envoyé."
       );
       setShow(false);
       await loadAll();
@@ -541,7 +541,7 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour permissions");
-      toast.success("Permissions mises à jour ✅");
+      toast.success("Permissions mises à jour ");
       const updated = data?.data;
       if (updated?.id) {
         setDetailAdmin((prev) => prev ? ({ ...prev, ...updated }) : prev);
@@ -585,7 +585,7 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour admin");
-      toast.success("Admin mis à jour ✅");
+      toast.success("Admin mis à jour ");
       const updated = data?.data || {};
       setDetailAdmin((prev) => (prev && prev.id === editingAdmin.id ? { ...prev, ...updated } : prev));
       await loadAll();
@@ -612,7 +612,7 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur force superadmin");
-      toast.success("Superadmin activé ✅");
+      toast.success("Superadmin activé ");
       await loadAll();
       setDetailAdmin((prev) => (prev && prev.id === admin.id ? { ...prev, ...data.data } : prev));
     } catch (e) {
@@ -675,7 +675,7 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour statut");
-      toast.success(admin.is_blocked ? "Admin débloqué ✅" : "Admin bloqué ✅");
+      toast.success(admin.is_blocked ? "Admin débloqué " : "Admin bloqué ");
       await loadAll();
       return true;
     } catch (e) {

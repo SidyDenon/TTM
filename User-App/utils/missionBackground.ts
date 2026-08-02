@@ -72,7 +72,7 @@ const ensureTaskDefined = () => {
 
       return BackgroundFetch.BackgroundFetchResult.NoData;
     } catch (err) {
-      console.warn("⚠️ Background mission check failed:", err);
+      console.warn(" Background mission check failed:", err);
       return BackgroundFetch.BackgroundFetchResult.Failed;
     }
   });

@@ -46,7 +46,7 @@ function parsePermissions(raw) {
       });
     }
   } catch (e) {
-    console.warn("⚠️ permissions parse failed → []:", e?.message || e);
+    console.warn(" permissions parse failed → []:", e?.message || e);
   }
   return [];
 }

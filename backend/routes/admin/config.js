@@ -14,7 +14,7 @@ const logAdminEvent = async (db, adminId, action, meta = {}) => {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (config):", e?.message || e);
+    console.warn(" log admin_events (config):", e?.message || e);
   }
 };
 
@@ -110,7 +110,7 @@ export default (db) => {
       return row;
     } catch (err) {
       if (err?.code === "ER_NO_SUCH_TABLE") {
-        console.warn("⚠️ Table configurations absente → création automatique");
+        console.warn(" Table configurations absente → création automatique");
 
         await db.query(`
           CREATE TABLE IF NOT EXISTS configurations (
@@ -275,7 +275,7 @@ export default (db) => {
         return res.status(400).json({ error: "Rayon remorquage invalide (1-500 km)" });
       }
 
-      // ✅ Update
+      //  Update
       await req.db.query(
         `UPDATE configurations 
          SET commission_percent=?, towing_price_per_km=?, towing_base_price=?, currency=?, support_phone=?, support_whatsapp=?, support_email=?, operator_mission_radius_km=?, operator_towing_radius_km=?, updated_at=NOW()
@@ -296,7 +296,7 @@ export default (db) => {
       });
 
       res.json({
-        message: "Configuration mise à jour ✅",
+        message: "Configuration mise à jour ",
         commission: pct,
         commission_percent: pct,
         towing_price_per_km: priceKm,
@@ -399,7 +399,7 @@ export default (db) => {
         await logAdminEvent(req.db, req.user?.id, "site_content_update", {
           keys: Object.keys(payload || {}),
         });
-        return res.json({ message: "Contenu site mis à jour ✅", data: payload });
+        return res.json({ message: "Contenu site mis à jour ", data: payload });
       } catch (err) {
         console.error("❌ Erreur PUT /admin/config/site-content:", err);
         return res.status(500).json({ error: "Erreur mise à jour contenu site" });

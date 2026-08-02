@@ -159,7 +159,7 @@ export default function OnboardingScreen() {
   );
 }
 
-/** ✅ UI overlay: X en haut droite + flèches au milieu + timeline en bas */
+/**  UI overlay: X en haut droite + flèches au milieu + timeline en bas */
 function UiOverlay({ currentPage, pageCount, onPrev, onNext, onClose }: UiOverlayProps) {
   const isLast = currentPage === pageCount - 1;
 

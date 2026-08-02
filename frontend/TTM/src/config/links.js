@@ -3,9 +3,9 @@ export const RAW_SUPPORT_PHONE = "+22373585046";
 export const RAW_SUPPORT_EMAIL = "support@ttm.com";
 
 export const DEFAULT_MESSAGES = {
-  generalInquiry: "Bonjour 👋, j’aimerais avoir des informations sur vos services TTM.",
-  appInfo: "Bonjour 👋, j’aimerais en savoir plus sur l’app TTM.",
-  faqQuestion: "Bonjour 👋, j’ai une question à propos de vos services TTM.",
+  generalInquiry: "Bonjour , j’aimerais avoir des informations sur vos services TTM.",
+  appInfo: "Bonjour , j’aimerais en savoir plus sur l’app TTM.",
+  faqQuestion: "Bonjour , j’ai une question à propos de vos services TTM.",
 };
 
 export const NAV_LINKS = [
@@ -32,7 +32,7 @@ export const buildWhatsAppLink = (message = DEFAULT_MESSAGES.generalInquiry, pho
 export const buildServiceRequestMessage = (service) => {
   const title = service?.title || "Service";
   const amount = service?.amount || "—";
-  return `Bonjour 👋, je souhaite *demander le service* "${title}"\n\n💰 Tarif indiqué : ${amount}\n👤 Nom : [Votre nom]\n📞 Téléphone : [Votre numéro]\n📍 Localisation (lien GMaps) : [collez ici]\n⚡ Urgence : [Oui / Non]\nℹ️ Détails : [optionnel]\n\nMerci de me recontacter rapidement.`;
+  return `Bonjour , je souhaite *demander le service* "${title}"\n\n Tarif indiqué : ${amount}\n👤 Nom : [Votre nom]\n📞 Téléphone : [Votre numéro]\n📍 Localisation (lien GMaps) : [collez ici]\n⚡ Urgence : [Oui / Non]\nℹ️ Détails : [optionnel]\n\nMerci de me recontacter rapidement.`;
 };
 
 export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServiceRequestMessage(service));

@@ -8,7 +8,7 @@ let expoGoWarned = false;
 const warnExpoGo = () => {
   if (expoGoWarned) return;
   expoGoWarned = true;
-  console.log("⚠️ Expo Go détecté — notifications push/système désactivées dans ce mode");
+  console.log(" Expo Go détecté — notifications push/système désactivées dans ce mode");
 };
 
 if (Notifications) {
@@ -38,7 +38,7 @@ export async function requestNotificationPermission() {
     }
     Alert.alert(
       "Autorisation requise",
-      "⚠️ Autorisez les notifications pour suivre vos missions."
+      " Autorisez les notifications pour suivre vos missions."
     );
     return { granted: false, reason: "denied" };
   }

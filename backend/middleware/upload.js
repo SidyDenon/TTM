@@ -5,7 +5,7 @@ import fs from "fs";
 // 📂 Dossier de destination
 const uploadDir = "uploads/requests";
 
-// ⚠️ On crée le dossier s’il n’existe pas
+//  On crée le dossier s’il n’existe pas
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

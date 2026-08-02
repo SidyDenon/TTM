@@ -25,7 +25,7 @@ export default function MissionDetailsScreen() {
         });
         const json = await res.json();
         if (!res.ok) {
-          console.warn("⚠️ GET /requests/:id non OK:", json);
+          console.warn(" GET /requests/:id non OK:", json);
           setMission(null);
           // Redirige vers la liste s'il n'y a pas d'accès à ce détail
           setTimeout(() => router.replace("/user/history"), 300);
@@ -34,7 +34,7 @@ export default function MissionDetailsScreen() {
         const payload = json?.data ?? json;
         if (payload && payload.id) setMission(payload);
         else {
-          console.warn("⚠️ Payload inattendu pour /requests/:id:", payload);
+          console.warn(" Payload inattendu pour /requests/:id:", payload);
           setMission(null);
           setTimeout(() => router.replace("/user/history"), 300);
         }
@@ -105,7 +105,7 @@ export default function MissionDetailsScreen() {
         <Text style={styles.info}>📍 Adresse: <Text style={styles.bold}>{address || "Non précisée"}</Text></Text>
         {description ? <Text style={styles.info}>📝 Description: <Text style={styles.bold}>{description}</Text></Text> : null}
         <Text style={styles.info}>📅 Date: <Text style={styles.bold}>{created_at ? new Date(created_at).toLocaleString() : "—"}</Text></Text>
-        <Text style={styles.info}>💰 Prix: <Text style={[styles.bold, { color: '#4CAF50' }]}>{formatCurrency(amount)}</Text></Text>
+        <Text style={styles.info}> Prix: <Text style={[styles.bold, { color: '#4CAF50' }]}>{formatCurrency(amount)}</Text></Text>
         <Text style={styles.info}>📦 Statut: <Text style={[styles.bold, { color: (status === 'terminee' ? '#4CAF50' : status?.startsWith('annule') ? '#E53935' : '#FF9800') }]}>{String(status || '').toUpperCase()}</Text></Text>
       </View>
 

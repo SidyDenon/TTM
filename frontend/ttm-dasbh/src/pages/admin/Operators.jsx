@@ -5,12 +5,12 @@ import { API_BASE } from "../../config/urls";
 import { ClipboardIcon, EllipsisHorizontalIcon, CheckBadgeIcon, NoSymbolIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import "react-toastify/dist/ReactToastify.css";
 import { PencilSquareIcon, TrashIcon, KeyIcon, StarIcon } from "@heroicons/react/24/solid";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC
+import { can, isSuper } from "../../utils/rbac"; //  RBAC
 import { getSocketInstance } from "../../utils/socket";
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function Operators() {
-  const { token, user } = useAuth(); // ✅ on récupère user
+  const { token, user } = useAuth(); //  on récupère user
   const [operators, setOperators] = useState([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -54,7 +54,7 @@ export default function Operators() {
     return () => document.removeEventListener("mousedown", closeMenus);
   }, []);
 
-  // ✅ Permissions
+  //  Permissions
   const canView   = isSuper(user) || can(user, "operators_view");
   const canCreate = isSuper(user) || can(user, "operators_create");
   const canUpdate = isSuper(user) || can(user, "operators_update");
@@ -63,7 +63,7 @@ export default function Operators() {
   const canToggleInternal = canUpdate;
 
   const loadOperators = async () => {
-    if (!canView) return; // ✅ pas d’appel si pas le droit
+    if (!canView) return; //  pas d’appel si pas le droit
     setLoading(true);
     setError("");
     try {
@@ -178,7 +178,7 @@ export default function Operators() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur modification");
-        toast.success("Opérateur modifié ✅");
+        toast.success("Opérateur modifié ");
       } else {
         if (!canCreate) {
           toast.error("Permission refusée : création d’opérateur");
@@ -199,7 +199,7 @@ export default function Operators() {
 
         toast.success(
           <div>
-            <p>Opérateur ajouté ✅</p>
+            <p>Opérateur ajouté </p>
             {password && (
               <p>
                 🔑 Mot de passe provisoire : <b>{password}</b>
@@ -256,7 +256,7 @@ export default function Operators() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur suppression");
-      toast.success("Opérateur supprimé ✅");
+      toast.success("Opérateur supprimé ");
       await loadOperators();
       return true;
     } catch (err) {
@@ -342,8 +342,8 @@ export default function Operators() {
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour");
       toast.success(
         !op.is_internal
-          ? "Opérateur promu interne ✅"
-          : "Opérateur repassé en externe ✅"
+          ? "Opérateur promu interne "
+          : "Opérateur repassé en externe "
       );
       await loadOperators();
     } catch (err) {
@@ -367,14 +367,14 @@ export default function Operators() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour");
-      toast.success(shouldBlock ? "Opérateur bloqué ✅" : "Opérateur débloqué ✅");
+      toast.success(shouldBlock ? "Opérateur bloqué " : "Opérateur débloqué ");
       await loadOperators();
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  // ✅ Blocage vue si pas la permission
+  //  Blocage vue si pas la permission
   if (!canView) {
     return (
       <div
@@ -441,7 +441,7 @@ export default function Operators() {
             En ligne {onlineOperatorIds.length}
           </button>
         </h2>
-        {/* ✅ visible seulement si création autorisée */}
+        {/*  visible seulement si création autorisée */}
         {canCreate && (
           <button
             onClick={() => {
@@ -845,7 +845,7 @@ export default function Operators() {
               >
                 Annuler
               </button>
-              {/* ✅ bouton désactivé si pas la permission */}
+              {/*  bouton désactivé si pas la permission */}
               <button
                 onClick={saveOperator}
                 disabled={(editing && !canUpdate) || (!editing && !canCreate)}
@@ -1034,7 +1034,7 @@ export default function Operators() {
                     style={{ borderColor: "var(--border-color)", background: "var(--bg-main)" }}
                   >
                     <span style={{ fontSize: 18 }}>
-                      {Number(o?.pending_alerts_enabled ?? 1) !== 0 ? "🟢" : "🔴"}
+                      {Number(o?.pending_alerts_enabled ?? 1) !== 0 ? "🟢" : ""}
                     </span>
                     <span className="flex-1">{o.name}</span>
                                         {Number(o?.pending_alerts_enabled ?? 1) === 0 && (

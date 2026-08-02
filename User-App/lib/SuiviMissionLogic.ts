@@ -171,9 +171,9 @@ export function useSuiviMissionLogic() {
           return;
         }
         await setupNotificationChannel();
-        console.log("✅ Notifications autorisées");
+        console.log(" Notifications autorisées");
       } catch (err) {
-        console.warn("⚠️ Impossible de vérifier les notifications:", err);
+        console.warn(" Impossible de vérifier les notifications:", err);
       }
     })();
   }, []);
@@ -411,7 +411,7 @@ export function useSuiviMissionLogic() {
           setIsFallbackRoute(true);
         }
       } catch (e) {
-        console.warn("⚠️ recalcul itinéraire:", (e as Error)?.message || e);
+        console.warn(" recalcul itinéraire:", (e as Error)?.message || e);
       }
     };
 
@@ -498,11 +498,11 @@ export function useSuiviMissionLogic() {
           case "acceptee":
             return data.operator_name
               ? `${data.operator_name} a accepté ta mission`
-              : "Ta mission a été acceptée ✅";
+              : "Ta mission a été acceptée ";
           case "en_route":
             return "Ton dépanneur est en route 🚗";
           case "sur_place":
-            return "Ton dépanneur est arrivé ✅";
+            return "Ton dépanneur est arrivé ";
           case "remorquage":
             return "Le véhicule est en cours de remorquage 🚚";
           case "terminee":
@@ -639,7 +639,7 @@ export function useSuiviMissionLogic() {
               showNotificationInApp(json.error || "Impossible d’annuler la mission.");
               return;
             }
-            showNotificationInApp("✅ Ta mission a bien été annulée.");
+            showNotificationInApp(" Ta mission a bien été annulée.");
             setTimeout(() => {
               router.replace("/user");
             }, 1200);

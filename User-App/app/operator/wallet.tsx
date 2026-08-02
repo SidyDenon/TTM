@@ -150,7 +150,7 @@ export default function WalletScreen() {
         return;
       }
 
-      Alert.alert("✅ Succès", "Votre demande de retrait a été envoyée");
+      Alert.alert(" Succès", "Votre demande de retrait a été envoyée");
       setShowModal(false);
       setAmount("");
       setPhone("");
@@ -287,7 +287,7 @@ export default function WalletScreen() {
     const handlePaymentConfirmed = (data: any) => {
       Toast.show({
         type: "info",
-        text1: "✅ Paiement client validé",
+        text1: " Paiement client validé",
         text2: `Mission #${data?.request_id || "-"} en attente de confirmation admin`,
         visibilityTime: 2600,
       });

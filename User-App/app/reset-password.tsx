@@ -24,12 +24,12 @@ export default function ResetPasswordScreen() {
     setMessage("");
 
     if (!code.trim()) {
-      setError("⚠️ Code requis");
+      setError(" Code requis");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("⚠️ Les mots de passe ne correspondent pas");
+      setError(" Les mots de passe ne correspondent pas");
       return;
     }
 
@@ -39,7 +39,7 @@ export default function ResetPasswordScreen() {
         body: JSON.stringify({ identifier, code: code.trim(), newPassword }),
       });
 
-      setMessage("✅ Mot de passe réinitialisé avec succès");
+      setMessage(" Mot de passe réinitialisé avec succès");
       setTimeout(() => router.replace("/login"), 1500);
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
@@ -114,7 +114,7 @@ export default function ResetPasswordScreen() {
                 method: "POST",
                 body: JSON.stringify({ identifier }),
               });
-              setMessage("✅ Code renvoyé");
+              setMessage(" Code renvoyé");
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "Erreur lors du renvoi";
               setError(msg);

@@ -15,7 +15,7 @@ import { FaRegCircleUser } from "react-icons/fa6";
 import { AiOutlineLoading3Quarters } from "react-icons/ai";
 import { API_BASE } from "../../config/urls";
 import { useAuth } from "../../context/AuthContext";
-import { can, isSuper } from "../../utils/rbac"; // ✅ RBAC (même pattern)
+import { can, isSuper } from "../../utils/rbac"; //  RBAC (même pattern)
 import { useModalOrigin } from "../../hooks/useModalOrigin";
 
 export default function SiteVitrine() {
@@ -421,7 +421,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur chargement config");
 
-      // ✅ map sur la réponse du backend
+      //  map sur la réponse du backend
       setCommission(String(data.commission_percent ?? "0"));
       setTowingPricePerKm(String(data.towing_price_per_km ?? "0"));
       setTowingBasePrice(String(data.towing_base_price ?? "0"));
@@ -513,7 +513,7 @@ export default function SiteVitrine() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur sauvegarde contenu vitrine");
-      toast.success("Contenu vitrine mis à jour ✅");
+      toast.success("Contenu vitrine mis à jour ");
       invalidatePublicVitrineCache();
       setSiteContent(payload);
     } catch (e) {
@@ -562,7 +562,7 @@ export default function SiteVitrine() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour profil");
-      toast.success("Profil mis à jour ✅");
+      toast.success("Profil mis à jour ");
       setClosingEditProfile(true);
       setTimeout(() => {
         setShowEditProfile(false);
@@ -599,7 +599,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur changement mot de passe");
-      toast.success("Mot de passe mis à jour ✅");
+      toast.success("Mot de passe mis à jour ");
       setPwd({ current: "", next: "", confirm: "" });
       setClosingPasswordModal(true);
       setTimeout(() => {
@@ -641,7 +641,7 @@ export default function SiteVitrine() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
-      toast.success(`Service "${srv.name}" mis à jour ✅`);
+      toast.success(`Service "${srv.name}" mis à jour `);
       invalidatePublicVitrineCache();
       setServices((prev) =>
         prev.map((s) => (s.id === srv.id ? { ...s, ...(data?.data || {}), price } : s))
@@ -733,7 +733,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur mise à jour service");
 
-      toast.success(`Service "${editServiceDraft.name}" mis à jour ✅`);
+      toast.success(`Service "${editServiceDraft.name}" mis à jour `);
       invalidatePublicVitrineCache();
       setServices((prev) =>
         prev.map((s) => (s.id === editingService.id ? { ...s, ...(data?.data || {}) } : s))
@@ -766,7 +766,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur suppression service");
-      toast.success(`Service "${srv.name}" supprimé ✅`);
+      toast.success(`Service "${srv.name}" supprimé `);
       invalidatePublicVitrineCache();
       setServices((prev) => sortPinnedServices(prev.filter((s) => s.id !== srv.id)));
       return true;
@@ -816,7 +816,7 @@ export default function SiteVitrine() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur ajout service");
-      toast.success("Service ajouté ✅");
+      toast.success("Service ajouté ");
       invalidatePublicVitrineCache();
       setAddForm({ name: "", subtitle: "", description: "", price: "", icon: "", is_internal: false });
       setAddImageFile(null);
@@ -883,7 +883,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur mise à jour configuration");
-      toast.success("Paramètres business mis à jour ✅");
+      toast.success("Paramètres business mis à jour ");
       setCurrency(curr);
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
@@ -919,7 +919,7 @@ export default function SiteVitrine() {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.error || "Erreur mise à jour coordonneés");
-      toast.success("Coordonnées service client mises à jour ✅");
+      toast.success("Coordonnées service client mises à jour ");
       setSupportPhone(data.support_phone || "");
       setSupportWhatsApp(data.support_whatsapp || "");
       setSupportEmail(data.support_email || "");

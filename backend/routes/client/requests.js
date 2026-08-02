@@ -401,7 +401,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
       );
       const photos = normalizePhotos(photosRows.map((p) => p.url));
 
-      res.json({ message: "Demande récupérée ✅", data: { ...rows[0], photos } });
+      res.json({ message: "Demande récupérée ", data: { ...rows[0], photos } });
     } catch (err) {
       console.error("❌ Erreur GET /requests/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -505,7 +505,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
         });
       }
 
-      res.json({ message: "Demande annulée ✅", data: payload });
+      res.json({ message: "Demande annulée ", data: payload });
     } catch (err) {
       console.error("❌ Erreur /requests/:id/cancel:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -611,7 +611,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
       };
 
       res.status(201).json({
-        message: "Demande republiée ✅",
+        message: "Demande republiée ",
         data: newRequest,
       });
 
@@ -754,7 +754,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
 
       const distanceKm = haversine(latNum, lngNum, destLatNum, destLngNum);
 
-      // 💰 Prix = base + distance * prix/km
+      //  Prix = base + distance * prix/km
       finalPrice = Math.round(basePrice + distanceKm * pricePerKm);
     }
 
@@ -819,7 +819,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     };
 
     res.status(201).json({
-      message: "Demande créée avec succès ✅",
+      message: "Demande créée avec succès ",
       data: newRequest,
     });
 
@@ -955,7 +955,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
         });
       }
 
-      // 🔔 Notifier l'opérateur que le client a validé le paiement
+      //  Notifier l'opérateur que le client a validé le paiement
       if (mission.operator_id) {
         try {
           const [[opUser]] = await req.db.query(
@@ -975,12 +975,12 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
             await sendPushNotification(opUser.notification_token, title, body);
           }
         } catch (notifyErr) {
-          console.warn("⚠️ Notification opérateur paiement échouée:", notifyErr?.message || notifyErr);
+          console.warn(" Notification opérateur paiement échouée:", notifyErr?.message || notifyErr);
         }
       }
 
       res.json({
-        message: "Paiement transmis, en attente de validation ✅",
+        message: "Paiement transmis, en attente de validation ",
         data: { transaction_id: tx.id, status: "en_attente" },
       });
     } catch (err) {

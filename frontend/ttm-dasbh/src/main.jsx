@@ -10,7 +10,7 @@ import "./index.css";
   try {
     await initApiBase();
   } catch (err) {
-    console.warn("⚠️ initApiBase a échoué, fallback PROD :", err);
+    console.warn(" initApiBase a échoué, fallback PROD :", err);
   }
 
   ReactDOM.createRoot(document.getElementById("root")).render(

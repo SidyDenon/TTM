@@ -119,7 +119,7 @@ useEffect(() => {
 
   // mission socket listener active
 
-  // ✅ Fonction utilitaire (avec types)
+  //  Fonction utilitaire (avec types)
   const triggerNotification = async (title: string, body: string) => {
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -182,7 +182,7 @@ useEffect(() => {
     socket.off("mission:deleted", handleMissionDeleted);
   };
 }, [socket, id, router]);
-  // ✅ Accepter mission
+  //  Accepter mission
   const accepterMission = async () => {
     try {
       const res = await fetch(`${API_URL}/operator/requests/${id}/accepter`, {
@@ -202,7 +202,7 @@ useEffect(() => {
 
       Toast.show({
         type: "success",
-        text1: "✅ Mission acceptee",
+        text1: " Mission acceptee",
         text2: "Redirection en cours...",
       });
 
@@ -219,7 +219,7 @@ useEffect(() => {
     }
   };
 
-  // 🕐 Loading
+  //  Loading
   if (loading) {
     return (
       <View style={styles.loader}>
@@ -271,7 +271,7 @@ useEffect(() => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
       <ScrollView style={styles.container}>
-        {/* ✅ Carte */}
+        {/*  Carte */}
         {validCoords && (
           <View style={styles.mapWrapper}>
             <MapView
@@ -389,7 +389,7 @@ useEffect(() => {
           )}
         </View>
 
-        {/* ✅ Boutons */}
+        {/*  Boutons */}
         <View style={styles.btnRow}>
           <TouchableOpacity
             style={[styles.actionBtn, styles.btnRefuser]}

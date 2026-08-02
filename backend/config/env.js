@@ -16,12 +16,12 @@ export async function validateEnv(db) {
   if (!skipDbCheck) {
     try {
       await db.query("SELECT 1");
-      console.log("✅ Connexion DB réussie");
+      console.log(" Connexion DB réussie");
     } catch (err) {
       console.error("❌ Erreur connexion DB:", err.message);
       process.exit(1);
     }
   } else {
-    console.log("⚠️ SKIP_DB_CHECK=1 → ping DB ignoré (mode test)");
+    console.log(" SKIP_DB_CHECK=1 → ping DB ignoré (mode test)");
   }
 }

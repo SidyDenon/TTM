@@ -21,7 +21,7 @@ async function logAdminEvent(db, adminId, action, meta = {}) {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ Impossible d'enregistrer admin_events:", e.message || e);
+    console.warn(" Impossible d'enregistrer admin_events:", e.message || e);
   }
 }
 
@@ -48,7 +48,7 @@ export default (db) => {
         ORDER BY u.created_at DESC
       `;
       const [rows] = await req.db.query(sql);
-      res.json({ message: "Liste des clients récupérée ✅", data: rows });
+      res.json({ message: "Liste des clients récupérée ", data: rows });
     } catch (err) {
       console.error("❌ Erreur GET /clients:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -112,10 +112,10 @@ Votre compte client a été créé avec succès.
 📞 Téléphone : ${phone}
 🔑 Mot de passe provisoire : ${motDePasseClair}
 
-⚠️ Pour votre sécurité, merci de modifier ce mot de passe lors de votre première connexion.
+ Pour votre sécurité, merci de modifier ce mot de passe lors de votre première connexion.
 
 📍 Grâce à l’application TOW TRUCK MALI, vous pouvez :
-✅ Demander un dépannage rapidement
+ Demander un dépannage rapidement
 📍 Être localisé automatiquement
 🕒 Suivre l’arrivée de la dépanneuse en temps réel
 
@@ -128,12 +128,12 @@ Dépannage express – 24h/24
 `
           );
         } catch (mailErr) {
-          console.warn("⚠️ Erreur envoi mail:", mailErr.message);
+          console.warn(" Erreur envoi mail:", mailErr.message);
         }
       }
 
       res.status(201).json({
-        message: "Client créé ✅",
+        message: "Client créé ",
         data: {
           id: userId,
           name,
@@ -207,7 +207,7 @@ Dépannage express – 24h/24
         client_id: id,
       });
 
-      res.json({ message: "Client mis à jour ✅" });
+      res.json({ message: "Client mis à jour " });
     } catch (err) {
       console.error("❌ Erreur PUT /clients/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -297,7 +297,7 @@ Dépannage express – 24h/24
         client_id: id,
       });
 
-      res.json({ message: `Client #${id} supprimé ✅` });
+      res.json({ message: `Client #${id} supprimé ` });
     } catch (err) {
       console.error("❌ Erreur DELETE /clients/:id:", err?.message || err, err?.code);
       res.status(500).json({ error: "Erreur serveur", detail: err?.message });
@@ -337,17 +337,17 @@ Dépannage express – 24h/24
             await sendMail(
               client.email,
               "🔑 Réinitialisation de votre mot de passe TTM",
-              `Bonjour ${client.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe: ${nouveauMdp}\n\n⚠️ Merci de le modifier lors de votre prochaine connexion.\n\n🚀 L'équipe TTM`
+              `Bonjour ${client.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe: ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
-            console.warn("⚠️ Erreur envoi mail:", mailErr.message);
+            console.warn(" Erreur envoi mail:", mailErr.message);
           }
         }
 
         res.json({
           message: client.email
-            ? "Mot de passe réinitialisé et envoyé par email ✅"
-            : "Mot de passe réinitialisé ✅ (pas d’email trouvé)",
+            ? "Mot de passe réinitialisé et envoyé par email "
+            : "Mot de passe réinitialisé  (pas d’email trouvé)",
           motDePasse: nouveauMdp,
         });
       } catch (err) {

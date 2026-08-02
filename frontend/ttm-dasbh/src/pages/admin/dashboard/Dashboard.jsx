@@ -446,7 +446,7 @@ const fetchData = async (signal) => {
           throw new Error(data?.error || "Échec assignation");
         }
 
-        toast.success(`Mission #${mission.id} assignée ✅`);
+        toast.success(`Mission #${mission.id} assignée `);
         closeAssignModal();
         setSelectedMission(null);
         await reloadDashboard();
@@ -518,7 +518,7 @@ const fetchData = async (signal) => {
         });
         const data = await fetchJsonSafe(res);
         if (!res.ok) throw new Error(data?.error || "Échec annulation");
-        toast.success(`Mission #${id} annulée ✅`);
+        toast.success(`Mission #${id} annulée `);
         setSelectedMission(null);
         await reloadDashboard();
       } catch (err) {
@@ -541,7 +541,7 @@ const fetchData = async (signal) => {
         });
         const data = await fetchJsonSafe(res);
         if (!res.ok) throw new Error(data?.error || "Échec mise à jour statut");
-        toast.success(`Mission #${id} → ${status} ✅`);
+        toast.success(`Mission #${id} → ${status} `);
         setSelectedMission(null);
         await reloadDashboard();
       } catch (err) {
@@ -561,7 +561,7 @@ const fetchData = async (signal) => {
         });
         const data = await fetchJsonSafe(res);
         if (!res.ok) throw new Error(data?.error || "Échec suppression");
-        toast.success(`Mission #${id} supprimée ✅`);
+        toast.success(`Mission #${id} supprimée `);
         setSelectedMission(null);
         await reloadDashboard();
       } catch (err) {
@@ -745,7 +745,7 @@ const fetchData = async (signal) => {
                       <div>
                         <p className="font-medium flex items-center gap-2">
                           <span style={{ fontSize: 18 }}>
-                            {alertsEnabled ? "🟢" : "🔴"}
+                            {alertsEnabled ? "🟢" : ""}
                           </span>
                           {op.name || "Opérateur"} <span className="opacity-70">#{op.id}</span>
                           {!alertsEnabled && (

@@ -17,9 +17,9 @@ const getSocket = () => {
 
   // Logs debug
   socket.on("connect", () => console.log("🟢 Socket connecté :", socket.id));
-  socket.on("disconnect", (reason) => console.log("🔴 Socket déconnecté :", reason));
+  socket.on("disconnect", (reason) => console.log(" Socket déconnecté :", reason));
   socket.on("reconnect_attempt", (attempt) => console.log(`♻️ Tentative de reconnexion (${attempt})...`));
-  socket.on("connect_error", (err) => console.warn("⚠️ Erreur socket :", err.message));
+  socket.on("connect_error", (err) => console.warn(" Erreur socket :", err.message));
 
   return socket;
 };
@@ -30,7 +30,7 @@ export const getSocketInstance = () => getSocket();
 // Connexion sécurisée avec token
 export const connectSocket = (token) => {
   if (!token) {
-    console.warn("⚠️ Aucun token fourni, socket non connecté");
+    console.warn(" Aucun token fourni, socket non connecté");
     return;
   }
   const s = getSocket();

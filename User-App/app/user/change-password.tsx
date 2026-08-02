@@ -60,7 +60,7 @@ export default function ChangePasswordScreen() {
       }
 
       await refreshUser();
-      Alert.alert("✅ Succès", "Votre mot de passe a été mis à jour.", [
+      Alert.alert(" Succès", "Votre mot de passe a été mis à jour.", [
         { text: "OK", onPress: () => router.replace("/user") },
       ]);
     } catch (err: any) {

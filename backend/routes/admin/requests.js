@@ -91,7 +91,7 @@ const formatMissionForSocket = (row = {}) => {
 };
 
 export default (db, io, emitMissionEvent) => {
-  // 🔗 Injection de db + io
+  //  Injection de db + io
   router.use((req, _res, next) => {
     req.db = db;
     req.io = io;
@@ -99,7 +99,7 @@ export default (db, io, emitMissionEvent) => {
     next();
   });
 
-  // 🔐 Auth + permissions pour tout le module
+  //  Auth + permissions pour tout le module
   router.use(authMiddleware, loadAdminPermissions);
 
   // ===============================
@@ -311,7 +311,7 @@ export default (db, io, emitMissionEvent) => {
         // Fallback si colonnes inconnues (zone/address ou phone)
         if (e?.code === "ER_BAD_FIELD_ERROR" || e?.code === "ER_NO_SUCH_TABLE") {
           console.warn(
-            "⚠️ Fallback compact mode for /admin/requests due to schema mismatch:",
+            " Fallback compact mode for /admin/requests due to schema mismatch:",
             e.code
           );
           return await runCompact();
@@ -440,7 +440,7 @@ export default (db, io, emitMissionEvent) => {
           );
         }
 
-        res.json({ message: "Photos ajoutées ✅", photos: urls });
+        res.json({ message: "Photos ajoutées ", photos: urls });
       } catch (err) {
         console.error(
           "❌ Erreur POST /admin/requests/:id/photos:",
@@ -541,7 +541,7 @@ export default (db, io, emitMissionEvent) => {
         });
       }
 
-      // 🔔 Push Expo à l'opérateur
+      //  Push Expo à l'opérateur
       try {
         const [[op]] = await req.db.query(
           "SELECT notification_token FROM users WHERE id = ? AND notification_token IS NOT NULL",
@@ -557,7 +557,7 @@ export default (db, io, emitMissionEvent) => {
         }
       } catch {}
 
-      res.json({ message: "Demande assignée ✅", request });
+      res.json({ message: "Demande assignée ", request });
     } catch (err) {
       console.error(
         "❌ Erreur PATCH /admin/requests/:id/assigner:",
@@ -623,7 +623,7 @@ export default (db, io, emitMissionEvent) => {
         });
       }
 
-      res.json({ message: "Statut mis à jour ✅", request });
+      res.json({ message: "Statut mis à jour ", request });
     } catch (err) {
       console.error(
         "❌ Erreur PATCH /admin/requests/:id/status:",
@@ -713,7 +713,7 @@ export default (db, io, emitMissionEvent) => {
         missionEmitter("mission:updated", missionPayload, { clientId: updated.user_id });
       }
 
-      // 🔔 Push Expo
+      //  Push Expo
       try {
         const [operators] = await req.db.query(
           "SELECT notification_token FROM users WHERE role = 'operator' AND notification_token IS NOT NULL"
@@ -728,12 +728,12 @@ export default (db, io, emitMissionEvent) => {
         }
       } catch (e) {
         console.warn(
-          "⚠️ Impossible d'envoyer les push opérateurs:",
+          " Impossible d'envoyer les push opérateurs:",
           e?.message || e
         );
       }
 
-      res.json({ message: "Mission publiée ✅", request: updated });
+      res.json({ message: "Mission publiée ", request: updated });
     } catch (err) {
       console.error(
         "❌ Erreur POST /admin/requests/:id/publier:",
@@ -768,7 +768,7 @@ export default (db, io, emitMissionEvent) => {
       const missionEmitter = req.emitMissionEvent || emitMissionEvent;
       missionEmitter?.("mission:deleted", { id: Number(id) });
 
-      res.json({ message: `Mission #${id} supprimée ✅` });
+      res.json({ message: `Mission #${id} supprimée ` });
     } catch (err) {
       console.error(
         "❌ Erreur DELETE /admin/requests/:id:",

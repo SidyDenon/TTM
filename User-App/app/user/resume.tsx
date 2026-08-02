@@ -48,7 +48,7 @@ const COLORS = {
 const getFirst = (v?: string | string[]) =>
   Array.isArray(v) ? v[0] : v ?? "";
 
-// 💰 Formatage propre en FCFA
+//  Formatage propre en FCFA
 const formatPrice = (price: string | string[] | undefined): string | null => {
   if (!price) return null;
   const raw = getFirst(price);
@@ -91,7 +91,7 @@ export default function Resume() {
   const isRemorquage = isTowingService(serviceLabel);
   const isOilService = isHomeOilService(serviceLabel);
 
-  // 🔐 Rediriger proprement si pas connecté
+  //  Rediriger proprement si pas connecté
   useEffect(() => {
     if (!token) {
       Alert.alert("❌ Erreur", "Vous devez être connecté pour faire une demande", [
@@ -121,7 +121,7 @@ export default function Resume() {
       const servicesEnabled = await Location.hasServicesEnabledAsync();
       if (!servicesEnabled) {
         Alert.alert(
-          "⚠️ Localisation désactivée",
+          " Localisation désactivée",
           "Activez les services de localisation pour continuer."
         );
         setLoading(false);
@@ -133,7 +133,7 @@ export default function Resume() {
         loc = await Location.getCurrentPositionAsync({});
       } catch (error) {
         Alert.alert(
-          "⚠️ Localisation indisponible",
+          " Localisation indisponible",
           "Impossible de récupérer votre position actuelle."
         );
         setLoading(false);

@@ -117,7 +117,7 @@ export default function SearchingOperatorsScreen() {
         });
       } catch (e) {
         // Pas bloquant : on reste sur la région par défaut
-        console.log("⚠️ Erreur localisation searching screen:", e);
+        console.log(" Erreur localisation searching screen:", e);
       }
     })();
   }, []);
@@ -166,7 +166,7 @@ export default function SearchingOperatorsScreen() {
     return () => clearTimeout(timer);
   }, [requestId, status, token]);
 
-  // ✅ Auto-redirect to tracking after acceptance
+  //  Auto-redirect to tracking after acceptance
   useEffect(() => {
     if (status !== "accepted") return;
     const t = setTimeout(() => {

@@ -51,7 +51,7 @@ export async function sendMail(toOrOptions, subjectArg, textArg = "", htmlArg = 
   if (!subject) throw new Error("Subject cannot be empty.");
 
   if (!zeptoClient) {
-    console.warn("⚠️ ZEPTO_TOKEN manquant: envoi email ignoré");
+    console.warn(" ZEPTO_TOKEN manquant: envoi email ignoré");
     return;
   }
 

@@ -39,7 +39,7 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { apiFetch, user } = useAuth();
   const lastErrorRef = useRef<string | null>(null);
 
-  /* ✅ Chargement automatique des requêtes de l’utilisateur connecté */
+  /*  Chargement automatique des requêtes de l’utilisateur connecté */
   useEffect(() => {
     if (user?.role === "user") {
       fetchRequests();

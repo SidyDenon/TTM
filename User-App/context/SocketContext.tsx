@@ -9,7 +9,7 @@ import React, {
 import { Text } from "react-native";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
-import { getApiUrl } from "../config/urls"; // ⚠️ version auto-selection
+import { getApiUrl } from "../config/urls"; //  version auto-selection
 
 // -------------------------
 // Types

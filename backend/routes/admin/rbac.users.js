@@ -76,7 +76,7 @@ const ensureExtraPermsColumn = async (db) => {
     columnCache.set("admin_users:extra_permissions", true);
     return true;
   } catch (e) {
-    console.warn("⚠️ extra_permissions column missing and cannot be created:", e?.message || e);
+    console.warn(" extra_permissions column missing and cannot be created:", e?.message || e);
     return false;
   }
 };
@@ -89,7 +89,7 @@ const logAdminEvent = async (db, adminId, action, meta = {}) => {
       [adminId, action, JSON.stringify(meta)]
     );
   } catch (e) {
-    console.warn("⚠️ log admin_events (rbac.users):", e?.message || e);
+    console.warn(" log admin_events (rbac.users):", e?.message || e);
   }
 };
 
@@ -169,7 +169,7 @@ export default (db) => {
           : [],
       }));
 
-      res.json({ message: "Admins récupérés ✅", data });
+      res.json({ message: "Admins récupérés ", data });
     } catch (e) {
       console.error("❌ GET /rbac/users:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -304,7 +304,7 @@ Important : changez votre mot de passe à la première connexion.`,
     }
 
     return res.status(201).json({
-      message: "Administrateur créé ✅",
+      message: "Administrateur créé ",
       data: { id: r.insertId },
       temp_password: tempPassword,
     });
@@ -353,7 +353,7 @@ Important : changez votre mot de passe à la première connexion.`,
         target_admin_id: Number(id),
         role_id,
       });
-      res.json({ message: "Rôle assigné ✅" });
+      res.json({ message: "Rôle assigné " });
     } catch (e) {
       console.error("❌ PUT /rbac/users/:id/role:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -424,7 +424,7 @@ Important : changez votre mot de passe à la première connexion.`,
       );
 
       res.json({
-        message: "Admin mis à jour ✅",
+        message: "Admin mis à jour ",
         data: {
           id: row.id,
           name: row.name,
@@ -467,7 +467,7 @@ Important : changez votre mot de passe à la première connexion.`,
         target_admin_id: Number(id),
       });
       res.json({
-        message: blocked ? "Admin bloqué ✅" : "Admin débloqué ✅",
+        message: blocked ? "Admin bloqué " : "Admin débloqué ",
         data: { id: Number(id), is_blocked: !!blocked },
       });
     } catch (e) {
@@ -499,10 +499,10 @@ Important : changez votre mot de passe à la première connexion.`,
           await sendMail(
             admin.email,
             "🔑 Réinitialisation du mot de passe TTM",
-            `Bonjour ${admin.name || ""},\n\nVotre mot de passe administrateur a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n⚠️ Merci de le modifier lors de votre prochaine connexion.\n\n— L'équipe TTM`
+            `Bonjour ${admin.name || ""},\n\nVotre mot de passe administrateur a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n— L'équipe TTM`
           );
         } catch (mailErr) {
-          console.warn("⚠️ Erreur email:", mailErr.message);
+          console.warn(" Erreur email:", mailErr.message);
         }
       }
 
@@ -514,8 +514,8 @@ Important : changez votre mot de passe à la première connexion.`,
       });
       res.json({
         message: admin.email
-          ? "Mot de passe réinitialisé et envoyé par email ✅"
-          : "Mot de passe réinitialisé ✅ (pas d’email trouvé)",
+          ? "Mot de passe réinitialisé et envoyé par email "
+          : "Mot de passe réinitialisé  (pas d’email trouvé)",
         motDePasse: nouveauMdp,
       });
     } catch (e) {
@@ -628,7 +628,7 @@ Important : changez votre mot de passe à la première connexion.`,
         extra_permissions_count: safeJson(row?.extra_permissions, []).length,
       });
       res.json({
-        message: "Permissions mises à jour ✅",
+        message: "Permissions mises à jour ",
         data: {
           id: row.id,
           role_id: row.role_id || null,
@@ -663,7 +663,7 @@ Important : changez votre mot de passe à la première connexion.`,
       await logAdminEventForActor(req.db, req.user?.id, newStatus ? "admin_super_on" : "admin_super_off", {
         target_admin_id: Number(id),
       });
-      res.json({ message: newStatus ? "Superadmin attribué ✅" : "Superadmin retiré ✅" });
+      res.json({ message: newStatus ? "Superadmin attribué " : "Superadmin retiré " });
     } catch (e) {
       console.error("❌ PATCH /rbac/users/:id/super:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -688,7 +688,7 @@ Important : changez votre mot de passe à la première connexion.`,
         target_admin_id: Number(id),
       });
       await req.db.query("DELETE FROM admin_users WHERE id = ?", [id]);
-      res.json({ message: "Administrateur supprimé ✅" });
+      res.json({ message: "Administrateur supprimé " });
     } catch (e) {
       console.error("❌ DELETE /rbac/users/:id:", e);
       res.status(500).json({ error: "Erreur serveur" });
@@ -767,7 +767,7 @@ Important : changez votre mot de passe à la première connexion.`,
       );
 
       res.json({
-        message: "Superadmin forcé ✅",
+        message: "Superadmin forcé ",
         data: {
           id: row.id,
           name: row.name,

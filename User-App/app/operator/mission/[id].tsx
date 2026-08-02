@@ -1478,7 +1478,19 @@ export default function MissionSuivi() {
 
         {/* Bouton téléphone */}
         {!isFullMap && mission.status !== "publiee" && mission.user_phone && (
-          <TouchableOpacity style={[styles.fab, { bottom: Math.max(insets.bottom + 70, 84), right: isCompact ? 16 : 25 }]} onPress={callClient}>
+          <TouchableOpacity
+            style={[
+              styles.fab,
+              {
+                bottom:
+                  mission.status === "terminee"
+                    ? Math.max(insets.bottom + 138, 150)
+                    : Math.max(insets.bottom + 70, 84),
+                right: isCompact ? 16 : 25,
+              },
+            ]}
+            onPress={callClient}
+          >
             <MaterialIcons name="phone" size={28} color="#fff" />
           </TouchableOpacity>
         )}
@@ -1706,6 +1718,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 30,
+    zIndex: 25,
+    elevation: 25,
   },
   actionBtn: {
     width: "100%",
@@ -1740,6 +1754,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
+    zIndex: 8,
   },
 
   floatingBox: {

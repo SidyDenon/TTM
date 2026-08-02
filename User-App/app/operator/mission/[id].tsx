@@ -832,12 +832,16 @@ export default function MissionSuivi() {
       });
 
       if (!res.ok) {
+        const detailMsg =
+          data?.details
+            ? `${data?.error || "Erreur serveur"} (${data?.details}${data?.code ? ` / ${data.code}` : ""})`
+            : data?.error || "Impossible de confirmer le paiement espèces";
         Toast.show({
           type: "error",
           text1: "Erreur",
-          text2: data?.error || "Impossible de confirmer le paiement espèces",
+          text2: detailMsg,
         });
-        Alert.alert("Erreur confirmation", data?.error || `HTTP ${res.status}`);
+        Alert.alert("Erreur confirmation", detailMsg || `HTTP ${res.status}`);
         return;
       }
 

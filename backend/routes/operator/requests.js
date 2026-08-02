@@ -1504,13 +1504,26 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
         }
       }
 
-      const [[alreadyCashReceivedRow]] = await req.db.query(
-        `SELECT id FROM request_events
-         WHERE request_id = ? AND type = 'cash_received_operator'
-         ORDER BY id DESC
-         LIMIT 1`,
-        [id]
-      );
+      let alreadyCashReceivedRow = null;
+      try {
+        const [alreadyRows] = await req.db.query(
+          `SELECT id FROM request_events
+           WHERE request_id = ? AND type = 'cash_received_operator'
+           ORDER BY id DESC
+           LIMIT 1`,
+          [id]
+        );
+        alreadyCashReceivedRow = Array.isArray(alreadyRows) && alreadyRows.length > 0
+          ? alreadyRows[0]
+          : null;
+      } catch (eventsReadErr) {
+        console.warn("[cash-confirm] request_events_read_warning", {
+          request_id: Number(id),
+          tx_id: Number(txId),
+          message: eventsReadErr?.message || String(eventsReadErr),
+          code: eventsReadErr?.code || null,
+        });
+      }
 
       if (alreadyCashReceivedRow) {
         console.log("[cash-confirm] already_signaled", {
@@ -1532,17 +1545,26 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
         });
       }
 
-      await req.db.query(
-        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'cash_received_operator', ?, NOW())",
-        [
-          id,
-          JSON.stringify({
-            operator_id: Number(req.user.id),
-            transaction_id: Number(txId),
-            payment_method: "cash",
-          }),
-        ]
-      );
+      try {
+        await req.db.query(
+          "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'cash_received_operator', ?, NOW())",
+          [
+            id,
+            JSON.stringify({
+              operator_id: Number(req.user.id),
+              transaction_id: Number(txId),
+              payment_method: "cash",
+            }),
+          ]
+        );
+      } catch (eventsInsertErr) {
+        console.warn("[cash-confirm] request_events_insert_warning", {
+          request_id: Number(id),
+          tx_id: Number(txId),
+          message: eventsInsertErr?.message || String(eventsInsertErr),
+          code: eventsInsertErr?.code || null,
+        });
+      }
 
       // Temps réel admin + opérateur
       try {
@@ -1654,9 +1676,14 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
       console.error(" Erreur POST /operator/requests/:id/confirm-cash-payment:", {
         request_id: Number(req.params?.id),
         operator_id: Number(req.user?.id || 0),
+        code: err?.code || null,
         message: err?.message || String(err),
       });
-      res.status(500).json({ error: "Erreur serveur" });
+      res.status(500).json({
+        error: "Erreur serveur",
+        details: err?.message || String(err),
+        code: err?.code || null,
+      });
     }
   });
 

@@ -246,10 +246,12 @@ function HomeContent() {
       {/* Bouton principal */}
       <View style={[styles.footer, { bottom: Math.max(insets.bottom + 14, 22) }]}>
         <TouchableOpacity
-          style={styles.helpBtn}
+          style={[styles.helpBtn, isCompact ? styles.helpBtnCompact : styles.helpBtnRegular]}
           onPress={() => router.push("/user/request")}
         >
-          <Text style={[styles.helpText, { fontSize: isCompact ? 14 : 16 }]}>DEMANDER UNE ASSISTANCE</Text>
+          <Text style={[styles.helpText, isCompact ? styles.helpTextCompact : styles.helpTextRegular]}>
+            DEMANDER UNE ASSISTANCE
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -441,21 +443,43 @@ const styles = StyleSheet.create({
     bottom: 30,
     left: 20,
     right: 20,
+    alignItems: "center",
   },
   helpBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#E53935",
-    paddingVertical: 14,
+    minHeight: 56,
+    paddingHorizontal: 22,
     borderRadius: 12,
     elevation: 3,
     justifyContent: "center",
+    width: "100%",
+    maxWidth: 560,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
   },
-  helpText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  helpBtnCompact: {
+    minHeight: 52,
+    borderRadius: 11,
+    paddingHorizontal: 16,
+  },
+  helpBtnRegular: {
+    minHeight: 58,
+    borderRadius: 13,
+    paddingHorizontal: 24,
+  },
+  helpText: { color: "#fff", fontWeight: "800" },
+  helpTextCompact: {
+    fontSize: 14,
+    letterSpacing: 0.2,
+  },
+  helpTextRegular: {
+    fontSize: 17,
+    letterSpacing: 0.4,
+  },
 
   // bouton recenter harmonisé avec SuiviMission
   fabStack: {

@@ -1352,6 +1352,169 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res) => {
     }
   });
 
+  // ✅ Confirmation paiement espèces par l'opérateur
+  router.post("/requests/:id/confirm-cash-payment", authMiddleware, async (req, res) => {
+    if (!isOperatorRole(req.user.role)) {
+      return res.status(403).json({ error: "Accès refusé" });
+    }
+
+    try {
+      const { id } = req.params;
+
+      // Ensure commission_percent exists on transactions (compat anciennes bases)
+      try {
+        await req.db.query("SELECT commission_percent FROM transactions LIMIT 1");
+      } catch (e) {
+        if (e?.code === "ER_BAD_FIELD_ERROR") {
+          await req.db.query(
+            "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
+          );
+        }
+      }
+
+      const [[mission]] = await req.db.query(
+        `SELECT r.*, u.notification_token AS client_notification_token
+         FROM requests r
+         LEFT JOIN users u ON u.id = r.user_id
+         WHERE r.id = ? AND r.operator_id = ?
+         LIMIT 1`,
+        [id, req.user.id]
+      );
+
+      if (!mission) {
+        return res.status(404).json({ error: "Mission introuvable ou non autorisée" });
+      }
+
+      if (String(mission.status || "") !== "terminee") {
+        return res.status(400).json({
+          error: "La mission doit être terminée avant confirmation du paiement espèces",
+        });
+      }
+
+      const grossAmount = Number.isFinite(Number(mission.estimated_price))
+        ? Number(mission.estimated_price)
+        : 0;
+      const currency = mission.currency || "FCFA";
+      const commissionPercent = await getCommissionPercent(req.db);
+      const commission = grossAmount * (commissionPercent / 100);
+      const netAmount = grossAmount - commission;
+
+      const [existingRows] = await req.db.query(
+        "SELECT * FROM transactions WHERE request_id = ? LIMIT 1",
+        [id]
+      );
+
+      let txId;
+      let alreadyConfirmed = false;
+      if (!existingRows.length) {
+        const [insertTx] = await req.db.query(
+          `INSERT INTO transactions
+             (operator_id, request_id, amount, currency, status, commission_percent, commission, confirmed_at, created_at)
+           VALUES (?, ?, ?, ?, 'confirmée', ?, ?, NOW(), NOW())`,
+          [req.user.id, id, grossAmount, currency, commissionPercent, commission]
+        );
+        txId = insertTx.insertId;
+      } else {
+        const tx = existingRows[0];
+        txId = tx.id;
+
+        if (String(tx.status || "") !== "confirmée") {
+          await req.db.query(
+            `UPDATE transactions
+             SET status = 'confirmée',
+                 amount = ?,
+                 currency = ?,
+                 commission_percent = ?,
+                 commission = ?,
+                 confirmed_at = NOW()
+             WHERE id = ?`,
+            [grossAmount, currency, commissionPercent, commission, txId]
+          );
+        } else {
+          alreadyConfirmed = true;
+        }
+      }
+
+      if (alreadyConfirmed) {
+        return res.json({
+          message: "Paiement espèces déjà confirmé",
+          data: {
+            request_id: Number(id),
+            transaction_id: Number(txId),
+            amount: grossAmount,
+            currency,
+            status: "confirmée",
+            already_confirmed: true,
+          },
+        });
+      }
+
+      // Temps réel admin + opérateur
+      io.to("admins").emit("transaction_confirmed", {
+        id: Number(txId),
+        operator_id: req.user.id,
+        request_id: Number(id),
+        amount: grossAmount,
+        netAmount,
+        commission,
+        commission_percent: commissionPercent,
+        status: "confirmée",
+        message: `Paiement espèces confirmé par l'opérateur pour mission #${id}`,
+      });
+
+      io.to(`operator:${Number(req.user.id)}`).emit("transaction_confirmed", {
+        id: Number(txId),
+        request_id: Number(id),
+        amount: grossAmount,
+        currency,
+        netAmount,
+        commission,
+        commission_percent: commissionPercent,
+        status: "confirmée",
+        message: `Paiement espèces confirmé pour mission #${id}.`,
+      });
+
+      // Message user: in-app (socket) si ouvert, push fallback s'il est fermé
+      const userMessage = `L'opérateur a confirmé le paiement en espèces de la mission #${id}.`;
+      io.to(`client:${Number(mission.user_id)}`).emit("payment_cash_confirmed", {
+        request_id: Number(id),
+        transaction_id: Number(txId),
+        amount: grossAmount,
+        currency,
+        status: "confirmée",
+        message: userMessage,
+      });
+
+      if (mission.client_notification_token) {
+        await sendPushNotification(
+          mission.client_notification_token,
+          "Paiement espèces confirmé",
+          userMessage,
+          {
+            type: "payment_cash_confirmed",
+            request_id: Number(id),
+            transaction_id: Number(txId),
+            status: "confirmée",
+          }
+        );
+      }
+
+      res.json({
+        message: "Paiement espèces confirmé",
+        data: {
+          request_id: Number(id),
+          transaction_id: Number(txId),
+          amount: grossAmount,
+          currency,
+          status: "confirmée",
+        },
+      });
+    } catch (err) {
+      console.error(" Erreur POST /operator/requests/:id/confirm-cash-payment:", err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   //  Historique des événements d’une mission
   router.get("/requests/:id/events", authMiddleware, async (req, res) => {
     try {

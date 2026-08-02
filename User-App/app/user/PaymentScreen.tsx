@@ -34,7 +34,7 @@ type OperatorType = "orange" | "wave" | "moov";
 
 export default function PaymentScreen() {
   const router = useRouter();
-  const { missionId } = useLocalSearchParams<{ missionId?: string }>();
+  const { missionId, cashConfirmed } = useLocalSearchParams<{ missionId?: string; cashConfirmed?: string }>();
   const { token } = useAuth();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const isCompact = screenHeight < 760 || screenWidth < 370;
@@ -43,6 +43,7 @@ export default function PaymentScreen() {
   const [mission, setMission] = useState<MissionPayment | null>(null);
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [cashPaymentConfirmed, setCashPaymentConfirmed] = useState(cashConfirmed === "1");
 
   //  Modal paiement
   const [payModalVisible, setPayModalVisible] = useState(false);
@@ -64,6 +65,13 @@ export default function PaymentScreen() {
     });
     return () => handler.remove();
   }, [paid]);
+
+  useEffect(() => {
+    if (cashConfirmed === "1") {
+      setCashPaymentConfirmed(true);
+      setPaid(true);
+    }
+  }, [cashConfirmed]);
 
   // 📡 Charger la mission
   useEffect(() => {
@@ -229,9 +237,19 @@ export default function PaymentScreen() {
         </Text>
         <Text style={styles.bannerText}>
           {paid
-            ? "Merci, ton paiement a bien été transmis. Tu peux maintenant nous laisser ton avis."
+            ? cashPaymentConfirmed
+              ? "Paiement espèces validé. Tu peux maintenant nous laisser ton avis."
+              : "Merci, ton paiement a bien été transmis. Tu peux maintenant nous laisser ton avis."
             : "Clique sur « Payer maintenant » pour régler par mobile money et finaliser la mission."}
         </Text>
+
+        {cashPaymentConfirmed && (
+          <View style={styles.confirmBanner}>
+            <Text style={styles.confirmBannerText}>
+              L'opérateur a confirmé la réception de votre paiement en espèces.
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* TICKET DE PAIEMENT */}
@@ -469,6 +487,22 @@ const styles = StyleSheet.create({
     color: "#555",
     marginTop: 6,
     fontSize: 14,
+  },
+  confirmBanner: {
+    marginTop: 10,
+    backgroundColor: "#E8F5E9",
+    borderColor: "#66BB6A",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    width: "100%",
+  },
+  confirmBannerText: {
+    color: "#1B5E20",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
   },
 
   // 🎟️ Ticket

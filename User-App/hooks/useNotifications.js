@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import Toast from "react-native-toast-message";
 import { useRouter } from "expo-router";
@@ -27,6 +27,7 @@ export default function useNotifications(options = {}) {
   const onRefreshWallet = options?.onRefreshWallet;
   const onOpenWithdrawals = options?.onOpenWithdrawals;
   const isOperator = user?.role === "operator";
+  const lastCashConfirmRef = useRef({ key: "", ts: 0 });
 
   useEffect(() => {
     if (!token || !socket) return;
@@ -41,8 +42,10 @@ export default function useNotifications(options = {}) {
           const body = String(notification?.request?.content?.body || "").toLowerCase();
           const isMissionNotification =
             type.includes("mission") || title.includes("mission") || body.includes("mission");
+          const isCashPaymentConfirmed = type === "payment_cash_confirmed";
           const isForeground = AppState.currentState === "active";
-          const blockForegroundMissionPush = !isOperator && isForeground && isMissionNotification;
+          const blockForegroundMissionPush =
+            !isOperator && isForeground && (isMissionNotification || isCashPaymentConfirmed);
 
           return {
             shouldShowAlert: !blockForegroundMissionPush,
@@ -99,6 +102,36 @@ export default function useNotifications(options = {}) {
       socket.on("payment_confirmed", handlePaymentConfirmed);
     }
 
+    const handleCashPaymentConfirmed = (data = {}) => {
+      if (user?.role === "operator") return;
+      const requestId = data?.request_id ?? data?.requestId ?? data?.missionId;
+      const dedupeKey = `${requestId || "unknown"}:${data?.transaction_id || data?.transactionId || "na"}`;
+      const now = Date.now();
+      if (
+        lastCashConfirmRef.current.key === dedupeKey &&
+        now - Number(lastCashConfirmRef.current.ts || 0) < 4000
+      ) {
+        return;
+      }
+      lastCashConfirmRef.current = { key: dedupeKey, ts: now };
+
+      Toast.show({
+        type: "success",
+        text1: "Paiement confirmé",
+        text2: data?.message || "Votre paiement espèces a été confirmé par l'opérateur.",
+      });
+      if (requestId) {
+        router.push({
+          pathname: "/user/PaymentScreen",
+          params: { missionId: String(requestId), cashConfirmed: "1" },
+        });
+      }
+    };
+
+    if (!isOperator) {
+      socket.on("payment_cash_confirmed", handleCashPaymentConfirmed);
+    }
+
     const handleUserMissionPush = (data = {}) => {
       if (user?.role === "operator") return;
       const type = data?.type;
@@ -128,6 +161,10 @@ export default function useNotifications(options = {}) {
           router.replace("/user");
         }
       }
+
+      if (type === "payment_cash_confirmed") {
+        handleCashPaymentConfirmed(data);
+      }
     };
 
     // 4️⃣ Si l'utilisateur clique une notif → ouvre retraits
@@ -152,6 +189,8 @@ export default function useNotifications(options = {}) {
       if (isOperator) {
         socket.off("withdrawal_update", handleWithdrawalUpdate);
         socket.off("payment_confirmed", handlePaymentConfirmed);
+      } else {
+        socket.off("payment_cash_confirmed", handleCashPaymentConfirmed);
       }
       tapSub?.remove();
       receivedSub?.remove();

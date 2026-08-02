@@ -42,6 +42,37 @@ const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const projectPointByMeters = (
+  lat: number,
+  lng: number,
+  bearingDeg: number,
+  distanceMeters: number
+) => {
+  const R = 6378137;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const toDeg = (v: number) => (v * 180) / Math.PI;
+
+  const brng = toRad(bearingDeg);
+  const lat1 = toRad(lat);
+  const lon1 = toRad(lng);
+  const dr = distanceMeters / R;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(dr) + Math.cos(lat1) * Math.sin(dr) * Math.cos(brng)
+  );
+  const lon2 =
+    lon1 +
+    Math.atan2(
+      Math.sin(brng) * Math.sin(dr) * Math.cos(lat1),
+      Math.cos(dr) - Math.sin(lat1) * Math.sin(lat2)
+    );
+
+  return {
+    latitude: toDeg(lat2),
+    longitude: toDeg(lon2),
+  };
+};
+
 type Mission = {
   id: number;
   type: string;
@@ -112,6 +143,7 @@ export default function MissionSuivi() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [followOperator, setFollowOperator] = useState(true);
   const [supportVisible, setSupportVisible] = useState(false);
+  const [confirmingCash, setConfirmingCash] = useState(false);
   const menuSlideAnim = useRef(new Animated.Value(Dimensions.get("window").width)).current;
   const menuFadeAnim = useRef(new Animated.Value(0)).current;
   const allowLeaveRef = useRef(false);
@@ -124,6 +156,7 @@ export default function MissionSuivi() {
   const bearingRef = useRef<number>(0);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
   const initialLocationSynced = useRef(false);
+  const mapManuallyMovedRef = useRef(false);
 
   const isValidCoord = (lat?: number, lng?: number) =>
     typeof lat === "number" &&
@@ -132,6 +165,26 @@ export default function MissionSuivi() {
     Number.isFinite(lng) &&
     Math.abs(lat) <= 90 &&
     Math.abs(lng) <= 180;
+
+  const focusOnOperatorNavigation = () => {
+    if (!operatorLocation || !mapRef.current) return;
+    const heading = bearingRef.current || 0;
+    const targetCenter = projectPointByMeters(
+      operatorLocation.latitude,
+      operatorLocation.longitude,
+      heading,
+      headingToDestination ? 140 : 110
+    );
+    mapRef.current.animateCamera(
+      {
+        center: targetCenter,
+        heading,
+        pitch: 62,
+        zoom: isFullMap ? 18.6 : 18.2,
+      },
+      { duration: 550 }
+    );
+  };
 
   const isTowingMission =
     typeof mission?.type === "string" &&
@@ -648,13 +701,8 @@ export default function MissionSuivi() {
         setDistance(leg.distance.value / 1000);
         setIsFallbackRoute(false);
 
-        // Ne pas écraser le mode navigation auto-centre.
-        if (!followOperator) {
-          mapRef.current?.fitToCoordinates(points, {
-            edgePadding: { top: 70, right: 50, bottom: 180, left: 50 },
-            animated: true,
-          });
-        }
+        // Quand le suivi est désactivé, on ne recadre jamais automatiquement:
+        // l'utilisateur garde la main sur la carte.
       } catch (err) {
         console.error(" Erreur Google Directions:", err);
       }
@@ -663,25 +711,24 @@ export default function MissionSuivi() {
     return () => clearTimeout(handler);
   }, [operatorLocation, mission, headingToDestination, followOperator]);
 
-  //  Suivi caméra façon navigation (centre sur le véhicule)
+  // 🎯 Suivi caméra façon navigation (vue avant véhicule, style GPS)
   useEffect(() => {
     if (!operatorLocation || !mapRef.current) return;
     if (!followOperator) return;
 
-    const camera = {
-      center: operatorLocation,
-      heading: bearingRef.current || 0,
-      pitch: 45,
-      zoom: 17,
-    } as const;
-    mapRef.current.animateCamera(camera, { duration: 800 });
-  }, [operatorLocation, followOperator]);
+    focusOnOperatorNavigation();
+  }, [operatorLocation, followOperator, headingToDestination, isFullMap]);
 
   useEffect(() => {
     if (mission?.status === "en_route" || mission?.status === "remorquage") {
       setFollowOperator(true);
     }
   }, [mission?.status]);
+
+  useEffect(() => {
+    if (!followOperator) return;
+    focusOnOperatorNavigation();
+  }, [followOperator]);
 
   //  Heure d’arrivée estimée
   useEffect(() => {
@@ -725,10 +772,50 @@ export default function MissionSuivi() {
       // 🚩 Fin de mission → stop background + retour liste
       if (action === "terminee") {
         await stopBackgroundLocation();
-        setTimeout(() => router.replace("/operator"), 1500);
+        Toast.show({
+          type: "success",
+          text1: "Mission terminée",
+          text2: "Confirme ensuite le paiement espèces si le client a payé en cash.",
+        });
       }
     } catch (err) {
       console.error(" Erreur update statut:", err);
+    }
+  };
+
+  const confirmCashPayment = async () => {
+    if (!mission?.id || confirmingCash) return;
+    try {
+      setConfirmingCash(true);
+      const res = await fetch(`${API_URL}/operator/requests/${mission.id}/confirm-cash-payment`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Toast.show({
+          type: "error",
+          text1: "Erreur",
+          text2: data?.error || "Impossible de confirmer le paiement espèces",
+        });
+        return;
+      }
+
+      Toast.show({
+        type: "success",
+        text1: "Paiement espèces confirmé",
+        text2: "Le client a été notifié.",
+      });
+
+      setTimeout(() => router.replace("/operator"), 1000);
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Erreur réseau",
+        text2: "Impossible de confirmer le paiement espèces.",
+      });
+    } finally {
+      setConfirmingCash(false);
     }
   };
 
@@ -864,13 +951,19 @@ export default function MissionSuivi() {
                 ref={mapRef}
                 style={isFullMap ? [styles.mapFull, { width: screenWidth, height: screenHeight }] : [styles.map, { height: mapHeight }]}
                 mapType={mapType}
+                showsCompass={false}
                 initialRegion={{
                   latitude: isValidCoord(mission.lat, mission.lng) ? Number(mission.lat) : 12.6392,
                   longitude: isValidCoord(mission.lat, mission.lng) ? Number(mission.lng) : -8.0029,
                   latitudeDelta: 0.01,
                   longitudeDelta: 0.01,
                 }}
-                onPanDrag={() => setFollowOperator(false)}
+                onPanDrag={() => {
+                  mapManuallyMovedRef.current = true;
+                  if (followOperator) {
+                    setFollowOperator(false);
+                  }
+                }}
               >
                 {/* Client */}
                 <Marker coordinate={{ latitude: mission.lat, longitude: mission.lng }} title={`Mission #${mission.id}`} />
@@ -940,7 +1033,11 @@ export default function MissionSuivi() {
 
               {/* Bouton type de vue */}
               <TouchableOpacity
-                style={[styles.viewToggleBtn, isFullMap && styles.viewToggleBtnFull]}
+                style={[
+                  styles.viewToggleBtn,
+                  isFullMap && styles.viewToggleBtnFull,
+                  { top: Math.max(insets.top + 140, 150) },
+                ]}
                 onPress={toggleMapType}
               >
                 <MaterialIcons
@@ -951,19 +1048,16 @@ export default function MissionSuivi() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.focusBtn, isFullMap && styles.focusBtnFull]}
+                style={[
+                  styles.focusBtn,
+                  isFullMap && styles.focusBtnFull,
+                  { top: Math.max(insets.top + 80, 90) },
+                ]}
                 onPress={() => {
                   if (!operatorLocation || !mapRef.current) return;
+                  mapManuallyMovedRef.current = false;
                   setFollowOperator(true);
-                  mapRef.current.animateCamera(
-                    {
-                      center: operatorLocation,
-                      heading: bearingRef.current || 0,
-                      pitch: 45,
-                      zoom: 17,
-                    },
-                    { duration: 600 }
-                  );
+                  focusOnOperatorNavigation();
                 }}
               >
                 <MaterialIcons
@@ -1014,7 +1108,11 @@ export default function MissionSuivi() {
 
               {/* Fullscreen toggle */}
               <TouchableOpacity
-                style={[styles.fullscreenBtn, isFullMap && styles.fullscreenBtnFull]}
+                style={[
+                  styles.fullscreenBtn,
+                  isFullMap && styles.fullscreenBtnFull,
+                  { top: Math.max(insets.top + 20, 30) },
+                ]}
                 onPress={() => setIsFullMap(!isFullMap)}
               >
                 <MaterialIcons name={isFullMap ? "fullscreen-exit" : "fullscreen"} size={26} color="#fff" />
@@ -1310,6 +1408,19 @@ export default function MissionSuivi() {
               >
                 <MaterialIcons name="flag" size={22} color="#fff" />
                 <Text style={styles.btnText}>Terminer mission</Text>
+              </TouchableOpacity>
+            )}
+
+            {mission.status === "terminee" && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#2E7D32", opacity: confirmingCash ? 0.7 : 1 }]}
+                onPress={confirmCashPayment}
+                disabled={confirmingCash}
+              >
+                <MaterialIcons name="payments" size={22} color="#fff" />
+                <Text style={styles.btnText}>
+                  {confirmingCash ? "Confirmation..." : "Confirmer paiement espèces"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>

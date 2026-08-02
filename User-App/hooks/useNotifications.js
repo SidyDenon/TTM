@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import Toast from "react-native-toast-message";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -29,6 +30,28 @@ export default function useNotifications(options = {}) {
 
   useEffect(() => {
     if (!token || !socket) return;
+
+    // Foreground client: mission updates stay in-app only (no system push banner/sound).
+    if (notificationsAvailable && Notifications) {
+      Notifications.setNotificationHandler({
+        handleNotification: async (notification) => {
+          const data = notification?.request?.content?.data || {};
+          const type = String(data?.type || "").toLowerCase();
+          const title = String(notification?.request?.content?.title || "").toLowerCase();
+          const body = String(notification?.request?.content?.body || "").toLowerCase();
+          const isMissionNotification =
+            type.includes("mission") || title.includes("mission") || body.includes("mission");
+          const isForeground = AppState.currentState === "active";
+          const blockForegroundMissionPush = !isOperator && isForeground && isMissionNotification;
+
+          return {
+            shouldShowAlert: !blockForegroundMissionPush,
+            shouldPlaySound: !blockForegroundMissionPush,
+            shouldSetBadge: false,
+          };
+        },
+      });
+    }
 
     // 1️⃣ Enregistre le token Expo push (si disponible)
     if (notificationsAvailable) {
@@ -165,6 +188,6 @@ async function registerForPushNotificationsAsync() {
     return null;
   }
 
-  console.log("🎯 Expo Push Token:", result.token);
+  console.log(" Expo Push Token:", result.token);
   return result.token;
 }

@@ -121,7 +121,7 @@ function HomeContent() {
     }
   }, [token, router]);
 
-  // 📍 Récupération position du client
+  //  Récupération position du client
   useEffect(() => {
     (async () => {
       try {
@@ -205,7 +205,7 @@ function HomeContent() {
         style={StyleSheet.absoluteFillObject}
         region={region}
       >
-        {/* 📍 Marqueur utilisateur */}
+        {/*  Marqueur utilisateur */}
         <Marker coordinate={region}>
           <Animatable.View
             animation="pulse"

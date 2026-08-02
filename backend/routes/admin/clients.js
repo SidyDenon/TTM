@@ -114,10 +114,10 @@ Votre compte client a été créé avec succès.
 
  Pour votre sécurité, merci de modifier ce mot de passe lors de votre première connexion.
 
-📍 Grâce à l’application TOW TRUCK MALI, vous pouvez :
+ Grâce à l’application TOW TRUCK MALI, vous pouvez :
  Demander un dépannage rapidement
-📍 Être localisé automatiquement
-🕒 Suivre l’arrivée de la dépanneuse en temps réel
+ Être localisé automatiquement
+ Suivre l’arrivée de la dépanneuse en temps réel
 
 En cas de besoin, notre équipe est prête à intervenir.
 

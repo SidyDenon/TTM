@@ -86,7 +86,7 @@ const ensureServiceColumns = async (db) => {
   }
 };
 
-// 🎯 Config Multer pour upload d’icônes
+//  Config Multer pour upload d’icônes
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadDir),
   filename: (_, file, cb) => {
@@ -605,7 +605,7 @@ export default (db) => {
       if (result.affectedRows === 0)
         return res.status(404).json({ error: "Service introuvable" });
 
-      // 🔁 On renvoie la version à jour
+      //  On renvoie la version à jour
       const [[updated]] = await req.db.query(
         "SELECT * FROM services WHERE id = ?",
         [req.params.id]

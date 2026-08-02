@@ -179,7 +179,7 @@ html.dark .theme-toggle::after {
 }
 
 /* ==========================
-   📍 MAP ICONS & PINS
+    MAP ICONS & PINS
 ========================== */
 @keyframes pulse {
   0% { transform: scale(1); opacity: 1; }
@@ -244,7 +244,7 @@ input[type="number"] {
 }
 
 /* ==========================
-   📍 ANIMATIONS DES PINS LEAFLET
+    ANIMATIONS DES PINS LEAFLET
 ========================== */
 @keyframes pulse {
   0% {

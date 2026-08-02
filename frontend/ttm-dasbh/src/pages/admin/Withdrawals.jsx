@@ -170,7 +170,7 @@ export default function Withdrawals() {
     };
 
     const onUpdated = (data) => {
-      toast.info(`🔁 Retrait #${data.id} → ${data.status.toUpperCase()}`, {
+      toast.info(` Retrait #${data.id} → ${data.status.toUpperCase()}`, {
         toastId: getStatusToastId(data.id, data.status),
       });
       showSystemNotification(

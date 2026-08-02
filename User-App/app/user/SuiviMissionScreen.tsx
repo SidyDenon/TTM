@@ -413,7 +413,7 @@ export default function SuiviMissionScreen() {
         </View>
         {isTowingMission && hasDestinationCoords && (
           <Text style={styles.destinationInfo}>
-            🎯 Destination :{" "}
+             Destination :{" "}
             {mission.destination
               ? mission.destination
               : `${Number(mission.dest_lat).toFixed(4)}, ${Number(mission.dest_lng).toFixed(4)}`}

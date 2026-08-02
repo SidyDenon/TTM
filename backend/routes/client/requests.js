@@ -507,7 +507,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
   router.patch("/:id/cancel", authMiddleware, cancelRequest);
   router.post("/:id/cancel", authMiddleware, cancelRequest);
 
-  // 🔁 Réessayer une mission expirée (clone)
+  //  Réessayer une mission expirée (clone)
   router.post("/:id/retry", authMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
@@ -719,7 +719,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     }
 
     // ==============================
-    // 🎯 CALCUL AUTOMATIQUE DU PRIX
+    //  CALCUL AUTOMATIQUE DU PRIX
     // ==============================
 
     let finalPrice = Number(srv.price); // prix normal par défaut

@@ -170,7 +170,7 @@ export default function RequestScreen() {
   const router = useRouter();
   const { photos, setPhotos } = useRequest();
 
-  // ─────────────── 📍 Localisation ───────────────
+  // ───────────────  Localisation ───────────────
   useEffect(() => {
     (async () => {
       try {

@@ -190,7 +190,7 @@ export const RemorquageSection: React.FC<Props> = ({
       const res = await fetch(url);
       const json = await res.json();
 
-      console.log("📍 Places Details:", json.status, json.error_message);
+      console.log(" Places Details:", json.status, json.error_message);
 
       if (json.status === "OK") {
         const loc = json.result.geometry.location;

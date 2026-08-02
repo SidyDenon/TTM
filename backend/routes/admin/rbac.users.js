@@ -318,7 +318,7 @@ Important : changez votre mot de passe à la première connexion.`,
 });
 
 
-  // 🔁 Assigner / changer un rôle
+  //  Assigner / changer un rôle
   router.put("/:id/role", superOnly, checkPermission("rbac_users_manage"), async (req, res) => {
     try {
       const { id } = req.params;

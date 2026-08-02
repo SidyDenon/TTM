@@ -529,7 +529,7 @@ export default function SiteVitrine() {
         className="p-6 rounded theme-fade"
         style={{ background: "var(--bg-card)", color: "var(--text-color)" }}
       >
-        <h2 className="text-xl font-bold text-red-500">⛔ Accès refusé</h2>
+        <h2 className="text-xl font-bold text-red-500"> Accès refusé</h2>
         <p>Vous n’avez pas les droits pour consulter cette page.</p>
       </div>
     );

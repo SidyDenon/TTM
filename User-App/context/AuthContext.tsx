@@ -103,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // 🔁 Rafraîchir les infos user
+  //  Rafraîchir les infos user
   const refreshUser = async (customToken?: string): Promise<User | null> => {
     try {
       const t = customToken || token;

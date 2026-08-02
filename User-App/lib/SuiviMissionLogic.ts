@@ -11,7 +11,6 @@ import {
   canUseNotifications as notificationsAvailable,
   requestNotificationPermission,
   setupNotificationChannel,
-  showLocalNotification,
 } from "./notifications";
 import { SUPPORT_PHONE, fetchPublicSupportConfig } from "../config/support";
 
@@ -316,13 +315,7 @@ export function useSuiviMissionLogic() {
       Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();
 
-    try {
-      if (Platform.OS !== "web" && notificationsReady) {
-        await showLocalNotification("TowTruck Mali", message);
-      }
-    } catch {
-      // Ignorer en dev
-    }
+    // Ici on reste volontairement en in-app only (toast/vibration).
   };
 
   /* ------ Animation camion ------ */

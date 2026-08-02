@@ -522,7 +522,7 @@ useEffect(() => {
   }
 }, [alertsEnabled, animateList]);
 
-// 🎯 Gesture Bottom Sheet (SNAP 10% / 60%)
+//  Gesture Bottom Sheet (SNAP 10% / 60%)
 const panGesture = React.useMemo(
   () =>
     Gesture.Pan()
@@ -923,7 +923,7 @@ const visibleMissions = alertsEnabled ? filteredMissions : [];
   />
 )}
 
-{/* 📍 Marqueurs des missions disponibles */}
+{/*  Marqueurs des missions disponibles */}
 {visibleMissions.map((mission) => (
   <Marker
     key={mission.id}

@@ -170,7 +170,7 @@ export default function SearchingOperatorsScreen() {
     })();
   }, []);
 
-  // 🔁 Animation radar (loop)
+  //  Animation radar (loop)
   useEffect(() => {
     Animated.loop(
       Animated.sequence([

@@ -95,7 +95,7 @@ export default function MissionsDetailsModal({
             <strong className="text-[var(--accent)]">🚚 Opérateur :</strong>{" "}
             {mission.operator_name || mission.operator?.name || "Non assigné"}
           </p>
-          <p><strong>📍 Adresse :</strong> {mission.address || "—"}</p>
+          <p><strong> Adresse :</strong> {mission.address || "—"}</p>
           <p><strong>🛠 Service :</strong> {mission.service || "—"}</p>
           <p>
             <strong>📅 Date :</strong>{" "}

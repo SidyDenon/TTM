@@ -11,7 +11,7 @@ import { can, isSuper } from "../utils/rbac";
 export default function ProtectedRoute({ children, perm, permAny, superOnly }) {
   const { user } = useAuth();
 
-  // ⛔ Pas connecté
+  //  Pas connecté
   if (!user) return <Navigate to="/login" replace />;
 
   // 🦸 Super admin : passe partout

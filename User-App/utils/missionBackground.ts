@@ -1,7 +1,6 @@
 import * as TaskManager from "expo-task-manager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "./api";
-import { showLocalNotification } from "../lib/notifications";
 import { getStoredToken } from "../lib/secureSession";
 
 const TASK_NAME = "mission-status-background-task";
@@ -60,14 +59,12 @@ const ensureTaskDefined = () => {
 
       const nextId = String(active.id);
       const nextStatus = active.status ?? null;
-      const nextStatusLabel = nextStatus ? nextStatus.replace(/_/g, " ") : "mise à jour";
-
       await AsyncStorage.setItem(STORAGE_LAST_ID, nextId);
       if (nextStatus) await AsyncStorage.setItem(STORAGE_LAST_STATUS, nextStatus);
 
       if (lastId === nextId && shouldNotifyStatusChange(lastStatus, nextStatus)) {
-        await showLocalNotification("Mise à jour de mission", `Statut : ${nextStatusLabel}`);
-        return BackgroundFetch.BackgroundFetchResult.NewData;
+        // Push serveur uniquement quand l'app n'est pas au premier plan.
+        return BackgroundFetch.BackgroundFetchResult.NoData;
       }
 
       return BackgroundFetch.BackgroundFetchResult.NoData;

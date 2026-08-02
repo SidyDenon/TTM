@@ -61,8 +61,8 @@ export async function setupNotificationChannel() {
   });
 }
 
-function isMissionRelatedNotification(title: string, body = "") {
-  const text = `${title} ${body}`.toLowerCase();
+function isMissionRelatedNotification(title: string) {
+  const text = `${title}`.toLowerCase();
   return text.includes("mission") || text.includes("missions");
 }
 
@@ -86,7 +86,7 @@ export async function showLocalNotification(title: string, body: string) {
     await setupNotificationChannel();
   }
 
-  const isMissionNotification = isMissionRelatedNotification(title, body);
+  const isMissionNotification = isMissionRelatedNotification(title);
   const channelId =
     Platform.OS === "android"
       ? isMissionNotification

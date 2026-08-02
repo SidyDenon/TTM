@@ -172,7 +172,7 @@ export default function FullscreenMapPortal({ requests, onClose, onSelectMission
                     <strong>📞 Téléphone :</strong> {r.user_phone || "—"}
                   </p>
                   <p>
-                    <strong>📍 Zone :</strong> {r.zone || "—"}
+                    <strong> Zone :</strong> {r.zone || "—"}
                   </p>
                   <p>
                     <strong>📅 Statut :</strong>{" "}

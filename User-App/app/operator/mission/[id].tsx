@@ -11,6 +11,7 @@ import {
   BackHandler,
   Image,
   Animated,
+  useWindowDimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
@@ -18,7 +19,7 @@ import * as Location from "expo-location";
 import { API_URL } from "../../../utils/api";
 import { formatCurrency } from "../../../utils/format";
 import { useAuth } from "../../../context/AuthContext";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import ImageViewing from "../../../components/ImageViewing";
@@ -84,6 +85,10 @@ export default function MissionSuivi() {
   const { socket } = useSocket();
   const router = useRouter();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isCompact = screenWidth < 370 || screenHeight < 760;
+  const mapHeight = Math.max(260, Math.min(360, screenHeight * 0.38));
 
   const [mission, setMission] = useState<Mission | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -119,6 +124,14 @@ export default function MissionSuivi() {
   const bearingRef = useRef<number>(0);
   const locationSub = useRef<Location.LocationSubscription | null>(null);
   const initialLocationSynced = useRef(false);
+
+  const isValidCoord = (lat?: number, lng?: number) =>
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180;
 
   const isTowingMission =
     typeof mission?.type === "string" &&
@@ -206,7 +219,7 @@ export default function MissionSuivi() {
     })();
   }, [token]);
 
-  // 🎯 Background location dédié (service natif)
+  //  Background location dédié (service natif)
   useEffect(() => {
     if (mission?.status === "en_route" && user?.id && id) {
       startBackgroundLocation(user.id, Number(id));
@@ -241,13 +254,13 @@ export default function MissionSuivi() {
     mission?.status === "annulee_admin" ||
     mission?.status === "annulee_client";
 
-  // ⛔ Bloquer le retour tant que mission non terminée/annulée
+  //  Bloquer le retour tant que mission non terminée/annulée
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
       if (mission && !isTerminalStatus && !allowLeaveRef.current) {
         Toast.show({
           type: "info",
-          text1: "⛔ Action bloquée",
+          text1: " Action bloquée",
           text2: "Vous devez terminer la mission avant de quitter",
         });
         return true;
@@ -329,8 +342,8 @@ export default function MissionSuivi() {
         setMission({
           id: m.id,
           ville: m.ville,
-          lat: Number(m.lat),
-          lng: Number(m.lng),
+          lat: Number.isFinite(Number(m.lat)) ? Number(m.lat) : undefined,
+          lng: Number.isFinite(Number(m.lng)) ? Number(m.lng) : undefined,
           adresse: m.address,
           type: m.service,
           description: m.description,
@@ -345,8 +358,14 @@ export default function MissionSuivi() {
           preview_total_km:
             m.preview_total_km != null ? Number(m.preview_total_km) : null,
           destination: m.destination || null,
-          dest_lat: m.dest_lat != null ? Number(m.dest_lat) : null,
-          dest_lng: m.dest_lng != null ? Number(m.dest_lng) : null,
+          dest_lat:
+            m.dest_lat != null && Number.isFinite(Number(m.dest_lat))
+              ? Number(m.dest_lat)
+              : null,
+          dest_lng:
+            m.dest_lng != null && Number.isFinite(Number(m.dest_lng))
+              ? Number(m.dest_lng)
+              : null,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Erreur inconnue";
@@ -378,7 +397,7 @@ export default function MissionSuivi() {
 
     fetchMission();
     fetchEvents();
-    // 🔁 Re-check statut (sécurité si socket manqué)
+    //  Re-check statut (sécurité si socket manqué)
     interval = setInterval(() => {
       fetchMission();
     }, 2000);
@@ -506,7 +525,7 @@ export default function MissionSuivi() {
 
       // Évite plusieurs watchers
       if (locationSub.current) {
-        console.log("⏸️ GPS déjà actif");
+        console.log(" GPS déjà actif");
         return;
       }
 
@@ -570,7 +589,7 @@ export default function MissionSuivi() {
     };
   }, [mission?.status, socket, user?.id]);
 
-  // 📍 Calculer route (proxy /api/directions)
+  //  Calculer route (proxy /api/directions)
   useEffect(() => {
     const destLat = headingToDestination && mission?.dest_lat != null
       ? Number(mission.dest_lat)
@@ -606,26 +625,45 @@ export default function MissionSuivi() {
         const points = polyline.decode(route.overview_polyline.points).map(([lat, lng]: [number, number]) => ({
           latitude: lat,
           longitude: lng,
-        }));
+        }))
+          .filter(
+            (p) =>
+              Number.isFinite(p.latitude) &&
+              Number.isFinite(p.longitude) &&
+              Math.abs(p.latitude) <= 90 &&
+              Math.abs(p.longitude) <= 180
+          );
+
+        if (points.length < 2) {
+          setRouteCoords([
+            { latitude: operatorLocation.latitude, longitude: operatorLocation.longitude },
+            { latitude: destLat, longitude: destLng },
+          ]);
+          setIsFallbackRoute(true);
+          return;
+        }
 
         setRouteCoords(points);
         setEta(leg.duration.value / 60);
         setDistance(leg.distance.value / 1000);
         setIsFallbackRoute(false);
 
-        mapRef.current?.fitToCoordinates(points, {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        });
+        // Ne pas écraser le mode navigation auto-centre.
+        if (!followOperator) {
+          mapRef.current?.fitToCoordinates(points, {
+            edgePadding: { top: 70, right: 50, bottom: 180, left: 50 },
+            animated: true,
+          });
+        }
       } catch (err) {
         console.error(" Erreur Google Directions:", err);
       }
     }, 1500);
 
     return () => clearTimeout(handler);
-  }, [operatorLocation, mission, headingToDestination]);
+  }, [operatorLocation, mission, headingToDestination, followOperator]);
 
-  // 🎯 Suivi caméra façon navigation (centre sur le véhicule)
+  //  Suivi caméra façon navigation (centre sur le véhicule)
   useEffect(() => {
     if (!operatorLocation || !mapRef.current) return;
     if (!followOperator) return;
@@ -639,7 +677,13 @@ export default function MissionSuivi() {
     mapRef.current.animateCamera(camera, { duration: 800 });
   }, [operatorLocation, followOperator]);
 
-  // 🕒 Heure d’arrivée estimée
+  useEffect(() => {
+    if (mission?.status === "en_route" || mission?.status === "remorquage") {
+      setFollowOperator(true);
+    }
+  }, [mission?.status]);
+
+  //  Heure d’arrivée estimée
   useEffect(() => {
     if (eta) {
       const now = new Date();
@@ -688,14 +732,14 @@ export default function MissionSuivi() {
     }
   };
 
-  // ☎️ Appeler le client
+  //  Appeler le client
   const callClient = () => {
     if (mission?.user_phone) {
       Linking.openURL(`tel:${mission.user_phone}`);
     } else {
       Toast.show({
         type: "info",
-        text1: "ℹ️ Info",
+        text1: " Info",
         text2: "Numéro de téléphone indisponible",
       });
     }
@@ -800,7 +844,7 @@ export default function MissionSuivi() {
       />
 
       <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff90" }}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { top: Math.max(insets.top + 4, 12), left: 16, right: 16 }] }>
           <Text style={styles.logo}>
             <Text style={{ color: "#E53935" }}>TT</Text>
             <Text>M</Text>
@@ -818,14 +862,15 @@ export default function MissionSuivi() {
               <View style={{ position: "relative" }}>
               <MapView
                 ref={mapRef}
-                style={isFullMap ? styles.mapFull : styles.map}
+                style={isFullMap ? [styles.mapFull, { width: screenWidth, height: screenHeight }] : [styles.map, { height: mapHeight }]}
                 mapType={mapType}
                 initialRegion={{
-                  latitude: mission.lat,
-                  longitude: mission.lng,
+                  latitude: isValidCoord(mission.lat, mission.lng) ? Number(mission.lat) : 12.6392,
+                  longitude: isValidCoord(mission.lat, mission.lng) ? Number(mission.lng) : -8.0029,
                   latitudeDelta: 0.01,
                   longitudeDelta: 0.01,
                 }}
+                onPanDrag={() => setFollowOperator(false)}
               >
                 {/* Client */}
                 <Marker coordinate={{ latitude: mission.lat, longitude: mission.lng }} title={`Mission #${mission.id}`} />
@@ -921,7 +966,11 @@ export default function MissionSuivi() {
                   );
                 }}
               >
-                <MaterialIcons name="my-location" size={22} color="#fff" />
+                <MaterialIcons
+                  name="my-location"
+                  size={22}
+                  color={followOperator ? "#7CFF8A" : "#fff"}
+                />
               </TouchableOpacity>
 
               {mission.status !== "publiee" && (
@@ -973,7 +1022,7 @@ export default function MissionSuivi() {
             </View>
           )}
 
-          {/* ⛔ Cache détails si fullscreen */}
+          {/*  Cache détails si fullscreen */}
           {!isFullMap && (
             <>
               <View style={styles.card}>
@@ -1150,7 +1199,7 @@ export default function MissionSuivi() {
 
         {/* Box flottante en fullscreen */}
         {isFullMap && mission.status === "en_route" && !headingToDestination && (
-          <View style={styles.floatingBox}>
+          <View style={[styles.floatingBox, { bottom: Math.max(insets.bottom + 14, 20), left: isCompact ? 10 : 20, right: isCompact ? 10 : 20 }] }>
             <Text style={styles.floatingTitle}>En route</Text>
             <Text style={styles.floatingAddress}>{mission.adresse}</Text>
             {typeof eta === "number" && (
@@ -1172,7 +1221,7 @@ export default function MissionSuivi() {
         )}
 
         {isFullMap && headingToDestination && (
-          <View style={styles.floatingBox}>
+          <View style={[styles.floatingBox, { bottom: Math.max(insets.bottom + 14, 20), left: isCompact ? 10 : 20, right: isCompact ? 10 : 20 }] }>
             <Text style={styles.floatingTitle}>Vers la destination</Text>
             <Text style={styles.floatingAddress}>
               {mission.destination
@@ -1197,7 +1246,7 @@ export default function MissionSuivi() {
 
         {/* Boutons actions */}
         {!isFullMap && (
-          <View style={styles.stickyBtn}>
+          <View style={[styles.stickyBtn, { bottom: Math.max(insets.bottom + 8, 16), paddingHorizontal: isCompact ? 16 : 30 }]}>
             {mission.status === "publiee" && mission.operator_id === user?.id && (
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TouchableOpacity
@@ -1268,7 +1317,7 @@ export default function MissionSuivi() {
 
         {/* Bouton téléphone */}
         {!isFullMap && mission.status !== "publiee" && mission.user_phone && (
-          <TouchableOpacity style={styles.fab} onPress={callClient}>
+          <TouchableOpacity style={[styles.fab, { bottom: Math.max(insets.bottom + 70, 84), right: isCompact ? 16 : 25 }]} onPress={callClient}>
             <MaterialIcons name="phone" size={28} color="#fff" />
           </TouchableOpacity>
         )}

@@ -95,14 +95,14 @@ export default function MissionDetailsScreen() {
         </MapView>
       ) : (
         <View style={styles.noMap}>
-          <Text style={{ color: "#999" }}>📍 Localisation non disponible</Text>
+          <Text style={{ color: "#999" }}> Localisation non disponible</Text>
         </View>
       )}
 
       <View style={styles.card}>
         <Text style={styles.title}>Mission #{missionId}</Text>
         <Text style={styles.info}>🔧 Type: <Text style={styles.bold}>{service || "Non précisé"}</Text></Text>
-        <Text style={styles.info}>📍 Adresse: <Text style={styles.bold}>{address || "Non précisée"}</Text></Text>
+        <Text style={styles.info}> Adresse: <Text style={styles.bold}>{address || "Non précisée"}</Text></Text>
         {description ? <Text style={styles.info}> Description: <Text style={styles.bold}>{description}</Text></Text> : null}
         <Text style={styles.info}>📅 Date: <Text style={styles.bold}>{created_at ? new Date(created_at).toLocaleString() : "—"}</Text></Text>
         <Text style={styles.info}> Prix: <Text style={[styles.bold, { color: '#4CAF50' }]}>{formatCurrency(amount)}</Text></Text>

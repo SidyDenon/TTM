@@ -119,7 +119,7 @@ export default function MissionsDetailsModal({
           <div className="space-y-2 text-sm leading-relaxed">
             <p><strong className="text-[var(--accent)]">👤 Client :</strong> {mission.user_name || "—"}</p>
             <p><strong className="text-[var(--accent)]">📞 Téléphone :</strong> {mission.user_phone || "—"}</p>
-            <p><strong className="text-[var(--accent)]">📍 Adresse :</strong> {mission.address || "—"}</p>
+            <p><strong className="text-[var(--accent)]"> Adresse :</strong> {mission.address || "—"}</p>
             <p><strong className="text-[var(--accent)]">🛠 Service :</strong> {formatServiceLabel(mission.service || mission.service_type)}</p>
             <p><strong className="text-[var(--accent)]">📅 Date :</strong> {mission.created_at ? new Date(mission.created_at).toLocaleString("fr-FR") : "—"}</p>
           </div>

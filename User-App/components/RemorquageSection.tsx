@@ -80,7 +80,7 @@ export const RemorquageSection: React.FC<Props> = ({
     })();
   }, [userLocation]);
 
-  // 🔍 Autocomplete Google Places
+  //  Autocomplete Google Places
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn(" GOOGLE_MAPS_API_KEY manquante");

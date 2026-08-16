@@ -1,11 +1,13 @@
 //routes/operator/requests.js
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
+import { requireOperator } from "../../middleware/requireRole.js";
 import { io, emitMissionEvent } from "../../socket/index.js";
 import { sendPushNotification } from "../../utils/sendPush.js";
 import { buildPublicUrl } from "../../config/links.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 import { getCommissionPercent } from "../../utils/commission.js";
+import { canOperatorTransition } from "../../utils/missionState.js";
 
 const router = express.Router();
 
@@ -32,11 +34,7 @@ async function ensureOperatorAlertsColumn(db) {
       alertsColumnCache = "pending_alerts_enabled";
       return alertsColumnCache;
     }
-    await db.query(
-      "ALTER TABLE operators ADD COLUMN pending_alerts_enabled TINYINT(1) NOT NULL DEFAULT 1"
-    );
-    alertsColumnCache = "pending_alerts_enabled";
-    return alertsColumnCache;
+    throw new Error("Colonne operators.pending_alerts_enabled absente; exécutez les migrations");
   } catch (err) {
     console.warn(" pending_alerts_enabled column missing and cannot be created:", err?.message || err);
     alertsColumnCache = null;
@@ -522,7 +520,7 @@ export default (db) => {
     next();
   });
 
-  router.use(authMiddleware);
+  router.use(authMiddleware, requireOperator);
   router.use(async (req, res, next) => {
     if (!isOperatorRole(req.user?.role)) return res.status(403).json({ error: "Accès refusé" });
     try {
@@ -934,6 +932,18 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     connection = await req.db.getConnection();
     await connection.beginTransaction();
 
+    // Sérialise les acceptations d'un même opérateur, même si elles visent
+    // deux missions différentes.
+    const [[lockedOperator]] = await connection.query(
+      "SELECT user_id FROM operators WHERE user_id = ? LIMIT 1 FOR UPDATE",
+      [req.user.id]
+    );
+    if (!lockedOperator) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({ error: "Profil opérateur introuvable" });
+    }
+
     const { operatorDispo, operatorInternal } = await getSchemaColumns(connection);
 
     const opSelect = [];
@@ -1195,6 +1205,41 @@ router.post("/requests/:id/accepter", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+
+router.post("/requests/:id/refuser", authMiddleware, async (req, res) => {
+  if (!isOperatorRole(req.user.role)) {
+    return res.status(403).json({ error: "Accès refusé" });
+  }
+
+  try {
+    const { id } = req.params;
+    const [result] = await req.db.query(
+      `UPDATE requests
+       SET operator_id = NULL, status = 'publiee', accepted_at = NULL
+       WHERE id = ? AND operator_id = ? AND status IN ('publiee','assignee')`,
+      [id, req.user.id]
+    );
+    if (!result.affectedRows) {
+      return res.status(409).json({ error: "Mission introuvable, modifiée ou déjà acceptée" });
+    }
+
+    await req.db.query(
+      "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'refusee', ?, NOW())",
+      [id, JSON.stringify({ operator_id: req.user.id })]
+    );
+
+    const [[updated]] = await req.db.query("SELECT * FROM requests WHERE id = ?", [id]);
+    emitMissionEvent("mission:updated", missionToSocketPayload(updated), {
+      clientId: updated.user_id,
+      operators: false,
+    });
+    res.json({ message: "Mission refusée et remise en publication" });
+  } catch (err) {
+    console.error(" Erreur POST /operator/requests/:id/refuser:", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
   if (!isOperatorRole(req.user.role))
     return res.status(403).json({ error: "Accès refusé" });
@@ -1216,48 +1261,18 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           .status(403)
           .json({ error: "Non autorisé à modifier cette mission" });
 
-      const serviceLabel = String(mission.service || mission.type || "")
-        .toLowerCase()
-        .trim();
-      const isRemorquage = serviceLabel.includes("remorqu");
-
-      const FLOW = isRemorquage
-        ? {
-            en_route: new Set(["assignee", "acceptee"]),
-            sur_place: new Set(["en_route"]),
-            remorquage: new Set(["sur_place"]),
-            terminee: new Set(["remorquage"]),
-          }
-        : {
-            en_route: new Set(["assignee", "acceptee"]),
-            sur_place: new Set(["en_route"]),
-            terminee: new Set(["sur_place"]),
-          };
-      const validActions = Object.keys(FLOW);
+      const validActions = ["en_route", "sur_place", "remorquage", "terminee"];
       if (!validActions.includes(action))
         return res.status(400).json({ error: "Action invalide" });
 
       const previousStatus = String(mission.status || "");
-      const allowedTransitions = FLOW[action];
-      if (!allowedTransitions || !allowedTransitions.has(previousStatus)) {
+      if (!canOperatorTransition(mission, action)) {
         return res.status(400).json({
           error: `Transition ${previousStatus} → ${action} interdite pour cette mission`,
         });
       }
 
       if (action === "terminee") {
-        // Ensure commission_percent column exists
-        try {
-          await req.db.query(
-            "SELECT commission_percent FROM transactions LIMIT 1"
-          );
-        } catch (e) {
-          if (e?.code === "ER_BAD_FIELD_ERROR") {
-            await req.db.query(
-              "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
-            );
-          }
-        }
         await req.db.query(
           "UPDATE requests SET status = ?, finished_at = NOW() WHERE id = ?",
           [action, id]
@@ -1375,27 +1390,6 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
     try {
       const { id } = req.params;
 
-      // Ensure commission_percent exists on transactions (compat anciennes bases)
-      try {
-        await req.db.query("SELECT commission_percent FROM transactions LIMIT 1");
-      } catch (e) {
-        if (e?.code === "ER_BAD_FIELD_ERROR") {
-          await req.db.query(
-            "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
-          );
-        }
-      }
-      // Ensure payment_method exists on transactions
-      try {
-        await req.db.query("SELECT payment_method FROM transactions LIMIT 1");
-      } catch (e) {
-        if (e?.code === "ER_BAD_FIELD_ERROR") {
-          await req.db.query(
-            "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
-          );
-        }
-      }
-
       const [[mission]] = await req.db.query(
         `SELECT r.*, u.notification_token AS client_notification_token
          FROM requests r
@@ -1445,9 +1439,9 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
           });
         }
 
-        if (tx.payment_method && String(tx.payment_method).toLowerCase() !== "cash") {
+        if (String(tx.payment_method || "").toLowerCase() !== "cash") {
           return res.status(400).json({
-            error: "Le client n'a pas choisi le paiement espèces pour cette mission",
+            error: "Le client doit d’abord choisir explicitement le paiement espèces",
           });
         }
 
@@ -1612,6 +1606,16 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
   router.get("/requests/:id/events", authMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
+      if (!isOperatorRole(req.user.role)) {
+        return res.status(403).json({ error: "Accès refusé" });
+      }
+      const [[mission]] = await req.db.query(
+        "SELECT id FROM requests WHERE id = ? AND operator_id = ? LIMIT 1",
+        [id, req.user.id]
+      );
+      if (!mission) {
+        return res.status(404).json({ error: "Mission introuvable ou non autorisée" });
+      }
       const [rows] = await req.db.query(
         "SELECT * FROM request_events WHERE request_id = ? ORDER BY created_at ASC",
         [id]
@@ -1707,34 +1711,3 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
 
   return router;
 }
-router.post("/requests/:id/refuser", authMiddleware, async (req, res) => {
-  if (!isOperatorRole(req.user.role))
-    return res.status(403).json({ error: "Accès refusé" });
-
-  try {
-    const { id } = req.params;
-    const [[mission]] = await req.db.query(
-      "SELECT * FROM requests WHERE id = ? AND operator_id = ? AND status = 'publiee'",
-      [id, req.user.id]
-    );
-
-    if (!mission) {
-      return res.status(403).json({ error: "Mission introuvable ou déjà acceptée" });
-    }
-
-    await req.db.query(
-      "UPDATE requests SET operator_id = NULL, status = 'publiee', accepted_at = NULL WHERE id = ?",
-      [id]
-    );
-
-    await req.db.query(
-      "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'refusee', ?, NOW())",
-      [id, JSON.stringify({ operator_id: req.user.id })]
-    );
-
-    res.json({ message: "Mission refusée, remise en publication" });
-  } catch (err) {
-    console.error(" Erreur POST /operator/requests/:id/refuser:", err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});

@@ -219,7 +219,7 @@ export default function RequestScreen() {
     })();
   }, []);
 
-  // ─────────────── 🧾 Charger les services ───────────────
+  // ───────────────  Charger les services ───────────────
   useEffect(() => {
     const fetchServices = async () => {
       try {

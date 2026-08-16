@@ -15,7 +15,7 @@ function genererMotDePasse(longueur = 12) {
   return crypto.randomBytes(longueur).toString("base64").slice(0, longueur);
 }
 
-// 🧾 Historiser actions admin
+//  Historiser actions admin
 async function logAdminEvent(db, adminId, action, meta = {}) {
   await db.query(
     "INSERT INTO admin_events (admin_id, action, meta, created_at) VALUES (?, ?, ?, NOW())",

@@ -472,7 +472,7 @@ export default function Operators() {
       <div className="mb-4 flex flex-col gap-3">
         <input
           type="text"
-          placeholder="🔍 Rechercher..."
+          placeholder=" Rechercher..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full p-2 rounded border"

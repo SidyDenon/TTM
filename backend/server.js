@@ -44,10 +44,13 @@ import directionsRoutes from "./routes/directions.js";
 import adminDebugRoutes from "./routes/admin/debug.js";
 import debugRoutes from "./routes/debug.js";
 import { loadAdminPermissions } from "./middleware/checkPermission.js";
+import { requireAdmin } from "./middleware/requireRole.js";
 import clientOilServiceRoutes from "./routes/client/oilService.js";
 import adminOilServiceRoutes from "./routes/admin/oilService.js";
+import feedbackRoutes from "./routes/client/feedback.js";
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -55,6 +58,12 @@ app.use(helmet({
 }));
 
 app.use(cors(corsOptions));
+app.use("/api", rateLimit({
+  windowMs: 60 * 1000,
+  limit: Number(process.env.API_RATE_LIMIT_PER_MINUTE || 300),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+}));
 // Express 5 + path-to-regexp v6: avoid '*' string path
 app.options(/.*/, cors(corsOptions));
 
@@ -86,14 +95,18 @@ app.use(
     next();
   },
   authMiddleware,
+  requireAdmin,
   loadAdminPermissions
 );
 
 app.use("/api/admin/clients", clientsRoutes(db));
 app.use("/api/admin/operators", operatorsRoutes(db));
-app.use("/api/admin/requests", requestsDebugRoutes(db));
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/admin/requests", requestsDebugRoutes(db));
+}
 app.use("/api/admin/requests", requestsRoutes(db, io, emitMissionEvent));
 app.use("/api/requests", clientRequestsRoutes(db, notifyOperators, emitMissionEvent));
+app.use("/api/feedback", feedbackRoutes(db));
 app.use("/api/operator/wallet", walletRoutes(db));
 app.use("/api/admin/transactions", transactionsRoutes(db));
 app.use("/api/oil-models", clientOilServiceRoutes(db));
@@ -108,7 +121,9 @@ app.use("/api/admin/vitrine/services", vitrineServicesRoutes(db));
 app.use("/api/admin/config", configRoutes(db));
 app.use("/api/admin/rbac/roles", rbacRolesRoutes(db));
 app.use("/api/admin/rbac/users", rbacUsersRoutes(db));
-app.use("/api/admin/_debug", adminDebugRoutes());
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/admin/_debug", adminDebugRoutes());
+}
 app.use("/api/services/public", servicesPublicRoutes(db));
 app.use("/api/vitrine/services/public", vitrineServicesPublicRoutes(db));
 app.use("/api/config/public", publicConfigRoutes(db));

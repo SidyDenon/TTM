@@ -172,10 +172,13 @@ export default (db, io, emitMissionEvent) => {
         if (rows.length === 0)
           return res.status(404).json({ error: "Demande introuvable" });
 
-        await req.db.query(
-          "UPDATE requests SET status = 'publiee', estimated_price = ?, published_at = NOW() WHERE id = ?",
+        const [published] = await req.db.query(
+          "UPDATE requests SET status = 'publiee', estimated_price = ?, published_at = NOW() WHERE id = ? AND status = 'en_attente'",
           [price, id]
         );
+        if (!published.affectedRows) {
+          return res.status(409).json({ error: "Cette mission n'est plus en attente" });
+        }
         await req.db.query(
           "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
           [id, JSON.stringify({ admin_id: req.user.id, distance, price })]
@@ -256,9 +259,14 @@ export default (db, io, emitMissionEvent) => {
         if (rows.length === 0)
           return res.status(404).json({ error: "Mission introuvable" });
 
-        await req.db.query("UPDATE requests SET status = 'annulee_admin' WHERE id = ?", [
-          id,
-        ]);
+        const [cancelled] = await req.db.query(
+          `UPDATE requests SET status = 'annulee_admin'
+           WHERE id = ? AND status NOT IN ('terminee','annulee','annulee_client','annulee_admin')`,
+          [id]
+        );
+        if (!cancelled.affectedRows) {
+          return res.status(409).json({ error: "Cette mission est déjà clôturée" });
+        }
         console.log("🛑 annulee_admin ->", id);
         await req.db.query(
           "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'annulee_admin', ?, NOW())",

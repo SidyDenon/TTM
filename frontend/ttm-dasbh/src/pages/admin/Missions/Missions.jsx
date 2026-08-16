@@ -442,6 +442,13 @@ export default function Missions() {
         onSelect={setSelectedMission}
         onUpdateStatus={updateStatus}
         onDelete={deleteMission}
+        onAssign={(mission) => {
+          if (!canAssign) {
+            toast.error("Permission insuffisante : assigner une mission");
+            return;
+          }
+          setAssignModal(mission);
+        }}
         // On ouvre le modal de publication seulement si autorisé
         onPublish={(mission) => {
           if (!canPublish) {

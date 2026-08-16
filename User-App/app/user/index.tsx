@@ -90,6 +90,21 @@ function HomeContent() {
   useEffect(() => {
     const checkActiveMission = async () => {
       try {
+        const pendingPaymentRes = await fetch(`${API_URL}/requests/pending-payment`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (pendingPaymentRes.ok) {
+          const pendingPaymentJson = await pendingPaymentRes.json();
+          const pendingMission = pendingPaymentJson?.data;
+          if (pendingMission?.id) {
+            router.replace({
+              pathname: "/user/PaymentScreen",
+              params: { missionId: String(pendingMission.id) },
+            });
+            return;
+          }
+        }
+
         const res = await fetch(`${API_URL}/requests/active`, {
           headers: { Authorization: `Bearer ${token}` },
         });

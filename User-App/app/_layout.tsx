@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "../context/AuthContext";
@@ -6,12 +6,6 @@ import { RequestProvider } from "../context/RequestContext";
 import { SocketProvider } from "../context/SocketContext";
 import SplashScreen from "../components/SplashScreen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_URL } from "../utils/api";
-import {
-  requestNotificationPermission,
-  setupNotificationChannel,
-} from "../lib/notifications";
-import { getExpoPushTokenSafe } from "../lib/expoNotifications";
 
 /* ---------------- Root Navigator ---------------- */
 function RootNavigator() {
@@ -19,81 +13,12 @@ function RootNavigator() {
   const { loading, user, token } = useAuth();
   const pathname = usePathname();
   const [splashDone, setSplashDone] = useState(false);
-  const pushTokenRef = useRef<string | null>(null);
-  const registeredForUser = useRef<string | number | null>(null);
 
   //  Splash de 2,5 secondes
   useEffect(() => {
     const timer = setTimeout(() => setSplashDone(true), 1200);
     return () => clearTimeout(timer);
   }, []);
-
-  //  Prépare notifications (permissions + token) uniquement après authentification
-  useEffect(() => {
-    if (!user?.id || !token) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const { granted } = await requestNotificationPermission();
-        if (!granted) {
-          pushTokenRef.current = null;
-          return;
-        }
-        await setupNotificationChannel();
-        const result = await getExpoPushTokenSafe();
-        if (cancelled) return;
-        if (result.token) {
-          pushTokenRef.current = result.token;
-          console.log("📱 Expo push token prêt:", result.token);
-        } else {
-          pushTokenRef.current = null;
-          console.log(" Token push indisponible:", result.reason);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error(" Erreur configuration notifications:", err);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, token]);
-
-  //  Envoi du token au backend lorsque l'utilisateur est authentifié
-  useEffect(() => {
-    const expoPushToken = pushTokenRef.current;
-    const userId = user?.id ?? null;
-    if (!userId || !token || !expoPushToken) return;
-    if (registeredForUser.current === userId) return;
-
-    const controller = new AbortController();
-    (async () => {
-      try {
-        await fetch(`${API_URL}/user/push-token`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          //  AVANT: { expoPushToken }
-          //  MAINTENANT: { token } pour matcher le backend
-          body: JSON.stringify({ token: expoPushToken }),
-          signal: controller.signal,
-        });
-        registeredForUser.current = userId;
-        console.log(" Token push enregistré sur le backend");
-      } catch (err: any) {
-        if (err?.name !== "AbortError") {
-          console.error(" Erreur enregistrement token push:", err);
-        }
-      }
-    })();
-
-    return () => controller.abort();
-  }, [user, token]);
 
   //  Vérifie si c’est la première ouverture → Onboarding
   useEffect(() => {

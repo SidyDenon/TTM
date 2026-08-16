@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 import { getSchemaColumns } from "../utils/schema.js";
+import { isTokenBlacklisted } from "../utils/tokenBlacklist.js";
 
 let io = null;
 let dbRef = null;
@@ -307,16 +308,34 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
     pingTimeout: 60000,
   });
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       return next(new Error("Token manquant — connexion refusée"));
     }
     try {
+      if (isTokenBlacklisted(token)) return next(new Error("Session expirée"));
       const user = jwt.verify(token, process.env.JWT_SECRET);
       const r = String(user.role || "").toLowerCase();
       if (r === "operateur" || r === "opérateur") user.role = "operator";
       if (r === "administrateur") user.role = "admin";
+      if (user.role === "admin") {
+        const [[account]] = await dbRef.query(
+          "SELECT id FROM admin_users WHERE id = ? LIMIT 1",
+          [user.id]
+        );
+        if (!account) return next(new Error("Compte introuvable"));
+      } else {
+        const [[account]] = await dbRef.query(
+          "SELECT id, role FROM users WHERE id = ? LIMIT 1",
+          [user.id]
+        );
+        if (!account) return next(new Error("Compte introuvable"));
+        const storedRole = ["operateur", "opérateur"].includes(String(account.role).toLowerCase())
+          ? "operator"
+          : String(account.role || "").toLowerCase();
+        if (storedRole !== user.role) return next(new Error("Rôle invalide"));
+      }
       socket.user = user;
       console.log(` Authentifié: ${user.role} ${user.id}`);
       next();
@@ -373,6 +392,17 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
         console.log(
           ` operator_location rejeté: operatorId ${operatorId} ≠ user.id ${socket.user.id}`
         );
+        return;
+      }
+      const [[assignedMission]] = await dbRef.query(
+        `SELECT id FROM requests
+         WHERE id = ? AND operator_id = ?
+           AND status IN ('assignee','acceptee','en_route','sur_place','remorquage')
+         LIMIT 1`,
+        [requestId, socket.user.id]
+      );
+      if (!assignedMission) {
+        console.log(` operator_location rejeté: mission ${requestId} non attribuée`);
         return;
       }
       const payload = {

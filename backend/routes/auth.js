@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import authMiddleware from "../middleware/auth.js";
 import { getSchemaColumns } from "../utils/schema.js";
 import { sendMail } from "../utils/mailer.js";
@@ -356,7 +357,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
       if (!user) {
         return res.status(400).json({ error: "Utilisateur introuvable" });
       }
-      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const resetCode = crypto.randomInt(100000, 1000000).toString();
       const expires = new Date(Date.now() + 1000 * 60 * 15);
 
       await req.db.query(
@@ -403,7 +404,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
   });
 
   // 🔑 Vérification OTP
-  router.post("/verify-code", async (req, res) => {
+  router.post("/verify-code", authLimiter, async (req, res) => {
     try {
       const { identifier, code } = req.body;
       const [rows] = await req.db.query(
@@ -421,9 +422,12 @@ router.post("/logout", authMiddleware, async (req, res) => {
   });
 
   // 🔑 Réinitialisation du mot de passe
-  router.post("/reset-password", async (req, res) => {
+  router.post("/reset-password", authLimiter, async (req, res) => {
     try {
       const { identifier, code, newPassword } = req.body;
+      if (typeof newPassword !== "string" || newPassword.length < 8) {
+        return res.status(400).json({ error: "Le mot de passe doit contenir au moins 8 caractères" });
+      }
       const [rows] = await req.db.query(
         "SELECT * FROM users WHERE (email = ? OR phone = ?) AND reset_code = ? AND reset_expires > NOW()",
         [identifier, identifier, code]

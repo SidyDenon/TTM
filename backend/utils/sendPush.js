@@ -9,12 +9,12 @@ import https from "https";
  */
 export async function sendPushNotification(expoPushTokens, title, body, data = {}) {
   try {
-    // 🧺 Normalisation en tableau
+    // Normalisation en tableau
     const tokens = Array.isArray(expoPushTokens)
       ? expoPushTokens
       : [expoPushTokens];
 
-    // 🔍 Filtrer les tokens valides
+    //  Filtrer les tokens valides
     const validTokens = tokens.filter(
       (t) =>
         typeof t === "string" &&
@@ -26,16 +26,20 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
       return;
     }
 
-    // 📦 Tableau de messages pour l’API Expo
+    const notificationText = `${title || ""} ${body || ""} ${data?.type || ""}`.toLowerCase();
+    const isMissionNotification = notificationText.includes("mission");
+
+    //  Tableau de messages pour l’API Expo
     const messages = validTokens.map((token) => ({
       to: token,
-      sound: "default",
+      sound: isMissionNotification ? "notify.wav" : "default",
+      ...(isMissionNotification ? { channelId: "mission_v3" } : {}),
       title,
       body,
       data,
     }));
 
-    // 🌐 Compat Node < 18 (fallback https)
+    //  Compat Node < 18 (fallback https)
     const fetchCompat = async (url, options) => {
       if (typeof fetch === "function") return fetch(url, options);
       return await new Promise((resolve, reject) => {
@@ -86,9 +90,9 @@ export async function sendPushNotification(expoPushTokens, title, body, data = {
 
     const result = await res.json();
 
-    // 🧾 Logs
+    //  Logs
     if (res.ok) {
-      console.log("📤 Notifications envoyées :", {
+      console.log(" Notifications envoyées :", {
         tokens: validTokens,
         title,
         body,

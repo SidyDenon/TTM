@@ -49,6 +49,8 @@ export default function useNotifications(options = {}) {
 
           return {
             shouldShowAlert: !blockForegroundMissionPush,
+            shouldShowBanner: !blockForegroundMissionPush,
+            shouldShowList: !blockForegroundMissionPush,
             shouldPlaySound: !blockForegroundMissionPush,
             shouldSetBadge: false,
           };

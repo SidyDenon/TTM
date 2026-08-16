@@ -1,5 +1,4 @@
 // src/FAQ.jsx
-/* eslint-disable no-unused-vars */
 import React from "react";
 import { DEFAULT_MESSAGES } from "./config/links";
 import { motion, AnimatePresence } from "framer-motion";

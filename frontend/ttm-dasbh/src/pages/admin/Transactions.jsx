@@ -129,7 +129,7 @@ export default function Transactions() {
       console.log(" Nouvelle transaction :", data);
       const isCash = String(data?.payment_method || "").toLowerCase() === "cash";
       showSystemNotification(
-        "🧾 Nouvelle transaction",
+        " Nouvelle transaction",
         isCash
           ? `Paiement en especes declare pour mission #${data.request_id}`
           : `Mission #${data.request_id} terminee`

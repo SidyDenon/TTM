@@ -15,7 +15,7 @@ const ANDROID_LOCAL_URL = `http://10.0.2.2:${LOCAL_PORT}/api`;
 const LOCAL_URL = `http://${LOCAL_IP}:${LOCAL_PORT}/api`;
 
 // ============================================================
-// 🌐 CONFIG PROD (APK / EAS Build)
+//  CONFIG PROD (APK / EAS Build)
 // ============================================================
 const PROD_URL = "https://ttm-production-d022.up.railway.app/api";
 

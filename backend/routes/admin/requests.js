@@ -5,6 +5,12 @@ import { loadAdminPermissions, checkPermission } from "../../middleware/checkPer
 import { sendPushNotification } from "../../utils/sendPush.js";
 import { buildPublicUrl } from "../../config/links.js";
 import { getSchemaColumns } from "../../utils/schema.js";
+import { getCommissionPercent } from "../../utils/commission.js";
+import {
+  ACTIVE_MISSION_STATUSES,
+  ADMIN_ASSIGNABLE_STATUSES,
+  canAdminTransition,
+} from "../../utils/missionState.js";
 
 const router = express.Router();
 
@@ -457,49 +463,95 @@ export default (db, io, emitMissionEvent) => {
   //  PATCH /api/admin/requests/:id/assigner
   // ===================================
   router.patch("/:id/assigner", checkPermission("requests_manage"), async (req, res) => {
+    let connection;
     try {
       const { operator_id } = req.body;
       if (!operator_id) return res.status(400).json({ error: "Opérateur requis" });
+      connection = await req.db.getConnection();
+      await connection.beginTransaction();
+      const abort = async (status, payload) => {
+        await connection.rollback();
+        connection.release();
+        connection = null;
+        return res.status(status).json(payload);
+      };
 
-      const [[mission]] = await req.db.query(
-        "SELECT id, user_id, service, service_type, status, operator_id FROM requests WHERE id = ? LIMIT 1",
+      const [[mission]] = await connection.query(
+        "SELECT id, user_id, service, service_type, status, operator_id FROM requests WHERE id = ? LIMIT 1 FOR UPDATE",
         [req.params.id]
       );
       if (!mission) {
-        return res.status(404).json({ error: "Mission introuvable" });
+        return abort(404, { error: "Mission introuvable" });
+      }
+      if (!ADMIN_ASSIGNABLE_STATUSES.includes(String(mission.status || ""))) {
+        return abort(409, {
+          error: `La mission ne peut pas être assignée depuis le statut ${mission.status}`,
+        });
       }
 
-      const missionIsInternal = await isInternalService(req.db, mission.service);
+      await connection.query("SELECT id FROM users WHERE id = ? FOR UPDATE", [operator_id]);
+      const { operatorInternal, operatorDispo } = await getSchemaColumns(connection);
+      const internalSelect = operatorInternal
+        ? `, o.${operatorInternal} AS is_internal`
+        : ", 0 AS is_internal";
+      const dispoSelect = operatorDispo
+        ? `, o.${operatorDispo} AS dispo`
+        : ", 1 AS dispo";
+      const [[operator]] = await connection.query(
+        `SELECT u.id${internalSelect}${dispoSelect}
+         FROM users u
+         JOIN operators o ON o.user_id = u.id
+         WHERE u.id = ? AND LOWER(u.role) IN ('operator','operateur','opérateur')
+         LIMIT 1`,
+        [operator_id]
+      );
+      if (!operator) {
+        return abort(404, { error: "Opérateur introuvable" });
+      }
+      if (Number(operator.dispo) === 0) {
+        return abort(409, { error: "Cet opérateur est indisponible" });
+      }
+
+      const activePlaceholders = ACTIVE_MISSION_STATUSES.map(() => "?").join(",");
+      const [operatorActive] = await connection.query(
+        `SELECT id FROM requests
+         WHERE operator_id = ? AND id <> ? AND status IN (${activePlaceholders})
+         LIMIT 1`,
+        [operator_id, req.params.id, ...ACTIVE_MISSION_STATUSES]
+      );
+      if (operatorActive.length) {
+        return abort(409, {
+          error: "Cet opérateur a déjà une mission active",
+          mission_id: operatorActive[0].id,
+        });
+      }
+
+      const missionIsInternal = await isInternalService(connection, mission.service);
 
       if (missionIsInternal) {
-        const { operatorInternal } = await getSchemaColumns(req.db);
-        const internalCol = operatorInternal || "is_internal";
-        const [[operator]] = await req.db.query(
-          `SELECT user_id, ${internalCol} AS is_internal FROM operators WHERE user_id = ? LIMIT 1`,
-          [operator_id]
-        );
-        if (!operator) {
-          return res.status(404).json({ error: "Opérateur introuvable" });
-        }
         if (Number(operator.is_internal) !== 1) {
-          return res.status(403).json({
+          return abort(403, {
             error: "Seuls les opérateurs internes peuvent recevoir une mission interne",
           });
         }
       }
 
-      if (!(await operatorAllowsMissionAlerts(req.db, operator_id))) {
-        return res.status(403).json({
+      if (!(await operatorAllowsMissionAlerts(connection, operator_id))) {
+        return abort(403, {
           error: "Cet opérateur a désactivé la réception des missions",
         });
       }
 
       let assignedStatus = missionIsInternal ? "assignee" : "publiee";
       try {
-        await req.db.query(
-          "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+        const [assignment] = await connection.query(
+          `UPDATE requests SET operator_id = ?, status = ?
+           WHERE id = ? AND status IN ('en_attente','publiee','assignee')`,
           [operator_id, assignedStatus, req.params.id]
         );
+        if (!assignment.affectedRows) {
+          return abort(409, { error: "La mission a changé, rechargez la liste" });
+        }
       } catch (e) {
         const isStatusTruncation =
           e?.code === "WARN_DATA_TRUNCATED" ||
@@ -507,18 +559,22 @@ export default (db, io, emitMissionEvent) => {
           e?.code === "ER_TRUNCATED_WRONG_VALUE_FOR_FIELD";
         if (!missionIsInternal || !isStatusTruncation) throw e;
         assignedStatus = "publiee";
-        await req.db.query(
-          "UPDATE requests SET operator_id = ?, status = ? WHERE id = ?",
+        const [assignment] = await connection.query(
+          `UPDATE requests SET operator_id = ?, status = ?
+           WHERE id = ? AND status IN ('en_attente','publiee','assignee')`,
           [operator_id, assignedStatus, req.params.id]
         );
+        if (!assignment.affectedRows) {
+          return abort(409, { error: "La mission a changé, rechargez la liste" });
+        }
       }
 
-      await req.db.query(
+      await connection.query(
         "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, ?, ?, NOW())",
         [req.params.id, assignedStatus, JSON.stringify({ admin_id: req.user.id, operator_id })]
       );
 
-      const [[request]] = await req.db.query(
+      const [[request]] = await connection.query(
         `SELECT r.*, u.name AS client_name, u.phone AS client_phone, ou.name AS operator_name, ou.phone AS operator_phone
          FROM requests r
          LEFT JOIN users u ON u.id = r.user_id
@@ -526,6 +582,10 @@ export default (db, io, emitMissionEvent) => {
          WHERE r.id = ?`,
         [req.params.id]
       );
+
+      await connection.commit();
+      connection.release();
+      connection = null;
 
       const missionPayload = formatMissionForSocket(request);
       const missionEmitter = req.emitMissionEvent || emitMissionEvent;
@@ -559,6 +619,10 @@ export default (db, io, emitMissionEvent) => {
 
       res.json({ message: "Demande assignée ", request });
     } catch (err) {
+      if (connection) {
+        await connection.rollback().catch(() => null);
+        connection.release();
+      }
       console.error(
         " Erreur PATCH /admin/requests/:id/assigner:",
         err.code || "",
@@ -573,41 +637,82 @@ export default (db, io, emitMissionEvent) => {
   //  PATCH /api/admin/requests/:id/status
   // ===================================
   router.patch("/:id/status", checkPermission("requests_manage"), async (req, res) => {
+    let connection;
     try {
       const { status } = req.body;
-      const validStatuses = [
-        "en_attente",
-        "publiee",
-        "acceptee",
-        "en_route",
-        "sur_place",
-        "terminee",
-        "annulee_admin",
-        "annulee_client",
-      ];
+      const validStatuses = ["terminee", "annulee_admin"];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ error: "Statut invalide" });
+        return res.status(400).json({
+          error: "L’admin peut uniquement terminer ou annuler une mission via cette action",
+        });
       }
 
-      await req.db.query("UPDATE requests SET status = ? WHERE id = ?", [
-        status,
-        req.params.id,
-      ]);
+      connection = await req.db.getConnection();
+      await connection.beginTransaction();
+      const abort = async (statusCode, payload) => {
+        await connection.rollback();
+        connection.release();
+        connection = null;
+        return res.status(statusCode).json(payload);
+      };
+      const [[current]] = await connection.query(
+        "SELECT * FROM requests WHERE id = ? LIMIT 1 FOR UPDATE",
+        [req.params.id]
+      );
+      if (!current) return abort(404, { error: "Mission introuvable" });
+      if (!canAdminTransition(current, status)) {
+        return abort(409, {
+          error: `Transition ${current.status} → ${status} interdite`,
+        });
+      }
 
-      const [[request]] = await req.db.query(
+      const [updatedStatus] = await connection.query(
+        status === "terminee"
+          ? "UPDATE requests SET status = ?, finished_at = NOW() WHERE id = ? AND status = ?"
+          : "UPDATE requests SET status = ? WHERE id = ? AND status = ?",
+        [status, req.params.id, current.status]
+      );
+      if (!updatedStatus.affectedRows) {
+        return abort(409, { error: "La mission a changé, rechargez la liste" });
+      }
+
+      await connection.query(
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, ?, ?, NOW())",
+        [req.params.id, status, JSON.stringify({ admin_id: req.user.id, from: current.status })]
+      );
+
+      if (status === "terminee") {
+        const [existingTx] = await connection.query(
+          "SELECT id FROM transactions WHERE request_id = ? LIMIT 1",
+          [req.params.id]
+        );
+        if (!existingTx.length) {
+          const commissionPercent = await getCommissionPercent(connection);
+          await connection.query(
+            `INSERT INTO transactions
+             (operator_id, request_id, amount, currency, status, commission_percent, created_at)
+             VALUES (?, ?, ?, ?, 'en_attente', ?, NOW())`,
+            [
+              current.operator_id,
+              req.params.id,
+              Number(current.estimated_price || 0),
+              current.currency || "FCFA",
+              commissionPercent,
+            ]
+          );
+        }
+      }
+
+      const [[request]] = await connection.query(
         `SELECT r.*, ou.name AS operator_name, ou.phone AS operator_phone
          FROM requests r
          LEFT JOIN users ou ON ou.id = r.operator_id
          WHERE r.id = ?`,
         [req.params.id]
       );
-
-      const mission = {
-        id: request.id,
-        status: request.status,
-        operator_name: request.operator_name || null,
-        operator_phone: request.operator_phone || null,
-      };
+      await connection.commit();
+      connection.release();
+      connection = null;
 
       const missionPayload = formatMissionForSocket(request);
       const missionEmitter = req.emitMissionEvent || emitMissionEvent;
@@ -625,6 +730,10 @@ export default (db, io, emitMissionEvent) => {
 
       res.json({ message: "Statut mis à jour ", request });
     } catch (err) {
+      if (connection) {
+        await connection.rollback().catch(() => null);
+        connection.release();
+      }
       console.error(
         " Erreur PATCH /admin/requests/:id/status:",
         err.code || "",
@@ -681,7 +790,9 @@ export default (db, io, emitMissionEvent) => {
       const { id } = req.params;
       const { price, distance } = req.body;
 
-      if (price == null || distance == null) {
+      const priceNumber = Number(price);
+      const distanceNumber = Number(distance);
+      if (!Number.isFinite(priceNumber) || priceNumber < 0 || !Number.isFinite(distanceNumber) || distanceNumber < 0) {
         return res.status(400).json({ error: "Prix et distance requis" });
       }
 
@@ -689,15 +800,23 @@ export default (db, io, emitMissionEvent) => {
       if (!request) {
         return res.status(404).json({ error: "Demande introuvable" });
       }
+      if (String(request.status) !== "en_attente") {
+        return res.status(409).json({
+          error: `Une mission ${request.status} ne peut pas être republiée`,
+        });
+      }
 
-      await req.db.query(
-        "UPDATE requests SET status = 'publiee', estimated_price = ?, published_at = NOW() WHERE id = ?",
-        [price, id]
+      const [published] = await req.db.query(
+        "UPDATE requests SET status = 'publiee', estimated_price = ?, published_at = NOW() WHERE id = ? AND status = 'en_attente'",
+        [priceNumber, id]
       );
+      if (!published.affectedRows) {
+        return res.status(409).json({ error: "La mission a changé, rechargez la liste" });
+      }
 
       await req.db.query(
         "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
-        [id, JSON.stringify({ admin_id: req.user.id, distance, price })]
+        [id, JSON.stringify({ admin_id: req.user.id, distance: distanceNumber, price: priceNumber })]
       );
 
       const [[updated]] = await req.db.query("SELECT * FROM requests WHERE id = ?", [id]);
@@ -756,14 +875,22 @@ export default (db, io, emitMissionEvent) => {
       if (rows.length === 0) {
         return res.status(404).json({ error: "Mission introuvable" });
       }
+      if (!["terminee", "annulee", "annulee_client", "annulee_admin"].includes(rows[0].status)) {
+        return res.status(409).json({ error: "Une mission active ne peut pas être supprimée" });
+      }
+      const [transactions] = await req.db.query(
+        "SELECT id FROM transactions WHERE request_id = ? LIMIT 1",
+        [id]
+      );
+      if (transactions.length) {
+        return res.status(409).json({
+          error: "Cette mission possède une transaction et doit être conservée pour l’audit",
+        });
+      }
 
       await req.db.query("DELETE FROM request_photos WHERE request_id = ?", [id]);
+      await req.db.query("DELETE FROM request_events WHERE request_id = ?", [id]);
       await req.db.query("DELETE FROM requests WHERE id = ?", [id]);
-
-      await req.db.query(
-        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'supprimee_admin', ?, NOW())",
-        [id, JSON.stringify({ admin_id: req.user.id })]
-      );
 
       const missionEmitter = req.emitMissionEvent || emitMissionEvent;
       missionEmitter?.("mission:deleted", { id: Number(id) });

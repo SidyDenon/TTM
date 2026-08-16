@@ -12,23 +12,6 @@ export default (db) => {
     (token.startsWith("ExponentPushToken[") ||
       token.startsWith("ExpoPushToken["));
 
-  // 🔧 Création de la table device_tokens si absente (fallback dev/prod safe)
-  const ensureDeviceTokensTable = async () => {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS device_tokens (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        token VARCHAR(255) NOT NULL UNIQUE,
-        platform VARCHAR(20) DEFAULT NULL,
-        last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_device_tokens_user
-          FOREIGN KEY (user_id) REFERENCES users(id)
-          ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-  };
-
   //  Enregistrement / mise à jour du token Expo Push
   router.post("/push-token", async (req, res) => {
     try {
@@ -49,13 +32,6 @@ export default (db) => {
       );
       if (!user) {
         return res.status(404).json({ error: "Utilisateur introuvable" });
-      }
-
-      // S'assurer que la table device_tokens existe
-      try {
-        await ensureDeviceTokensTable();
-      } catch (e) {
-        console.error(" Impossible de créer/verifier device_tokens:", e.message || e);
       }
 
       // 🧱 Upsert dans device_tokens (multi-appareils)

@@ -43,7 +43,10 @@ export async function getExpoPushTokenSafe(): Promise<PushTokenResult> {
   try {
     const expoToken = await Notifications.getExpoPushTokenAsync({ projectId });
     return { token: expoToken.data, reason: "ok" };
-  } catch (err) {
-    return { token: null, reason: err?.message || "token-error" };
+  } catch (err: unknown) {
+    return {
+      token: null,
+      reason: err instanceof Error ? err.message : "token-error",
+    };
   }
 }

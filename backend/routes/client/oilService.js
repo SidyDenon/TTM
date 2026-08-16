@@ -1,40 +1,10 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
 import { upload, validateUploadedFilesSignature } from "../../middleware/upload.js";
+import { requireClient } from "../../middleware/requireRole.js";
 
 export default (db) => {
   const router = express.Router();
-
-  const hasColumn = async (table, column) => {
-    const [rows] = await db.query(
-      `SELECT COUNT(*) AS cnt
-       FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
-      [table, column]
-    );
-    return Number(rows?.[0]?.cnt || 0) > 0;
-  };
-
-  const ensureOilModelColumns = async () => {
-    const unitPriceExists = await hasColumn("oil_models", "unit_price");
-    if (!unitPriceExists) {
-      await db.query(
-        "ALTER TABLE oil_models ADD COLUMN unit_price DECIMAL(10,2) NULL DEFAULT NULL"
-      );
-      console.log("🛢️ Migration runtime: oil_models.unit_price ajouté");
-    }
-
-    const pricingCols = ["price_1l", "price_4l", "price_5l", "price_20l"];
-    for (const col of pricingCols) {
-      const exists = await hasColumn("oil_models", col);
-      if (!exists) {
-        await db.query(
-          `ALTER TABLE oil_models ADD COLUMN ${col} DECIMAL(10,2) NULL DEFAULT NULL`
-        );
-        console.log(`🛢️ Migration runtime: oil_models.${col} ajouté`);
-      }
-    }
-  };
 
   const getOilModelPriceByLiters = (model = {}, liters = 0, quantity = 1) => {
     const packLiters = Number(liters);
@@ -112,7 +82,6 @@ export default (db) => {
    */
   router.get("/public", async (req, res) => {
     try {
-      await ensureOilModelColumns();
       const [rows] = await req.db.query(
         "SELECT id, name, description, unit_price, price_1l, price_4l, price_5l, price_20l FROM oil_models WHERE is_active = 1 ORDER BY name ASC"
       );
@@ -135,11 +104,12 @@ export default (db) => {
   router.post(
     "/oil-service",
     authMiddleware,
+    requireClient,
     upload.array("photos", 3),
     validateUploadedFilesSignature,
     async (req, res) => {
+      let connection;
       try {
-        await ensureOilModelColumns();
         const { vehicle_type, oil_liters, oil_quantity, oil_model_id, description, lat, lng, address, zone } = req.body;
         const userId = req.user?.id;
 
@@ -187,7 +157,10 @@ export default (db) => {
         }
 
         // 🔒 Empêcher plusieurs demandes actives en parallèle pour le même client
-        const [active] = await req.db.query(
+        connection = await req.db.getConnection();
+        await connection.beginTransaction();
+        await connection.query("SELECT id FROM users WHERE id = ? FOR UPDATE", [userId]);
+        const [active] = await connection.query(
           `SELECT id
            FROM requests
            WHERE user_id = ?
@@ -196,6 +169,9 @@ export default (db) => {
           [userId]
         );
         if (active.length > 0) {
+          await connection.rollback();
+          connection.release();
+          connection = null;
           return res.status(409).json({
             error: "Vous avez déjà une demande publiée ou en cours.",
           });
@@ -215,7 +191,7 @@ export default (db) => {
           : null;
 
     //  Créer la mission
-        const [result] = await req.db.query(
+        const [result] = await connection.query(
           `INSERT INTO requests 
            (user_id, service, service_type, vehicle_type, oil_liters, oil_model_id, 
             description, lat, lng, address, zone, estimated_price, status, published_at, created_at)
@@ -241,7 +217,7 @@ export default (db) => {
 
         if (photosArray.length > 0) {
           for (const photoUrl of photosArray) {
-            await req.db.query(
+            await connection.query(
               "INSERT INTO request_photos (request_id, url) VALUES (?, ?)",
               [requestId, photoUrl]
             );
@@ -249,11 +225,14 @@ export default (db) => {
         }
 
     //  Enregistrer événement
-        await req.db.query(
+        await connection.query(
           `INSERT INTO request_events (request_id, type, meta, created_at)
            VALUES (?, ?, ?, NOW())`,
           [requestId, "publiee", JSON.stringify({ user_id: userId, service: "oil_service" })]
         );
+        await connection.commit();
+        connection.release();
+        connection = null;
 
     //  Notifier les admins en temps réel (socket)
         const io = getIo(req);
@@ -281,6 +260,10 @@ export default (db) => {
           },
         });
       } catch (err) {
+        if (connection) {
+          await connection.rollback().catch(() => null);
+          connection.release();
+        }
         console.error(" Erreur POST /requests/oil-service:", err);
         return res.status(500).json({ error: "Erreur serveur" });
       }

@@ -32,67 +32,7 @@ export default (db) => {
   // 📌 Assurer que la table existe + retourner la ligne unique
   // ---------------------------------------------------------
   async function ensureConfigRow(db) {
-    try {
-      // Ajoute support_email si la table existe déjà mais sans la colonne
-      try {
-        const [[col]] = await db.query(
-          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'support_email'`
-        );
-        if (!col) {
-          await db.query(
-            "ALTER TABLE configurations ADD COLUMN support_email VARCHAR(120) NOT NULL DEFAULT 'support@ttm.com'"
-          );
-        }
-      } catch (e) {
-        // ignore si table absente, traité plus bas
-      }
-      // Ajoute operator_mission_radius_km si manquante
-      try {
-        const [[col]] = await db.query(
-          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'operator_mission_radius_km'`
-        );
-        if (!col) {
-          await db.query(
-            "ALTER TABLE configurations ADD COLUMN operator_mission_radius_km DECIMAL(6,2) NOT NULL DEFAULT 5"
-          );
-        }
-      } catch (e) {
-        // ignore si table absente, traité plus bas
-      }
-      // Ajoute operator_towing_radius_km si manquante
-      try {
-        const [[col]] = await db.query(
-          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'operator_towing_radius_km'`
-        );
-        if (!col) {
-          await db.query(
-            "ALTER TABLE configurations ADD COLUMN operator_towing_radius_km DECIMAL(6,2) NOT NULL DEFAULT 100"
-          );
-        }
-      } catch (e) {
-        // ignore si table absente, traité plus bas
-      }
-      // Ajoute site_content_json si manquante
-      try {
-        const [[col]] = await db.query(
-          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'configurations' AND COLUMN_NAME = 'site_content_json'`
-        );
-        if (!col) {
-          await db.query(
-            "ALTER TABLE configurations ADD COLUMN site_content_json JSON NULL"
-          );
-        }
-      } catch (e) {
-        // ignore si table absente, traité plus bas
-      }
-
-      const [[row]] = await db.query(
-        "SELECT * FROM configurations LIMIT 1"
-      );
+    const [[row]] = await db.query("SELECT * FROM configurations LIMIT 1");
 
       if (!row) {
         await db.query(`
@@ -107,42 +47,7 @@ export default (db) => {
         return created;
       }
 
-      return row;
-    } catch (err) {
-      if (err?.code === "ER_NO_SUCH_TABLE") {
-        console.warn(" Table configurations absente → création automatique");
-
-        await db.query(`
-          CREATE TABLE IF NOT EXISTS configurations (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            commission_percent DECIMAL(5,2) NOT NULL DEFAULT 10.00,
-            towing_price_per_km DECIMAL(10,2) NOT NULL DEFAULT 500,
-            towing_base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-            currency VARCHAR(10) NOT NULL DEFAULT 'FCFA',
-            support_phone VARCHAR(30) NOT NULL DEFAULT '+22373585046',
-            support_whatsapp VARCHAR(30) NOT NULL DEFAULT '0022373585046',
-            support_email VARCHAR(120) NOT NULL DEFAULT 'support@ttm.com',
-            operator_mission_radius_km DECIMAL(6,2) NOT NULL DEFAULT 5,
-            operator_towing_radius_km DECIMAL(6,2) NOT NULL DEFAULT 100,
-            site_content_json JSON NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        `);
-
-        await db.query(`
-          INSERT INTO configurations 
-          (commission_percent, towing_price_per_km, towing_base_price, currency, support_phone, support_whatsapp, support_email, operator_mission_radius_km, operator_towing_radius_km)
-          VALUES (10, 500, 0, 'FCFA', '+22373585046', '0022373585046', 'support@ttm.com', 5, 100)
-        `);
-
-        const [[created]] = await db.query(
-          "SELECT * FROM configurations LIMIT 1"
-        );
-        return created;
-      }
-      throw err;
-    }
+    return row;
   }
 
   // ---------------------------------------------------------
@@ -349,7 +254,7 @@ export default (db) => {
   });
 
   // ---------------------------------------------------------
-  // 🌐 GET — Contenu éditorial du site vitrine
+  //  GET — Contenu éditorial du site vitrine
   // ---------------------------------------------------------
   router.get(
     "/site-content",
@@ -378,7 +283,7 @@ export default (db) => {
   );
 
   // ---------------------------------------------------------
-  // 🌐 PUT — Mettre à jour le contenu éditorial du site vitrine
+  //  PUT — Mettre à jour le contenu éditorial du site vitrine
   // ---------------------------------------------------------
   router.put(
     "/site-content",

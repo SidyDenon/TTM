@@ -247,7 +247,7 @@ export default function SiteVitrine() {
     return <Comp style={{ fontSize: size }} />;
   };
 
-  // Ancienne version : simple concaténation ou usage direct
+  // Ancienne version : simple concaténation ou usage direct
   const toAssetUrl = (value) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "";
@@ -294,7 +294,7 @@ export default function SiteVitrine() {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 
     return escapeHtml(value)

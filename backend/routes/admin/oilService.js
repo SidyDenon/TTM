@@ -5,17 +5,6 @@ import { getSchemaColumns } from "../../utils/schema.js";
 
 const router = express.Router();
 
-const hasColumn = async (db, table, column) => {
-  const [rows] = await db.query(
-    `SELECT COUNT(*) AS cnt
-     FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
-    [table, column]
-  );
-  return Number(rows?.[0]?.cnt || 0) > 0;
-};
-
-
 async function operatorAllowsMissionAlerts(db, operatorId) {
   const { operatorAlerts } = await getSchemaColumns(db);
   if (!operatorAlerts) return true;
@@ -26,26 +15,6 @@ async function operatorAllowsMissionAlerts(db, operatorId) {
   if (!row) return false;
   return Number(row.alerts_enabled ?? 1) !== 0;
 }
-
-const ensureOilModelColumns = async (db) => {
-  const unitPriceExists = await hasColumn(db, "oil_models", "unit_price");
-  if (!unitPriceExists) {
-    await db.query(
-      "ALTER TABLE oil_models ADD COLUMN unit_price DECIMAL(10,2) NULL DEFAULT NULL"
-    );
-    console.log("🛢️ Migration runtime: oil_models.unit_price ajouté");
-  }
-  const pricingCols = ["price_1l", "price_4l", "price_5l", "price_20l"];
-  for (const col of pricingCols) {
-    const exists = await hasColumn(db, "oil_models", col);
-    if (!exists) {
-      await db.query(
-        `ALTER TABLE oil_models ADD COLUMN ${col} DECIMAL(10,2) NULL DEFAULT NULL`
-      );
-      console.log(`🛢️ Migration runtime: oil_models.${col} ajouté`);
-    }
-  }
-};
 
 const parsePrice = (value) => {
   if (value === "" || value == null) return null;
@@ -71,7 +40,6 @@ export default (db) => {
  */
 router.get("/oil-models", requireAny(["services_view", "site_view", "site_manage"]), async (req, res) => {
   try {
-    await ensureOilModelColumns(req.db);
     const [rows] = await req.db.query(
       "SELECT id, name, description, unit_price, price_1l, price_4l, price_5l, price_20l, is_active, created_at, updated_at FROM oil_models ORDER BY name ASC"
     );
@@ -92,7 +60,6 @@ router.get("/oil-models", requireAny(["services_view", "site_view", "site_manage
  */
 router.post("/oil-models", requireAny(["services_manage", "site_manage"]), async (req, res) => {
   try {
-    await ensureOilModelColumns(req.db);
     const { name, description, is_active, unit_price, price_1l, price_4l, price_5l, price_20l } = req.body;
 
     if (!name || !name.trim()) {
@@ -151,7 +118,6 @@ router.post("/oil-models", requireAny(["services_manage", "site_manage"]), async
  */
 router.put("/oil-models/:id", requireAny(["services_manage", "site_manage"]), async (req, res) => {
   try {
-    await ensureOilModelColumns(req.db);
     const { id } = req.params;
     const { name, description, is_active, unit_price, price_1l, price_4l, price_5l, price_20l } = req.body;
 

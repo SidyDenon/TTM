@@ -672,7 +672,7 @@ const fetchData = async (signal) => {
         />
       )}
 
-      {/* 🧾 Détails mission */}
+      {/*  Détails mission */}
       {selectedMission && (
         <DashboardDetailsModal
           mission={selectedMission}

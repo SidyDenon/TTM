@@ -28,6 +28,9 @@ type MissionPayment = {
   address?: string | null;
   adresse?: string | null;
   estimated_price?: number | string | null;
+  payment_status?: string | null;
+  payment_method?: PaymentMethod | null;
+  cash_received_by_operator?: boolean;
 };
 
 type OperatorType = "orange" | "wave" | "moov";
@@ -44,6 +47,7 @@ export default function PaymentScreen() {
   const [mission, setMission] = useState<MissionPayment | null>(null);
   const [loading, setLoading] = useState(false);
   const [paid, setPaid] = useState(false);
+  const [paymentSubmitted, setPaymentSubmitted] = useState(false);
   const [cashPaymentConfirmed, setCashPaymentConfirmed] = useState(cashConfirmed === "1");
   const [cashPending, setCashPending] = useState(false);
 
@@ -71,6 +75,7 @@ export default function PaymentScreen() {
 
   useEffect(() => {
     if (cashConfirmed === "1") {
+      setPaymentSubmitted(true);
       setCashPaymentConfirmed(true);
       setCashPending(false);
       setPaid(true);
@@ -86,7 +91,7 @@ export default function PaymentScreen() {
 
     let cancelled = false;
 
-    (async () => {
+    const loadMission = async () => {
       try {
         const res = await fetch(`${API_URL}/requests/${missionId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -103,7 +108,23 @@ export default function PaymentScreen() {
             address: m.address ?? m.adresse ?? null,
             adresse: m.adresse ?? null,
             estimated_price: m.estimated_price ?? null,
+            payment_status: m.payment_status ?? null,
+            payment_method: m.payment_method ?? null,
+            cash_received_by_operator: Boolean(m.cash_received_by_operator),
           });
+          const method = String(m.payment_method || "").toLowerCase();
+          const paymentStatus = String(m.payment_status || "").toLowerCase();
+          const cashReceived = Boolean(m.cash_received_by_operator);
+          if (method === "cash") {
+            setPaymentSubmitted(true);
+            setCashPending(!cashReceived);
+            setCashPaymentConfirmed(cashReceived);
+            setPaid(cashReceived);
+          } else if (method === "mobile_money") {
+            setPaymentSubmitted(true);
+            setCashPending(false);
+            setPaid(paymentStatus === "confirmée" || paymentStatus === "confirmee");
+          }
         } else {
           Alert.alert("Erreur", data?.error || "Mission introuvable.");
           setMission(null);
@@ -116,10 +137,14 @@ export default function PaymentScreen() {
       } finally {
         if (!cancelled) setLoadingMission(false);
       }
-    })();
+    };
+
+    loadMission();
+    const interval = setInterval(loadMission, 4000);
 
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [missionId, token]);
 
@@ -169,10 +194,12 @@ export default function PaymentScreen() {
       throw new Error(data.error || "Impossible de confirmer le paiement.");
     }
     if (paymentMethod === "cash") {
+      setPaymentSubmitted(true);
       setCashPending(true);
       setPaid(false);
     } else {
-      setPaid(true);
+      setPaymentSubmitted(true);
+      setPaid(false);
     }
     setPayModalVisible(false);
     Alert.alert(
@@ -251,7 +278,7 @@ export default function PaymentScreen() {
           style={styles.lottie}
         />
         <Text style={[styles.bannerTitle, { fontSize: isCompact ? 18 : 20 }]}>
-          {paid ? "Paiement confirmé " : cashPending ? "Confirmation en attente" : "Mission terminée 🎉"}
+          {paid ? "Paiement confirmé " : paymentSubmitted ? "Confirmation en attente" : "Mission terminée 🎉"}
         </Text>
         <Text style={[
           styles.bannerText,
@@ -261,8 +288,10 @@ export default function PaymentScreen() {
             ? cashPaymentConfirmed
               ? "La réception de votre paiement en espèces a été confirmée. Vous pouvez maintenant laisser votre avis."
               : "Merci, ton paiement a bien été transmis. Tu peux maintenant nous laisser ton avis."
-            : cashPending
-            ? "Paiement espèces déclaré. Attends la confirmation de l'opérateur."
+            : paymentSubmitted
+            ? cashPending
+              ? "Paiement espèces déclaré. Attends la confirmation de l'opérateur."
+              : "Paiement transmis. Il reste en attente de validation par l’administration."
             : "Choisis ton mode de paiement pour finaliser la mission."}
         </Text>
       </View>
@@ -312,9 +341,11 @@ export default function PaymentScreen() {
 
       {/* CTA principal */}
       {!paid ? (
-        cashPending ? (
+        paymentSubmitted ? (
           <View style={[styles.btn, { backgroundColor: "#607D8B" }]}>
-            <Text style={styles.btnText}>En attente confirmation opérateur</Text>
+            <Text style={styles.btnText}>
+              {cashPending ? "En attente confirmation opérateur" : "Paiement en cours de validation"}
+            </Text>
           </View>
         ) : (
           <TouchableOpacity
@@ -419,7 +450,7 @@ export default function PaymentScreen() {
             {paymentMethod === "cash" && (
               <View style={styles.cashInfoBox}>
                 <Text style={styles.cashInfoText}>
-                  Paiement en espèces à la livraison/service terminé. L'opérateur confirmera ensuite la réception.
+                  Paiement en espèces à la livraison/service terminé. L’opérateur confirmera ensuite la réception.
                 </Text>
               </View>
             )}

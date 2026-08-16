@@ -106,7 +106,7 @@ export default function MissionDetailsScreen() {
         {description ? <Text style={styles.info}> Description: <Text style={styles.bold}>{description}</Text></Text> : null}
         <Text style={styles.info}>📅 Date: <Text style={styles.bold}>{created_at ? new Date(created_at).toLocaleString() : "—"}</Text></Text>
         <Text style={styles.info}> Prix: <Text style={[styles.bold, { color: '#4CAF50' }]}>{formatCurrency(amount)}</Text></Text>
-        <Text style={styles.info}>📦 Statut: <Text style={[styles.bold, { color: (status === 'terminee' ? '#4CAF50' : status?.startsWith('annule') ? '#E53935' : '#FF9800') }]}>{String(status || '').toUpperCase()}</Text></Text>
+        <Text style={styles.info}> Statut: <Text style={[styles.bold, { color: (status === 'terminee' ? '#4CAF50' : status?.startsWith('annule') ? '#E53935' : '#FF9800') }]}>{String(status || '').toUpperCase()}</Text></Text>
       </View>
 
       <View style={styles.operatorCard}>

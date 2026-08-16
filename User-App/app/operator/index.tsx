@@ -760,6 +760,15 @@ useEffect(() => {
   return () => watcher && watcher.remove();
 }, [user, activeMissionId]);
 
+  const types = ["Tous", ...new Set(missions.map((m) => m.type).filter(Boolean))];
+
+const filteredMissions = missions.filter((m) => {
+  const matchType = typeFilter === "Tous" || m.type === typeFilter;
+  return matchType;
+});
+
+const visibleMissions = alertsEnabled ? filteredMissions : [];
+
 // 📌 Auto recentrage sécurisé
 useEffect(() => {
   if (!mapRef.current) return;
@@ -804,15 +813,6 @@ useEffect(() => {
     });
   }
 }, [visibleMissions, location]);
-
-  const types = ["Tous", ...new Set(missions.map((m) => m.type).filter(Boolean))];
-
-const filteredMissions = missions.filter((m) => {
-  const matchType = typeFilter === "Tous" || m.type === typeFilter;
-  return matchType;
-});
-
-const visibleMissions = alertsEnabled ? filteredMissions : [];
 
   const accepterMission = (id: number) => {
     Alert.alert("Confirmation", "Voulez-vous accepter cette mission ?", [

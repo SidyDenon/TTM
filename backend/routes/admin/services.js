@@ -43,26 +43,8 @@ const ensureServiceColumns = async (db) => {
     const hasDescriptionColumn = rows.some((r) => r.COLUMN_NAME === "description");
     const hasSubtitleColumn = rows.some((r) => r.COLUMN_NAME === "subtitle");
     const hasImageUrlColumn = rows.some((r) => r.COLUMN_NAME === "image_url");
-    let hasIsActiveColumn = rows.some((r) => r.COLUMN_NAME === "is_active");
-    let hasIsInternalColumn = rows.some((r) => r.COLUMN_NAME === "is_internal");
-
-    if (!hasIsActiveColumn) {
-      try {
-        await db.query(
-          "ALTER TABLE services ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1"
-        );
-        hasIsActiveColumn = true;
-      } catch {}
-    }
-
-    if (!hasIsInternalColumn) {
-      try {
-        await db.query(
-          "ALTER TABLE services ADD COLUMN is_internal TINYINT(1) NOT NULL DEFAULT 0"
-        );
-        hasIsInternalColumn = true;
-      } catch {}
-    }
+    const hasIsActiveColumn = rows.some((r) => r.COLUMN_NAME === "is_active");
+    const hasIsInternalColumn = rows.some((r) => r.COLUMN_NAME === "is_internal");
 
     return {
       hasIconUrlColumn,

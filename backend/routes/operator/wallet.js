@@ -1,10 +1,12 @@
 import express from "express";
 import authMiddleware from "../../middleware/auth.js";
+import { requireOperator } from "../../middleware/requireRole.js";
 import { io } from "../../socket/index.js";
 import { getCommissionPercent } from "../../utils/commission.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 
 const router = express.Router();
+router.use(authMiddleware, requireOperator);
 
 // 🔧 Rôles opérateur possibles
 const OPERATOR_ROLES = ["operator", "operateur", "opérateur"];
@@ -204,7 +206,7 @@ export default (db) => {
     }
   });
 
-  // 📤 Demande de retrait
+  //  Demande de retrait
   router.post("/withdraw", authMiddleware, async (req, res) => {
     const role = String(req.user.role || "").toLowerCase();
     if (!OPERATOR_ROLES.includes(role)) {

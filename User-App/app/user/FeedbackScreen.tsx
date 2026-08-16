@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { API_URL } from "../../utils/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function FeedbackScreen() {
   const [rating, setRating] = useState(0);
@@ -21,6 +22,7 @@ export default function FeedbackScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { missionId } = useLocalSearchParams<{ missionId?: string }>();
+  const { token } = useAuth();
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -32,10 +34,11 @@ export default function FeedbackScreen() {
       setLoading(true);
 
       //  Envoi du feedback à ton backend
-      await fetch(`${API_URL}/feedback`, {
+      const res = await fetch(`${API_URL}/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           mission_id: missionId,
@@ -43,6 +46,10 @@ export default function FeedbackScreen() {
           comment,
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Impossible d’enregistrer votre avis.");
+      }
 
       setLoading(false);
       Alert.alert(" Merci !", "Votre avis a bien été enregistré.", [

@@ -5,6 +5,10 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const menuRef = useRef(null);
+  const status = String(req.status || "").toLowerCase();
+  const terminal = ["terminee", "annulee", "annulee_admin", "annulee_client"].includes(status);
+  const towing = String(req.service || "").toLowerCase().includes("remorqu");
+  const canComplete = towing ? status === "remorquage" : status === "sur_place";
 
   useEffect(() => {
     if (open && menuRef.current) {
@@ -49,7 +53,7 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
             borderColor: "var(--border-color)"
           }}
         >
-        {req.status === "en_attente" && (
+        {status === "en_attente" && (
           <button
             onClick={() => {
               setOpen(false);
@@ -60,7 +64,7 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
             <FaBullhorn /> Publier
           </button>
         )}
-        {["publiee", "publiee"].includes(req.status?.toLowerCase()) && (
+        {["publiee", "assignee"].includes(status) && (
           <button
             onClick={() => {
               setOpen(false);
@@ -71,7 +75,7 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
             <FaUserCheck /> Assigner
           </button>
         )}
-        {req.status === "assignee" && (
+        {canComplete && (
           <button
             onClick={() => {
               setOpen(false);
@@ -82,7 +86,7 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
             <FaCheckCircle /> Terminer
           </button>
         )}
-        <button
+        {!terminal && <button
           onClick={() => {
             setOpen(false);
             onUpdateStatus(req.id, "annulee_admin");
@@ -90,8 +94,8 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
           className="flex items-center gap-2 w-full px-3 py-2 text-red-400 hover:bg-[var(--bg-main)]"
         >
           <FaBan /> Annuler
-        </button>
-        <button
+        </button>}
+        {terminal && <button
           onClick={() => {
             setOpen(false);
             onDelete(req.id);
@@ -99,7 +103,7 @@ export default function MissionsActionsMenu({ req, onUpdateStatus, onDelete, onP
           className="flex items-center gap-2 w-full px-3 py-2 text-gray-300 hover:bg-[var(--bg-main)]"
         >
           <FaTrashAlt /> Supprimer
-        </button>
+        </button>}
         </div>
       )}
     </div>

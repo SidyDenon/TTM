@@ -241,11 +241,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const text = await res.text();
+    let payload: any;
     try {
-      return JSON.parse(text) as T;
+      payload = text ? JSON.parse(text) : {};
     } catch {
       throw new Error(`Réponse invalide du serveur: ${text}`);
     }
+    if (!res.ok) {
+      throw new Error(payload?.error || payload?.message || `Erreur HTTP ${res.status}`);
+    }
+    return payload as T;
   };
 
   return (

@@ -296,7 +296,7 @@ export default function Clients() {
       {/* Recherche */}
       <input
         type="text"
-        placeholder="🔍 Rechercher..."
+        placeholder=" Rechercher..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="w-full mb-4 p-2 rounded border"

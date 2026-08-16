@@ -5,6 +5,8 @@ import { buildPublicUrl } from "../../config/links.js";
 import { getCommissionPercent } from "../../utils/commission.js";
 import { getSchemaColumns } from "../../utils/schema.js";
 import { calculateDistance } from "../../utils/distance.js";
+import { CLIENT_CANCELLABLE_STATUSES } from "../../utils/missionState.js";
+import { requireClient } from "../../middleware/requireRole.js";
 
 const router = express.Router();
 
@@ -279,6 +281,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
     req.emitMissionEvent = emitMissionEvent;
     next();
   });
+  router.use(authMiddleware, requireClient);
 
   // 📌 Lister MES demandes (compat sans JSON_ARRAYAGG)
   router.get("/", authMiddleware, async (req, res) => {
@@ -376,6 +379,47 @@ export default (db, notifyOperators, emitMissionEvent) => {
     }
   });
 
+  // Dernière mission terminée dont le paiement reste à traiter côté client.
+  router.get("/pending-payment", authMiddleware, async (req, res) => {
+    try {
+      const [[mission]] = await req.db.query(
+        `SELECT r.*, t.id AS transaction_id, t.status AS payment_status,
+                t.payment_method,
+                EXISTS(
+                  SELECT 1 FROM request_events re
+                  WHERE re.request_id = r.id AND re.type = 'cash_received_operator'
+                ) AS cash_received_by_operator
+         FROM requests r
+         LEFT JOIN transactions t ON t.id = (
+           SELECT t2.id FROM transactions t2
+           WHERE t2.request_id = r.id ORDER BY t2.id DESC LIMIT 1
+         )
+         WHERE r.user_id = ? AND r.status = 'terminee'
+           AND (
+             t.id IS NULL
+             OR t.payment_method IS NULL
+             OR (
+               t.status <> 'confirmée'
+               AND NOT (
+                 LOWER(COALESCE(t.payment_method, '')) = 'cash'
+                 AND EXISTS(
+                   SELECT 1 FROM request_events re2
+                   WHERE re2.request_id = r.id AND re2.type = 'cash_received_operator'
+                 )
+               )
+             )
+           )
+         ORDER BY r.finished_at DESC, r.created_at DESC
+         LIMIT 1`,
+        [req.user.id]
+      );
+      res.json({ data: mission || null });
+    } catch (err) {
+      console.error(" Erreur GET /requests/pending-payment:", err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   // 📌 Voir une demande précise (compat sans JSON_ARRAYAGG)
   router.get("/:id", authMiddleware, async (req, res) => {
     try {
@@ -401,7 +445,29 @@ export default (db, notifyOperators, emitMissionEvent) => {
       );
       const photos = normalizePhotos(photosRows.map((p) => p.url));
 
-      res.json({ message: "Demande récupérée ", data: { ...rows[0], photos } });
+      const [[payment]] = await req.db.query(
+        `SELECT t.id AS transaction_id, t.status AS payment_status, t.payment_method,
+                EXISTS(
+                  SELECT 1 FROM request_events re
+                  WHERE re.request_id = ? AND re.type = 'cash_received_operator'
+                ) AS cash_received_by_operator
+         FROM transactions t
+         WHERE t.request_id = ?
+         ORDER BY t.id DESC LIMIT 1`,
+        [id, id]
+      );
+
+      res.json({
+        message: "Demande récupérée ",
+        data: {
+          ...rows[0],
+          photos,
+          transaction_id: payment?.transaction_id ?? null,
+          payment_status: payment?.payment_status ?? null,
+          payment_method: payment?.payment_method ?? null,
+          cash_received_by_operator: Boolean(payment?.cash_received_by_operator),
+        },
+      });
     } catch (err) {
       console.error(" Erreur GET /requests/:id:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -462,19 +528,23 @@ export default (db, notifyOperators, emitMissionEvent) => {
       }
 
       const request = rows[0];
-      if (
-        !["en_attente", "publiee", "assignee", "acceptee"].includes(
-          request.status
-        )
-      ) {
+      if (!CLIENT_CANCELLABLE_STATUSES.includes(request.status)) {
         return res.status(400).json({
           error: "Impossible d’annuler une demande déjà en cours ou terminée",
         });
       }
 
-      await req.db.query("UPDATE requests SET status = 'annulee_client' WHERE id = ?", [
-        id,
-      ]);
+      const placeholders = CLIENT_CANCELLABLE_STATUSES.map(() => "?").join(",");
+      const [cancelled] = await req.db.query(
+        `UPDATE requests SET status = 'annulee_client'
+         WHERE id = ? AND user_id = ? AND status IN (${placeholders})`,
+        [id, req.user.id, ...CLIENT_CANCELLABLE_STATUSES]
+      );
+      if (!cancelled.affectedRows) {
+        return res.status(409).json({
+          error: "La mission a changé et ne peut plus être annulée. Rechargez son état.",
+        });
+      }
 
       await req.db.query(
         "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'annulee_client', ?, NOW())",
@@ -602,57 +672,66 @@ export default (db, notifyOperators, emitMissionEvent) => {
       };
 
       res.status(201).json({
-        message: "Demande republiée ",
+        message: "Demande republiée",
         data: newRequest,
       });
 
-      const missionEmitter = req.emitMissionEvent || emitMissionEvent;
-      if (missionEmitter) {
-        missionEmitter("mission:created", newRequest, {
-          clientId: req.user.id,
-          operators: false,
+      try {
+        const missionEmitter = req.emitMissionEvent || emitMissionEvent;
+        if (missionEmitter) {
+          missionEmitter("mission:created", newRequest, {
+            clientId: req.user.id,
+            operators: false,
+          });
+          missionEmitter(
+            "mission:status_changed",
+            { id: newRequest.id, status: newRequest.status },
+            { clientId: req.user.id, operators: false }
+          );
+          missionEmitter("mission:updated", newRequest, {
+            clientId: req.user.id,
+            operators: false,
+          });
+        }
+
+        const io = getIo(req);
+        const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
+        if (io && isInternalService) {
+          io.to("admins").emit("new_internal_service_request", {
+            requestId: newRequest.id,
+            userId: req.user.id,
+            service: newRequest.service,
+            message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
+          });
+        }
+        const isTow = String(existing.service || "").toLowerCase().includes("remorqu");
+        const radiusKm = isTow
+          ? await getOperatorTowingRadiusKm(req.db)
+          : await getOperatorMissionRadiusKm(req.db, 5);
+        const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
+        emitToOperators(io, nearbyOperators, "mission:created", newRequest);
+        emitToOperators(io, nearbyOperators, "mission:status_changed", {
+          id: newRequest.id,
+          status: newRequest.status,
         });
-        missionEmitter(
-          "mission:status_changed",
-          { id: newRequest.id, status: newRequest.status },
-          { clientId: req.user.id, operators: false }
-        );
-        missionEmitter("mission:updated", newRequest, {
-          clientId: req.user.id,
-          operators: false,
-        });
+        emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
+      } catch (notificationError) {
+        console.warn(" Notifications republication mission échouées:", notificationError?.message || notificationError);
       }
 
-      const io = getIo(req);
-      const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
-      if (io && isInternalService) {
-        io.to("admins").emit("new_internal_service_request", {
-          requestId: newRequest.id,
-          userId: req.user.id,
-          service: newRequest.service,
-          message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
-        });
-      }
-      const isTow = String(existing.service || "").toLowerCase().includes("remorqu");
-      const radiusKm = isTow
-        ? await getOperatorTowingRadiusKm(req.db)
-        : await getOperatorMissionRadiusKm(req.db, 5);
-      const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
-      emitToOperators(io, nearbyOperators, "mission:created", newRequest);
-      emitToOperators(io, nearbyOperators, "mission:status_changed", {
-        id: newRequest.id,
-        status: newRequest.status,
-      });
-      emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
+      return;
     } catch (err) {
       console.error(" Erreur POST /requests/:id/retry:", err);
-      res.status(500).json({ error: "Erreur serveur" });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: "Erreur serveur" });
+      }
     }
   });
 
   // 📌 Créer une demande
   // 📌 Créer une demande (avec calcul automatique remorquage)
-router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFilesSignature, async (req, res) => {
+router.post("/", authMiddleware, requireClient, upload.array("photos", 5), validateUploadedFilesSignature, async (req, res) => {
+  let connection;
   try {
     const {
       service,
@@ -676,7 +755,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       return res.status(400).json({ error: "Coordonnées invalides" });
     }
 
-    // 🔍 Service choisi
+    //  Service choisi
     const [[srv]] = await req.db.query(
       "SELECT * FROM services WHERE id = ? OR name = ?",
       [service, service]
@@ -705,8 +784,12 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       }
     }
 
-    // 🔒 Vérifier mission en cours
-    const [active] = await req.db.query(
+    connection = await req.db.getConnection();
+    await connection.beginTransaction();
+    await connection.query("SELECT id FROM users WHERE id = ? FOR UPDATE", [req.user.id]);
+
+    // 🔒 Vérifier mission en cours sous verrou utilisateur
+    const [active] = await connection.query(
       `SELECT id
        FROM requests
        WHERE user_id = ?
@@ -715,7 +798,10 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       [req.user.id]
     );
     if (active.length > 0) {
-      return res.status(400).json({ error: "Vous avez déjà une mission en cours." });
+      await connection.rollback();
+      connection.release();
+      connection = null;
+      return res.status(409).json({ error: "Vous avez déjà une mission en cours." });
     }
 
     // ==============================
@@ -754,7 +840,7 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     // ==============================
     const currency = "FCFA";
 
-    const [result] = await req.db.query(
+    const [result] = await connection.query(
       `INSERT INTO requests 
        (user_id, service, service_type, description, lat, lng, address, zone,
         destination, dest_lat, dest_lng, estimated_price,
@@ -782,23 +868,26 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     // 📸 Photos
     if (req.files?.length > 0) {
       for (const file of req.files) {
-        await req.db.query(
+        await connection.query(
           "INSERT INTO request_photos (request_id, url) VALUES (?, ?)",
           [requestId, `/uploads/requests/${file.filename}`]
         );
       }
     }
 
-    // 🧾 Historique
-    await req.db.query(
+    //  Historique
+    await connection.query(
       "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'publiee', ?, NOW())",
       [requestId, JSON.stringify({ user_id: req.user.id })]
     );
 
-    // 📤 Retour mission
-    const [[reqRow]] = await req.db.query("SELECT * FROM requests WHERE id = ?", [
+    //  Retour mission
+    const [[reqRow]] = await connection.query("SELECT * FROM requests WHERE id = ?", [
       requestId,
     ]);
+    await connection.commit();
+    connection.release();
+    connection = null;
 
     const newRequest = {
       ...reqRow,
@@ -810,84 +899,72 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
     };
 
     res.status(201).json({
-      message: "Demande créée avec succès ",
+      message: "Demande créée avec succès",
       data: newRequest,
     });
 
-    const missionEmitter = req.emitMissionEvent || emitMissionEvent;
-    if (missionEmitter) {
-      // Broadcast admins + client, mais pas tous les opérateurs
-      missionEmitter("mission:created", newRequest, {
-        clientId: req.user.id,
-        operators: false,
+    // Les notifications ne doivent jamais transformer une création réussie en
+    // erreur HTTP. Elles restent non bloquantes et sont isolées de la réponse.
+    try {
+      const missionEmitter = req.emitMissionEvent || emitMissionEvent;
+      if (missionEmitter) {
+        missionEmitter("mission:created", newRequest, {
+          clientId: req.user.id,
+          operators: false,
+        });
+        missionEmitter(
+          "mission:status_changed",
+          { id: newRequest.id, status: newRequest.status },
+          { clientId: req.user.id, operators: false }
+        );
+        missionEmitter("mission:updated", newRequest, {
+          clientId: req.user.id,
+          operators: false,
+        });
+      }
+
+      const io = getIo(req);
+      const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
+      if (io && isInternalService) {
+        io.to("admins").emit("new_internal_service_request", {
+          requestId: newRequest.id,
+          userId: req.user.id,
+          service: newRequest.service,
+          message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
+        });
+      }
+      const isTow = String(srv?.name || "").toLowerCase().includes("remorqu");
+      const radiusKm = isTow
+        ? await getOperatorTowingRadiusKm(req.db)
+        : await getOperatorMissionRadiusKm(req.db, 5);
+      const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
+
+      emitToOperators(io, nearbyOperators, "mission:created", newRequest);
+      emitToOperators(io, nearbyOperators, "mission:status_changed", {
+        id: newRequest.id,
+        status: newRequest.status,
       });
-      missionEmitter(
-        "mission:status_changed",
-        { id: newRequest.id, status: newRequest.status },
-        { clientId: req.user.id, operators: false }
-      );
-      missionEmitter("mission:updated", newRequest, {
-        clientId: req.user.id,
-        operators: false,
-      });
+      emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
+    } catch (notificationError) {
+      console.warn(" Notifications création mission échouées:", notificationError?.message || notificationError);
     }
 
-    // Notifier uniquement les opérateurs proches
-    const io = getIo(req);
-    const isInternalService = await missionRequiresInternalOperator(req.db, newRequest);
-    if (io && isInternalService) {
-      io.to("admins").emit("new_internal_service_request", {
-        requestId: newRequest.id,
-        userId: req.user.id,
-        service: newRequest.service,
-        message: `Nouvelle mission interne: ${newRequest.service || "Service"}`,
-      });
-    }
-    const isTow = String(srv?.name || "").toLowerCase().includes("remorqu");
-    const radiusKm = isTow
-      ? await getOperatorTowingRadiusKm(req.db)
-      : await getOperatorMissionRadiusKm(req.db, 5);
-    const nearbyOperators = await selectNearbyOperatorIds(req.db, req, newRequest, radiusKm);
-
-    emitToOperators(io, nearbyOperators, "mission:created", newRequest);
-    emitToOperators(io, nearbyOperators, "mission:status_changed", {
-      id: newRequest.id,
-      status: newRequest.status,
-    });
-    emitToOperators(io, nearbyOperators, "mission:updated", newRequest);
+    return;
   } catch (err) {
+    if (connection) {
+      await connection.rollback().catch(() => null);
+      connection.release();
+    }
     console.error(" Erreur POST /requests:", err);
-    res.status(500).json({ error: "Erreur serveur" });
+    if (!res.headersSent) {
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
   }
 });
 
 
   router.post("/:id/confirm-payment", authMiddleware, async (req, res) => {
     try {
-      // Ensure commission_percent column exists
-      try {
-        await req.db.query(
-          "SELECT commission_percent FROM transactions LIMIT 1"
-        );
-      } catch (e) {
-        if (e?.code === "ER_BAD_FIELD_ERROR") {
-          await req.db.query(
-            "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
-          );
-        }
-      }
-      // Ensure payment_method column exists
-      try {
-        await req.db.query(
-          "SELECT payment_method FROM transactions LIMIT 1"
-        );
-      } catch (e) {
-        if (e?.code === "ER_BAD_FIELD_ERROR") {
-          await req.db.query(
-            "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
-          );
-        }
-      }
       const { id } = req.params;
       const rawMethod = String(req.body?.payment_method || "").toLowerCase().trim();
       if (!rawMethod || !["mobile_money", "cash"].includes(rawMethod)) {
@@ -949,6 +1026,15 @@ router.post("/", authMiddleware, upload.array("photos", 5), validateUploadedFile
       }
       if (tx.status === "confirmée") {
         return res.status(400).json({ error: "Cette mission est déjà confirmée." });
+      }
+
+      if (
+        tx.payment_method &&
+        String(tx.payment_method).toLowerCase() !== paymentMethod
+      ) {
+        return res.status(409).json({
+          error: "Le mode de paiement a déjà été choisi pour cette mission.",
+        });
       }
 
       if (tx.status !== "en_attente" || tx.payment_method !== paymentMethod) {

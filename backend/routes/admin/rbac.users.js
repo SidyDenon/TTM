@@ -67,18 +67,7 @@ const samePerms = (a, b) => {
 };
 
 const ensureExtraPermsColumn = async (db) => {
-  const has = await columnExists(db, "admin_users", "extra_permissions");
-  if (has) return true;
-  try {
-    await db.query(
-      "ALTER TABLE admin_users ADD COLUMN extra_permissions JSON NULL"
-    );
-    columnCache.set("admin_users:extra_permissions", true);
-    return true;
-  } catch (e) {
-    console.warn(" extra_permissions column missing and cannot be created:", e?.message || e);
-    return false;
-  }
+  return columnExists(db, "admin_users", "extra_permissions");
 };
 
 const logAdminEvent = async (db, adminId, action, meta = {}) => {

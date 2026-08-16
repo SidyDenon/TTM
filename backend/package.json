@@ -1,7 +1,8 @@
 {
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check:schema": "node scripts/check-schema.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

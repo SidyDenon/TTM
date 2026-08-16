@@ -38,20 +38,21 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState(false);
   const { apiFetch, user } = useAuth();
   const lastErrorRef = useRef<string | null>(null);
+  const isClient = user && ["client", "user"].includes(String(user.role || "").toLowerCase());
 
   /*  Chargement automatique des requêtes de l’utilisateur connecté */
   useEffect(() => {
-    if (user?.role === "user") {
+    if (isClient) {
       fetchRequests();
     } else {
       // opérateur/admin : pas de requêtes client
       setRequests([]);
     }
-  }, [user]);
+  }, [user?.id, user?.role]);
 
   /*  Récupération des demandes */
   const fetchRequests = useCallback(async () => {
-    if (!user || user.role !== "user") return;
+    if (!isClient) return;
 
     try {
       setLoading(true);
@@ -80,14 +81,15 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
   /*  Création d’une demande */
   const createRequest = useCallback(
     async (data: Omit<Request, "id" | "created_at" | "status">) => {
-      if (!user || user.role !== "user") return;
+      if (!isClient) return;
       try {
         setLoading(true);
-        const newReq = await apiFetch<Request>("/requests", {
+        const response = await apiFetch<{ data: Request }>("/requests", {
           method: "POST",
           body: JSON.stringify(data),
         });
-        setRequests((prev) => [newReq, ...prev]);
+        if (!response?.data?.id) throw new Error("Réponse de création invalide");
+        setRequests((prev) => [response.data, ...prev]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erreur inconnue";
         Toast.show({
@@ -103,7 +105,7 @@ export const RequestProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setLoading(false);
       }
     },
-    [apiFetch]
+    [apiFetch, isClient]
   );
 
   return (

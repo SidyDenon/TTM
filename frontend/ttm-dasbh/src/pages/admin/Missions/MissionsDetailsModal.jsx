@@ -64,7 +64,7 @@ export default function MissionsDetailsModal({
           ✕
         </button>
 
-        {/* 🧾 Titre */}
+        {/*  Titre */}
         <h2 className="text-xl font-bold mb-4 font-poppins text-[var(--accent)]">
           Mission #{mission.id}
           <span className="ml-2 px-2 py-1 rounded text-xs bg-[var(--bg-main)]">
@@ -132,7 +132,7 @@ export default function MissionsDetailsModal({
         <div className="mt-6 flex flex-wrap gap-2">
           {mission.status === "en_attente" && (
             <button
-              onClick={() => onPublish(mission.id)}
+              onClick={() => onPublish(mission)}
               className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Publier
@@ -154,7 +154,8 @@ export default function MissionsDetailsModal({
               </button>
             </>
           )}
-          {mission.status === "assignee" && (
+          {((String(mission.service || "").toLowerCase().includes("remorqu") && mission.status === "remorquage") ||
+            (!String(mission.service || "").toLowerCase().includes("remorqu") && mission.status === "sur_place")) && (
             <>
               <button
                 onClick={() => onUpdateStatus(mission.id, "terminee")}
@@ -170,12 +171,12 @@ export default function MissionsDetailsModal({
               </button>
             </>
           )}
-          <button
+          {["terminee", "annulee", "annulee_admin", "annulee_client"].includes(mission.status) && <button
             onClick={() => onDelete(mission.id)}
             className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
           >
             Supprimer
-          </button>
+          </button>}
           <button
             onClick={onClose}
             className="px-3 py-1 bg-[var(--bg-main)] text-white rounded hover:opacity-80 ml-auto"

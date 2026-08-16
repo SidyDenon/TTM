@@ -4,7 +4,8 @@ import Notifications, { isExpoGo } from "./expoNotifications";
 const DEFAULT_NOTIFICATION_SOUND = "default";
 const CUSTOM_NOTIFICATION_SOUND = "notify.wav";
 const DEFAULT_CHANNEL_ID = "default";
-const MISSION_CHANNEL_ID = "mission_v2";
+// Nouveau canal: Android ne permet pas de modifier le son d'un canal déjà créé.
+const MISSION_CHANNEL_ID = "mission_v3";
 
 let expoGoWarned = false;
 const warnExpoGo = () => {
@@ -13,15 +14,7 @@ const warnExpoGo = () => {
   console.log(" Expo Go détecté — notifications push/système désactivées dans ce mode");
 };
 
-if (Notifications) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-} else {
+if (!Notifications) {
   warnExpoGo();
 }
 
@@ -87,21 +80,16 @@ export async function showLocalNotification(title: string, body: string) {
   }
 
   const isMissionNotification = isMissionRelatedNotification(title);
-  const channelId =
-    Platform.OS === "android"
-      ? isMissionNotification
-        ? MISSION_CHANNEL_ID
-        : DEFAULT_CHANNEL_ID
-      : undefined;
-
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
       sound: isMissionNotification ? CUSTOM_NOTIFICATION_SOUND : DEFAULT_NOTIFICATION_SOUND,
-      channelId,
     },
-    trigger: null,
+    trigger:
+      Platform.OS === "android" && isMissionNotification
+        ? { channelId: MISSION_CHANNEL_ID }
+        : null,
   });
 }
 

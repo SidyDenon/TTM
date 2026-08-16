@@ -12,6 +12,6 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "app/user/resume.tsx",
-    "utils/notifications.js"
-, "hooks/useNotifications.js"  ]
+    "hooks/useNotifications.js"
+  ]
 }

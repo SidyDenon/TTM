@@ -87,7 +87,7 @@ export default function Resume() {
   const [loading, setLoading] = useState(false);
   const [desc, setDesc] = useState(description || "");
 
-  // 🔍 savoir si on est sur un remorquage
+  //  savoir si on est sur un remorquage
   const isRemorquage = isTowingService(serviceLabel);
   const isOilService = isHomeOilService(serviceLabel);
 
@@ -103,6 +103,8 @@ export default function Resume() {
   if (!token) return null;
 
   const handleConfirm = async () => {
+    if (loading) return;
+    let requestWasSent = false;
     try {
       if (!service) {
         Alert.alert(" Erreur", "Service manquant. Reprenez la demande.");
@@ -184,7 +186,11 @@ export default function Resume() {
       }
 
       photos.forEach((photo, i) => {
-        const uri = photo.uri.startsWith("file://") ? photo.uri : `file://${photo.uri}`;
+        // Android physique peut retourner content:// ; il ne faut pas le
+        // transformer en file://content://...
+        const uri = /^[a-z][a-z0-9+.-]*:\/\//i.test(photo.uri)
+          ? photo.uri
+          : `file://${photo.uri}`;
         const name = (photo as any).fileName || `photo_${i}.jpg`;
         const type = (photo as any).mimeType || "image/jpeg";
 
@@ -197,16 +203,22 @@ export default function Resume() {
 
       const targetUrl = isOilService ? `${API_URL}/requests/oil-service` : `${API_URL}/requests`;
 
+      requestWasSent = true;
       const res = await fetch(targetUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
         },
         body: formData,
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error("Réponse serveur incomplète");
+      }
       if (!res.ok) throw new Error(data.error || "Erreur serveur");
 
       const requestId = data?.data?.id;
@@ -230,6 +242,36 @@ export default function Resume() {
       }
     } catch (err: any) {
       console.error(" Erreur envoi demande:", err);
+      // Si le serveur a créé la mission mais que le téléphone a perdu la
+      // réponse, récupérer l'état réel évite d'afficher une fausse erreur.
+      if (requestWasSent) {
+        try {
+          const activeRes = await fetch(`${API_URL}/requests/active`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const activePayload = await activeRes.json().catch(() => ({}));
+          const activeMission = activePayload?.data;
+          if (activeRes.ok && activeMission?.id) {
+            const oilMission =
+              String(activeMission.service_type || "").toLowerCase() === "oil_service" ||
+              String(activeMission.service || "").toLowerCase() === "oil_service";
+            router.replace({
+              pathname: oilMission
+                ? "/user/ServiceRequestSentScreen"
+                : "/user/SearchingOperatorsScreen",
+              params: {
+                requestId: String(activeMission.id),
+                ...(oilMission
+                  ? { serviceLabel: serviceLabel || "Service à Domicile" }
+                  : {}),
+              },
+            });
+            return;
+          }
+        } catch (recoveryError) {
+          console.warn(" Récupération mission après réponse perdue:", recoveryError);
+        }
+      }
       Alert.alert(" Erreur", err.message || "Impossible d’envoyer");
     } finally {
       setLoading(false);

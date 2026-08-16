@@ -27,12 +27,7 @@ export default (db) => {
         `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'commission_percent'`
       );
-      if (!col) {
-        await db.query(
-          "ALTER TABLE transactions ADD COLUMN commission_percent DECIMAL(5,2) DEFAULT NULL"
-        );
-      }
-      hasCommissionColumn = true;
+      hasCommissionColumn = Boolean(col);
     } catch {
       hasCommissionColumn = false;
     }
@@ -47,12 +42,7 @@ export default (db) => {
         `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'payment_method'`
       );
-      if (!col) {
-        await db.query(
-          "ALTER TABLE transactions ADD COLUMN payment_method VARCHAR(20) DEFAULT NULL"
-        );
-      }
-      hasPaymentMethodColumn = true;
+      hasPaymentMethodColumn = Boolean(col);
     } catch {
       hasPaymentMethodColumn = false;
     }
@@ -67,7 +57,7 @@ export default (db) => {
   // Auth + chargement des permissions pour TOUTES les routes de ce module
   router.use(authMiddleware, loadAdminPermissions);
 
-  // 🧾 Liste des transactions + totaux (lecture)
+  //  Liste des transactions + totaux (lecture)
   router.get("/", checkPermission("transactions_view"), async (req, res) => {
     try {
       await ensureTxCommissionColumn();

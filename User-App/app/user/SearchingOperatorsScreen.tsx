@@ -198,16 +198,23 @@ export default function SearchingOperatorsScreen() {
       if (status !== "pending") return;
       if (timeoutTriggeredRef.current) return;
       timeoutTriggeredRef.current = true;
-      setStatus("timeout");
 
       // Aligne backend : annule la mission pour retirer côté opérateur
       try {
-        await fetch(`${API_URL}/requests/${requestId}/cancel`, {
+        const res = await fetch(`${API_URL}/requests/${requestId}/cancel`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.ok) {
+          setStatus("timeout");
+          return;
+        }
+        // Une acceptation a pu gagner la course avec le timeout.
+        timeoutTriggeredRef.current = false;
+        await syncCurrentRequestStatus();
       } catch {
-        // silencieux : si déjà acceptée/terminée, le socket mettra à jour
+        timeoutTriggeredRef.current = false;
+        await syncCurrentRequestStatus();
       }
     }, UI_TIMEOUT_MS); // 5 min
 

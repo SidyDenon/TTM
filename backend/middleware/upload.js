@@ -35,7 +35,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// 📦 Export du middleware
+//  Export du middleware
 export const upload = multer({
   storage,
   fileFilter,

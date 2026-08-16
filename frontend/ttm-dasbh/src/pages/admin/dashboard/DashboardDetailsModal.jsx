@@ -91,7 +91,7 @@ export default function MissionsDetailsModal({
           ✕
         </button>
 
-        {/* 🧾 Titre */}
+        {/*  Titre */}
         <div className="p-6">
           <h2 className="text-xl font-poppins font-semibold mb-4 text-[var(--accent)]">
             Mission #{mission.id}

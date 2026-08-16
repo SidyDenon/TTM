@@ -24,7 +24,7 @@ import * as Haptics from "expo-haptics";
 import Toast from "react-native-toast-message";
 import { useSocket } from "../../context/SocketContext";
 import Loader from "../../components/Loader";
-import { SvgXml } from "react-native-svg/lib/commonjs";
+import { SvgXml } from "react-native-svg";
 import { useIsFocused } from "@react-navigation/native";
 import { canUseNotifications, showLocalNotification } from "../../lib/notifications";
 
@@ -221,7 +221,7 @@ export default function WalletScreen() {
     const handleCreated = (data: WithdrawalEvent) => {
       Toast.show({
         type: "info",
-        text1: "📤 Retrait envoyé",
+        text1: " Retrait envoyé",
         text2: "Votre demande est en attente d’approbation",
         visibilityTime: 2500,
       });

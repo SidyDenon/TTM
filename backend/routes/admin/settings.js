@@ -137,24 +137,7 @@ export default (db) => {
   // =========================
 
   async function ensureConfigRow(db) {
-    try {
-      // Assure les colonnes remorquage sur une base existante
-      try {
-        await db.query(
-          "ALTER TABLE configurations ADD COLUMN towing_price_per_km DECIMAL(10,2) NOT NULL DEFAULT 500"
-        );
-      } catch (e) {
-        if (e?.code !== "ER_DUP_FIELDNAME") throw e;
-      }
-      try {
-        await db.query(
-          "ALTER TABLE configurations ADD COLUMN towing_base_price DECIMAL(10,2) NOT NULL DEFAULT 0"
-        );
-      } catch (e) {
-        if (e?.code !== "ER_DUP_FIELDNAME") throw e;
-      }
-
-      let [rows] = await db.query("SELECT * FROM configurations LIMIT 1");
+      const [rows] = await db.query("SELECT * FROM configurations LIMIT 1");
       if (!rows.length) {
         await db.query(
           `INSERT INTO configurations (commission_percent, towing_price_per_km, towing_base_price, currency, created_at, updated_at)
@@ -164,29 +147,6 @@ export default (db) => {
         return cfg;
       }
       return rows[0];
-    } catch (e) {
-      if (e?.code === "ER_NO_SUCH_TABLE") {
-        // Création minimale (fallback dev)
-        await db.query(`
-          CREATE TABLE IF NOT EXISTS configurations (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            commission_percent DECIMAL(5,2) NOT NULL DEFAULT 10.00,
-            towing_price_per_km DECIMAL(10,2) NOT NULL DEFAULT 500,
-            towing_base_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-            currency VARCHAR(10) NOT NULL DEFAULT 'FCFA',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        `);
-        await db.query(
-          `INSERT INTO configurations (commission_percent, towing_price_per_km, towing_base_price, currency, created_at, updated_at)
-           VALUES (10.00, 500, 0, 'FCFA', NOW(), NOW())`
-        );
-        const [[cfg]] = await db.query("SELECT * FROM configurations LIMIT 1");
-        return cfg;
-      }
-      throw e;
-    }
   }
 
   // 📄 Récupérer la configuration actuelle

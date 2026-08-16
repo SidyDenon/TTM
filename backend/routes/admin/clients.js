@@ -121,7 +121,7 @@ Votre compte client a été créé avec succès.
 
 En cas de besoin, notre équipe est prête à intervenir.
 
-🌐 Visitez notre site : https://towtruckmali.com/
+ Visitez notre site : https://towtruckmali.com/
 
  TOW TRUCK MALI  
 Dépannage express – 24h/24

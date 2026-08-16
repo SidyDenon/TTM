@@ -7,11 +7,6 @@ import { useSocket } from "../context/SocketContext";
 import { useRouter } from "expo-router";
 import { API_URL } from "../utils/api";
 import { startMissionBackgroundTracking, stopMissionBackgroundTracking } from "../utils/missionBackground";
-import {
-  canUseNotifications as notificationsAvailable,
-  requestNotificationPermission,
-  setupNotificationChannel,
-} from "./notifications";
 import { SUPPORT_PHONE, fetchPublicSupportConfig } from "../config/support";
 
 /* ---------- Types ---------- */
@@ -19,6 +14,7 @@ import { SUPPORT_PHONE, fetchPublicSupportConfig } from "../config/support";
 export type MissionStatus =
   | "en_attente"
   | "publiee"
+  | "assignee"
   | "acceptee"
   | "en_route"
   | "sur_place"
@@ -112,7 +108,6 @@ const bearingBetween = (lat1: number, lon1: number, lat2: number, lon2: number) 
   return θ;
 };
 
-const notificationsReady = notificationsAvailable;
 const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const toRad = (v: number) => (v * Math.PI) / 180;
   const R = 6371;
@@ -159,24 +154,6 @@ export function useSuiviMissionLogic() {
     []
   );
 
-  /* ------ Notifications : permission + channel ------ */
-  useEffect(() => {
-    if (!notificationsReady || Platform.OS === "web") return;
-    (async () => {
-      try {
-        const { granted } = await requestNotificationPermission();
-        if (!granted) {
-          console.warn(" Permission notification refusée");
-          return;
-        }
-        await setupNotificationChannel();
-        console.log(" Notifications autorisées");
-      } catch (err) {
-        console.warn(" Impossible de vérifier les notifications:", err);
-      }
-    })();
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -192,7 +169,22 @@ export function useSuiviMissionLogic() {
   /* ------ Fetch mission active ------ */
   useEffect(() => {
     let cancelled = false;
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const redirectAfterNoActiveMission = async () => {
+      const pendingRes = await fetch(`${API_URL}/requests/pending-payment`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const pendingJson = await pendingRes.json().catch(() => ({}));
+      if (pendingRes.ok && pendingJson?.data?.id) {
+        navigatingToPayment.current = true;
+        router.replace({
+          pathname: "/user/PaymentScreen",
+          params: { missionId: String(pendingJson.data.id) },
+        });
+        return;
+      }
+      router.replace("/user");
+    };
     (async () => {
       try {
         const res = await fetch(`${API_URL}/requests/active`, {
@@ -205,7 +197,7 @@ export function useSuiviMissionLogic() {
           if (!m || (Array.isArray(m) && m.length === 0)) {
             console.log(" Aucune mission active détectée — retour à l'accueil");
             setMission(null);
-            router.replace("/user");
+            await redirectAfterNoActiveMission();
             return;
           }
 
@@ -252,7 +244,7 @@ export function useSuiviMissionLogic() {
         const m = json?.data;
         if (!m || (Array.isArray(m) && m.length === 0)) {
           setMission(null);
-          router.replace("/user");
+          await redirectAfterNoActiveMission();
           return;
         }
         setMission((prev) =>
@@ -588,6 +580,8 @@ export function useSuiviMissionLogic() {
       return "En attente d’un dépanneur";
     case "acceptee":
       return "Acceptée par";
+    case "assignee":
+      return "Opérateur assigné";
     case "en_route":
       return "En route";
     case "sur_place":
@@ -609,7 +603,7 @@ export function useSuiviMissionLogic() {
   const canCancel = useMemo(() => {
     const s = mission?.status;
     if (!s) return true; // au tout début
-    return s === "en_attente" || s === "publiee";
+    return s === "en_attente" || s === "publiee" || s === "assignee" || s === "acceptee";
   }, [mission?.status]);
 
   /* ------ Actions : annulation & appels ------ */

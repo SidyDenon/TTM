@@ -1,5 +1,4 @@
 // src/Avis.jsx
-/* eslint-disable no-unused-vars */
 import React from "react";
 import { motion } from "framer-motion";
 import CountUp from "react-countup";

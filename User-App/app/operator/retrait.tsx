@@ -80,7 +80,7 @@ export default function WithdrawHistoryScreen() {
     const handleCreated = (data: WithdrawalEvent) => {
       Toast.show({
         type: "info",
-        text1: "📤 Retrait envoyé",
+        text1: " Retrait envoyé",
         text2: "Votre demande est en attente d’approbation",
         visibilityTime: 2500,
       });

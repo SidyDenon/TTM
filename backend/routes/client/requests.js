@@ -397,9 +397,8 @@ export default (db, notifyOperators, emitMissionEvent) => {
          WHERE r.user_id = ? AND r.status = 'terminee'
            AND (
              t.id IS NULL
-             OR t.payment_method IS NULL
              OR (
-               t.status <> 'confirmée'
+               LOWER(COALESCE(t.status, '')) NOT IN ('confirmée', 'confirmee')
                AND NOT (
                  LOWER(COALESCE(t.payment_method, '')) = 'cash'
                  AND EXISTS(
@@ -1025,7 +1024,14 @@ router.post("/", authMiddleware, requireClient, upload.array("photos", 5), valid
         }
       }
       if (tx.status === "confirmée") {
-        return res.status(400).json({ error: "Cette mission est déjà confirmée." });
+        return res.json({
+          message: "Paiement déjà confirmé",
+          data: {
+            transaction_id: tx.id,
+            status: "confirmée",
+            payment_method: tx.payment_method || paymentMethod,
+          },
+        });
       }
 
       if (

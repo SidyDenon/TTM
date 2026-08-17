@@ -293,11 +293,13 @@ export default (db) => {
 
       // 2bis) Alignement montant avec la mission (estimation finale)
       let txAmount = Number(tx.amount || 0);
+      let clientUserId = null;
       if (tx.request_id) {
         const [[reqRow]] = await connection.query(
-          "SELECT estimated_price FROM requests WHERE id = ? LIMIT 1",
+          "SELECT estimated_price, user_id FROM requests WHERE id = ? LIMIT 1",
           [tx.request_id]
         );
+        clientUserId = reqRow?.user_id ? Number(reqRow.user_id) : null;
         if (reqRow && reqRow.estimated_price != null && Number.isFinite(Number(reqRow.estimated_price))) {
           txAmount = Number(reqRow.estimated_price);
           if (txAmount !== Number(tx.amount)) {
@@ -351,6 +353,17 @@ export default (db) => {
         status: "confirmée",
         message: `Votre paiement de ${txAmount} FCFA a été validé. Vous recevez ${netAmount} FCFA après commission.`,
       });
+
+      if (clientUserId) {
+        io.to(`client:${clientUserId}`).emit("transaction_confirmed", {
+          id: Number(id),
+          transaction_id: Number(id),
+          request_id: tx.request_id ? Number(tx.request_id) : null,
+          status: "confirmée",
+          payment_method: tx.payment_method || null,
+          message: "Votre paiement a été confirmé par l’administration.",
+        });
+      }
 
       try {
         const [[opUser]] = await req.db.query(

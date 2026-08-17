@@ -84,8 +84,6 @@ export default function useNotifications(options = {}) {
 
     // 3️⃣ Gestion des événements temps réel (opérateur uniquement)
     const handleWithdrawalUpdate = async (data) => {
-      console.log("💬 Retrait mis à jour :", data);
-
       await triggerNotification("💸 Retrait mis à jour", data.message);
 
       // Recharge le solde ou les retraits (optionnel)
@@ -130,8 +128,25 @@ export default function useNotifications(options = {}) {
       }
     };
 
+    const handleClientTransactionConfirmed = (data = {}) => {
+      if (isOperator) return;
+      const requestId = data?.request_id ?? data?.requestId;
+      Toast.show({
+        type: "success",
+        text1: "Paiement confirmé",
+        text2: data?.message || "Votre paiement a été confirmé.",
+      });
+      if (requestId) {
+        router.replace({
+          pathname: "/user/PaymentScreen",
+          params: { missionId: String(requestId) },
+        });
+      }
+    };
+
     if (!isOperator) {
       socket.on("payment_cash_confirmed", handleCashPaymentConfirmed);
+      socket.on("transaction_confirmed", handleClientTransactionConfirmed);
     }
 
     const handleUserMissionPush = (data = {}) => {
@@ -193,6 +208,7 @@ export default function useNotifications(options = {}) {
         socket.off("payment_confirmed", handlePaymentConfirmed);
       } else {
         socket.off("payment_cash_confirmed", handleCashPaymentConfirmed);
+        socket.off("transaction_confirmed", handleClientTransactionConfirmed);
       }
       tapSub?.remove();
       receivedSub?.remove();

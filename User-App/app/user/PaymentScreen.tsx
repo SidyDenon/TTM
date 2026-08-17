@@ -36,6 +36,11 @@ type MissionPayment = {
 type OperatorType = "orange" | "wave" | "moov";
 type PaymentMethod = "mobile_money" | "cash";
 
+const isConfirmedPaymentStatus = (status: unknown) => {
+  const normalizedStatus = String(status || "").toLowerCase();
+  return normalizedStatus === "confirmée" || normalizedStatus === "confirmee";
+};
+
 export default function PaymentScreen() {
   const router = useRouter();
   const { missionId, cashConfirmed } = useLocalSearchParams<{ missionId?: string; cashConfirmed?: string }>();
@@ -113,9 +118,14 @@ export default function PaymentScreen() {
             cash_received_by_operator: Boolean(m.cash_received_by_operator),
           });
           const method = String(m.payment_method || "").toLowerCase();
-          const paymentStatus = String(m.payment_status || "").toLowerCase();
           const cashReceived = Boolean(m.cash_received_by_operator);
-          if (method === "cash") {
+          if (isConfirmedPaymentStatus(m.payment_status)) {
+            setPaymentSubmitted(true);
+            setCashPending(false);
+            setCashPaymentConfirmed(method === "cash" && cashReceived);
+            setPaid(true);
+            setPayModalVisible(false);
+          } else if (method === "cash") {
             setPaymentSubmitted(true);
             setCashPending(!cashReceived);
             setCashPaymentConfirmed(cashReceived);
@@ -123,7 +133,7 @@ export default function PaymentScreen() {
           } else if (method === "mobile_money") {
             setPaymentSubmitted(true);
             setCashPending(false);
-            setPaid(paymentStatus === "confirmée" || paymentStatus === "confirmee");
+            setPaid(false);
           }
         } else {
           Alert.alert("Erreur", data?.error || "Mission introuvable.");
@@ -192,6 +202,13 @@ export default function PaymentScreen() {
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || "Impossible de confirmer le paiement.");
+    }
+    if (isConfirmedPaymentStatus(data?.data?.status)) {
+      setPaymentSubmitted(true);
+      setCashPending(false);
+      setPaid(true);
+      setPayModalVisible(false);
+      return;
     }
     if (paymentMethod === "cash") {
       setPaymentSubmitted(true);

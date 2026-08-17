@@ -446,7 +446,18 @@ export default (db, notifyOperators, emitMissionEvent) => {
       const photos = normalizePhotos(photosRows.map((p) => p.url));
 
       const [[payment]] = await req.db.query(
-        `SELECT t.id AS transaction_id, t.status AS payment_status, t.payment_method,
+        `SELECT t.id AS transaction_id,
+                CASE
+                  WHEN LOWER(COALESCE(t.payment_method, '')) = 'cash'
+                   AND EXISTS(
+                     SELECT 1 FROM request_events cash_event
+                     WHERE cash_event.request_id = ?
+                       AND cash_event.type = 'cash_received_operator'
+                   )
+                  THEN 'confirmée'
+                  ELSE t.status
+                END AS payment_status,
+                t.payment_method,
                 EXISTS(
                   SELECT 1 FROM request_events re
                   WHERE re.request_id = ? AND re.type = 'cash_received_operator'
@@ -454,7 +465,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
          FROM transactions t
          WHERE t.request_id = ?
          ORDER BY t.id DESC LIMIT 1`,
-        [id, id]
+        [id, id, id]
       );
 
       res.json({

@@ -1540,14 +1540,14 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
       }
 
       // Message user: in-app (socket) si ouvert, push fallback s'il est fermé
-      const userMessage = `L'opérateur a confirmé la réception du paiement en espèces pour la mission #${id}. Validation administrative en cours.`;
+      const userMessage = `L'opérateur a confirmé la réception du paiement en espèces pour la mission #${id}. Votre mission est finalisée.`;
       try {
         io.to(`client:${Number(mission.user_id)}`).emit("payment_cash_confirmed", {
           request_id: Number(id),
           transaction_id: Number(txId),
           amount: grossAmount,
           currency,
-          status: "en_attente",
+          status: "confirmée",
           payment_method: "cash",
           cash_received_by_operator: true,
           message: userMessage,
@@ -1566,7 +1566,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
               type: "payment_cash_confirmed",
               request_id: Number(id),
               transaction_id: Number(txId),
-              status: "en_attente",
+              status: "confirmée",
               payment_method: "cash",
               cash_received_by_operator: true,
             }

@@ -3,18 +3,9 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import usePushNotifications from "./hooks/usePushNotifications";
 import { useAuth } from "./context/AuthContext";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import Dashboard from "./pages/admin/dashboard/Dashboard";
-import Missions from "./pages/admin/Missions/Missions";
-import Operators from "./pages/admin/Operators";
-import Clients from "./pages/admin/Clients";
-import Transactions from "./pages/admin/Transactions";
-import Withdrawals from "./pages/admin/Withdrawals";
-import Settings from "./pages/admin/Settings";
-import SiteVitrine from "./pages/admin/SiteVitrine";
-import AdminUsers from "./pages/admin/AdminUsers";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import { setLastModalClick } from "./utils/modalOrigin";
@@ -23,6 +14,27 @@ import { setLastModalClick } from "./utils/modalOrigin";
 // Toastify
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+const Dashboard = lazy(() => import("./pages/admin/dashboard/Dashboard"));
+const Missions = lazy(() => import("./pages/admin/Missions/Missions"));
+const Operators = lazy(() => import("./pages/admin/Operators"));
+const Clients = lazy(() => import("./pages/admin/Clients"));
+const Transactions = lazy(() => import("./pages/admin/Transactions"));
+const Withdrawals = lazy(() => import("./pages/admin/Withdrawals"));
+const Settings = lazy(() => import("./pages/admin/Settings"));
+const SiteVitrine = lazy(() => import("./pages/admin/SiteVitrine"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+
+function PageLoader() {
+  return (
+    <div className="flex min-h-64 items-center justify-center" role="status" aria-live="polite">
+      <div className="text-center" style={{ color: "var(--muted)" }}>
+        <div className="mx-auto mb-3 h-9 w-9 animate-spin rounded-full border-4 border-slate-300 border-t-red-600" />
+        <p className="font-medium">Chargement de la page…</p>
+      </div>
+    </div>
+  );
+}
 
 function PrivateRoute({ children }) {
   
@@ -129,12 +141,14 @@ function Layout() {
             color: "var(--text-color)",
           }}
         >
-          <Outlet
-            context={{
-              requestedOilMissionId,
-              clearRequestedOilMission: () => setRequestedOilMissionId(null),
-            }}
-          />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet
+              context={{
+                requestedOilMissionId,
+                clearRequestedOilMission: () => setRequestedOilMissionId(null),
+              }}
+            />
+          </Suspense>
         </main>
       </div>
     </div>

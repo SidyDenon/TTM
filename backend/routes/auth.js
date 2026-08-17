@@ -6,7 +6,7 @@ import crypto from "crypto";
 import authMiddleware from "../middleware/auth.js";
 import { getSchemaColumns } from "../utils/schema.js";
 import { sendMail } from "../utils/mailer.js";
-import { sendSMS } from "../utils/sms.js";
+import { normalizePhone, sendSMS } from "../utils/sms.js";
 import { blacklistToken } from "../utils/tokenBlacklist.js";
 import { findIdentityConflict } from "../utils/identityUniqueness.js";
 
@@ -60,6 +60,26 @@ export default (db) => {
     return r;
   };
 
+  const hashResetCode = (code) =>
+    crypto
+      .createHmac("sha256", process.env.JWT_SECRET)
+      .update(String(code || ""))
+      .digest("hex")
+      .slice(0, 10);
+  const forgotPasswordMessage =
+    "Si un compte correspond à cet identifiant, un code a été envoyé.";
+  const phoneVariants = (value) => {
+    const raw = String(value || "").replace(/\s+/g, "");
+    try {
+      const international = normalizePhone(raw);
+      const withoutPlus = international.slice(1);
+      const local = withoutPlus.startsWith("223") ? withoutPlus.slice(3) : withoutPlus;
+      return Array.from(new Set([raw, international, withoutPlus, local]));
+    } catch {
+      return [raw].filter(Boolean);
+    }
+  };
+
   router.use((req, res, next) => {
     req.db = db;
     next();
@@ -75,7 +95,13 @@ export default (db) => {
         return res.status(400).json({ error: "Tous les champs sont obligatoires" });
       }
 
-      const conflict = await findIdentityConflict(req.db, { email, phone });
+      let normalizedPhone;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (error) {
+        return res.status(400).json({ error: error.message });
+      }
+      const conflict = await findIdentityConflict(req.db, { email, phone: normalizedPhone });
       if (conflict) {
         return res.status(400).json({
           error:
@@ -89,7 +115,7 @@ export default (db) => {
 
       const [result] = await req.db.query(
         "INSERT INTO users (name, phone, email, password, role, must_change_password) VALUES (?, ?, ?, ?, 'client', 0)",
-        [name, phone, email || null, hashed]
+        [name, normalizedPhone, email || null, hashed]
       );
 
       res.status(201).json({
@@ -97,7 +123,7 @@ export default (db) => {
         user: {
           id: result.insertId,
           name,
-          phone,
+          phone: normalizedPhone,
           email,
           role: "client",
           must_change_password: 0,
@@ -120,10 +146,13 @@ router.post("/login", authLimiter, async (req, res) => {
     const isEmail = identifier.includes("@");
 
     // ---------- 1) ESSAI DANS users ----------
+    const loginPhones = isEmail ? [] : phoneVariants(identifier);
+    const loginPhonePlaceholders = loginPhones.map(() => "?").join(",");
     let [rows] = await req.db.query(
-      isEmail ? "SELECT id, name, phone, email, role, password, must_change_password FROM users WHERE email = ?"
-              : "SELECT id, name, phone, email, role, password, must_change_password FROM users WHERE phone = ?",
-      [identifier]
+      isEmail
+        ? "SELECT id, name, phone, email, role, password, must_change_password FROM users WHERE email = ?"
+        : `SELECT id, name, phone, email, role, password, must_change_password FROM users WHERE phone IN (${loginPhonePlaceholders})`,
+      isEmail ? [identifier] : loginPhones
     );
 
     const candidates = [...rows];
@@ -142,13 +171,7 @@ router.post("/login", authLimiter, async (req, res) => {
     // ---------- 3) FALLBACK ADMIN PAR TÉLÉPHONE ----------
     if (!isEmail) {
       // variantes 223
-      const raw = String(identifier).replace(/\s+/g, "");
-      const variants = Array.from(new Set([
-        raw,
-        raw.replace(/^\+/, ""),
-        raw.replace(/^\+?223/, ""),
-        `+223${raw.replace(/^\+?223/, "")}`
-      ]));
+      const variants = phoneVariants(identifier);
 
       try {
         const placeholders = variants.map(() => "?").join(",");
@@ -304,8 +327,9 @@ router.post("/logout", authMiddleware, async (req, res) => {
         query = "SELECT * FROM users WHERE email = ?";
         params = [identifier];
       } else {
-        query = "SELECT * FROM users WHERE phone = ?";
-        params = [identifier];
+        const variants = phoneVariants(identifier);
+        query = `SELECT * FROM users WHERE phone IN (${variants.map(() => "?").join(",")})`;
+        params = variants;
       }
 
       const [rows] = await req.db.query(query, params);
@@ -318,9 +342,10 @@ router.post("/logout", authMiddleware, async (req, res) => {
             );
             adminRow = admins[0] || null;
           } else {
+            const variants = phoneVariants(identifier);
             const [adminsByPhone] = await req.db.query(
-              "SELECT id, name, email, phone, password_hash FROM admin_users WHERE phone = ?",
-              [identifier]
+              `SELECT id, name, email, phone, password_hash FROM admin_users WHERE phone IN (${variants.map(() => "?").join(",")})`,
+              variants
             );
             adminRow = adminsByPhone[0] || null;
           }
@@ -330,7 +355,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
       }
 
       if (rows.length === 0 && !adminRow) {
-        return res.status(400).json({ error: "Utilisateur introuvable" });
+        return res.json({ message: forgotPasswordMessage });
       }
 
       let user = rows[0];
@@ -358,45 +383,61 @@ router.post("/logout", authMiddleware, async (req, res) => {
         return res.status(400).json({ error: "Utilisateur introuvable" });
       }
       const resetCode = crypto.randomInt(100000, 1000000).toString();
+      const resetCodeHash = hashResetCode(resetCode);
       const expires = new Date(Date.now() + 1000 * 60 * 15);
 
       await req.db.query(
         "UPDATE users SET reset_code = ?, reset_expires = ? WHERE id = ?",
-        [resetCode, expires, user.id]
+        [resetCodeHash, expires, user.id]
       );
 
-      let channels = [];
+      const channels = [];
+      const sendBySms = async () => {
+        if (!user.phone) throw new Error("Numéro absent");
+        await sendSMS(
+          user.phone,
+          `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`
+        );
+        channels.push("sms");
+      };
+      const sendByEmail = async () => {
+        if (!user.email) throw new Error("Email absent");
+        await sendMail(
+          user.email,
+          "Code de réinitialisation",
+          `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\nCe code est valable 15 minutes.`,
+          `<h2>Bonjour ${user.name || "utilisateur"},</h2>
+           <p>Voici votre code de réinitialisation :</p>
+           <h1 style="color:#E53935">${resetCode}</h1>
+           <p>Ce code est valable 15 minutes.</p>`
+        );
+        channels.push("email");
+      };
 
-      if (user.phone) {
+      const requestedEmail = String(identifier).includes("@");
+      const attempts = requestedEmail
+        ? [sendByEmail, sendBySms]
+        : [sendBySms, sendByEmail];
+      for (const attempt of attempts) {
         try {
-          await sendSMS(
-            user.phone,
-            `Votre code de réinitialisation est : ${resetCode} (valide 15 min)`
-          );
-          channels.push("sms");
-        } catch (smsError) {
-          console.warn(" Envoi SMS reset échoué:", smsError?.message || smsError);
+          await attempt();
+          break;
+        } catch (deliveryError) {
+          console.warn(" Envoi OTP échoué, tentative du canal de secours:", deliveryError?.message || deliveryError);
         }
       }
 
-      if (user.email) {
-        try {
-          await sendMail(
-            user.email,
-            "Code de réinitialisation",
-            `Bonjour ${user.name || "utilisateur"},\n\nVoici votre code de réinitialisation : ${resetCode}\n Ce code est valable 15 minutes.`,
-            `<h2>Bonjour ${user.name || "utilisateur"},</h2>
-             <p>Voici votre code de réinitialisation :</p>
-             <h1 style="color:#E53935">${resetCode}</h1>
-             <p> Ce code est valable 15 minutes.</p>`
-          );
-          channels.push("email");
-        } catch (emailError) {
-          console.warn(" Envoi email reset échoué:", emailError?.message || emailError);
-        }
+      if (channels.length === 0) {
+        await req.db.query(
+          "UPDATE users SET reset_code = NULL, reset_expires = NULL WHERE id = ?",
+          [user.id]
+        );
+        return res.status(503).json({
+          error: "Impossible d’envoyer le code actuellement. Réessayez plus tard.",
+        });
       }
 
-      res.json({ message: " Code envoyé", channels: channels.join(", ") || "aucun canal" });
+      res.json({ message: forgotPasswordMessage, channels });
     } catch (err) {
       console.error(" Erreur forgot-password:", err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -407,9 +448,17 @@ router.post("/logout", authMiddleware, async (req, res) => {
   router.post("/verify-code", authLimiter, async (req, res) => {
     try {
       const { identifier, code } = req.body;
+      if (!identifier || !/^\d{6}$/.test(String(code || ""))) {
+        return res.status(400).json({ error: "Code invalide ou expiré" });
+      }
+      const codeHash = hashResetCode(code);
+      const isEmail = String(identifier).includes("@");
+      const variants = isEmail ? [] : phoneVariants(identifier);
       const [rows] = await req.db.query(
-        "SELECT * FROM users WHERE (email = ? OR phone = ?) AND reset_code = ? AND reset_expires > NOW()",
-        [identifier, identifier, code]
+        isEmail
+          ? "SELECT * FROM users WHERE email = ? AND reset_code = ? AND reset_expires > NOW()"
+          : `SELECT * FROM users WHERE phone IN (${variants.map(() => "?").join(",")}) AND reset_code = ? AND reset_expires > NOW()`,
+        isEmail ? [identifier, codeHash] : [...variants, codeHash]
       );
       if (rows.length === 0) {
         return res.status(400).json({ error: "Code invalide ou expiré" });
@@ -428,9 +477,17 @@ router.post("/logout", authMiddleware, async (req, res) => {
       if (typeof newPassword !== "string" || newPassword.length < 8) {
         return res.status(400).json({ error: "Le mot de passe doit contenir au moins 8 caractères" });
       }
+      if (!identifier || !/^\d{6}$/.test(String(code || ""))) {
+        return res.status(400).json({ error: "Code invalide ou expiré" });
+      }
+      const codeHash = hashResetCode(code);
+      const isEmail = String(identifier).includes("@");
+      const variants = isEmail ? [] : phoneVariants(identifier);
       const [rows] = await req.db.query(
-        "SELECT * FROM users WHERE (email = ? OR phone = ?) AND reset_code = ? AND reset_expires > NOW()",
-        [identifier, identifier, code]
+        isEmail
+          ? "SELECT * FROM users WHERE email = ? AND reset_code = ? AND reset_expires > NOW()"
+          : `SELECT * FROM users WHERE phone IN (${variants.map(() => "?").join(",")}) AND reset_code = ? AND reset_expires > NOW()`,
+        isEmail ? [identifier, codeHash] : [...variants, codeHash]
       );
       if (rows.length === 0) {
         return res.status(400).json({ error: "Code invalide ou expiré" });

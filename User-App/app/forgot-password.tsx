@@ -10,27 +10,33 @@ const logo = require("../assets/images/logo1.png");
 export default function ForgotPasswordScreen() {
   const [identifier, setIdentifier] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleForgot = async () => {
+  if (loading) return;
   setError("");
+  if (!identifier.trim()) {
+    setError("Saisissez votre email ou votre numéro de téléphone.");
+    return;
+  }
+  setLoading(true);
 
   try {
-    const res = await apiFetch("/forgot-password", {
+    await apiFetch("/forgot-password", {
       method: "POST",
-      body: JSON.stringify({ identifier }),
+      body: JSON.stringify({ identifier: identifier.trim() }),
     });
-
-    // res.channel = "email" ou "sms"
-    console.log("Code envoyé via :", res.channel);
 
     router.push({
       pathname: "/reset-password",
-      params: { identifier },
+      params: { identifier: identifier.trim() },
     });
   } catch (err: unknown) {
     if (err instanceof Error) setError(err.message);
     else setError("Erreur inconnue");
+  } finally {
+    setLoading(false);
   }
 };
 
@@ -61,8 +67,8 @@ export default function ForgotPasswordScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.btn} onPress={handleForgot}>
-          <Text style={styles.btnText}>Envoyer</Text>
+        <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleForgot} disabled={loading}>
+          <Text style={styles.btnText}>{loading ? "Envoi en cours..." : "Envoyer"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()}>
@@ -124,6 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   btnText: { color: "#fff", fontWeight: "700" },
+  btnDisabled: { opacity: 0.6 },
   error: { color: "#E53935", textAlign: "center", marginBottom: 10 },
   link: { color: "#E53935", textAlign: "center", marginTop: 10 },
 });

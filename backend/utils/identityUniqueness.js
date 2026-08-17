@@ -6,8 +6,21 @@ const normalizeEmail = (value) => {
 };
 
 const normalizePhone = (value) => {
-  const v = String(value || "").trim();
-  return v || null;
+  let valueDigits = String(value || "").replace(/[^\d+]/g, "");
+  if (!valueDigits) return null;
+  if (valueDigits.startsWith("00")) valueDigits = `+${valueDigits.slice(2)}`;
+  if (!valueDigits.startsWith("+")) {
+    const digits = valueDigits.replace(/\D/g, "");
+    valueDigits = digits.startsWith("223") ? `+${digits}` : `+223${digits}`;
+  }
+  return valueDigits;
+};
+
+const phoneVariants = (phone) => {
+  if (!phone) return [];
+  const withoutPlus = phone.slice(1);
+  const local = withoutPlus.startsWith("223") ? withoutPlus.slice(3) : withoutPlus;
+  return Array.from(new Set([phone, withoutPlus, local]));
 };
 
 const hasColumn = async (db, table, column) => {
@@ -36,9 +49,10 @@ export const findIdentityConflict = async (
   }
 
   if (normalizedPhone) {
+    const variants = phoneVariants(normalizedPhone);
     const [rows] = await db.query(
-      "SELECT id FROM users WHERE phone = ? AND (? IS NULL OR id <> ?) LIMIT 1",
-      [normalizedPhone, excludeUserId, excludeUserId]
+      `SELECT id FROM users WHERE phone IN (${variants.map(() => "?").join(",")}) AND (? IS NULL OR id <> ?) LIMIT 1`,
+      [...variants, excludeUserId, excludeUserId]
     );
     if (rows.length > 0) {
       return { table: "users", field: "phone", id: rows[0].id };
@@ -66,9 +80,10 @@ export const findIdentityConflict = async (
   }
 
   if (normalizedPhone && (await hasColumn(db, "admin_users", "phone"))) {
+    const variants = phoneVariants(normalizedPhone);
     const [rows] = await db.query(
-      "SELECT id FROM admin_users WHERE phone = ? AND (? IS NULL OR id <> ?) LIMIT 1",
-      [normalizedPhone, excludeAdminId, excludeAdminId]
+      `SELECT id FROM admin_users WHERE phone IN (${variants.map(() => "?").join(",")}) AND (? IS NULL OR id <> ?) LIMIT 1`,
+      [...variants, excludeAdminId, excludeAdminId]
     );
     if (rows.length > 0) {
       return { table: "admin_users", field: "phone", id: rows[0].id };

@@ -1,7 +1,12 @@
 import { sendSMS } from "../utils/sms.js";
 
-const to = process.env.SMS_TEST_TO || "+212600640052";
+const to = String(process.env.SMS_TEST_TO || "").trim();
 const message = "TTM test SMS OK";
+
+if (!to) {
+  console.error("SMS_TEST_TO est requis. Aucun SMS n'a été envoyé.");
+  process.exit(1);
+}
 
 sendSMS(to, message)
   .then(() => {

@@ -487,8 +487,8 @@ Important : changez votre mot de passe à la première connexion.`,
         try {
           await sendMail(
             admin.email,
-            "🔑 Réinitialisation du mot de passe TTM",
-            `Bonjour ${admin.name || ""},\n\nVotre mot de passe administrateur a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n— L'équipe TTM`
+            " Réinitialisation du mot de passe TTM",
+            `Bonjour ${admin.name || ""},\n\nVotre mot de passe administrateur a été réinitialisé.\n\n Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n— L'équipe TTM`
           );
         } catch (mailErr) {
           console.warn(" Erreur email:", mailErr.message);

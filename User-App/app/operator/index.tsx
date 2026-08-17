@@ -689,7 +689,7 @@ useEffect(() => {
 }, [pushProfileLocation]);
 
 
-// 🛰️ Suivi GPS continu (mise à jour + envoi socket)
+//  Suivi GPS continu (mise à jour + envoi socket)
 useEffect(() => {
   if (!user) return;
   let watcher: Location.LocationSubscription;

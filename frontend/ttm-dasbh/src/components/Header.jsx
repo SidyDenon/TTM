@@ -43,7 +43,7 @@ export default function Header({ onToggleSidebar, onOpenOilMissionDetail }) {
     }
   };
 
-  // ⚙️ Seuls les admins financiers peuvent cliquer sur la cloche
+  // Seuls les admins financiers peuvent cliquer sur la cloche
   const canSeeFinance =
     can(user, "withdrawals_view") ||
     can(user, "transactions_view") ||

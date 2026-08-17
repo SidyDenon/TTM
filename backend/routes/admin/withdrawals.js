@@ -209,7 +209,7 @@ export default (db) => {
           }
         }
 
-        // ⚡ Notification Socket.IO à l’opérateur concerné
+        //  Notification Socket.IO à l’opérateur concerné
         const io = getIo(req);
         const onlineUsers = getOnlineUsers(req);
         if (io && withdrawal?.operator_id) {

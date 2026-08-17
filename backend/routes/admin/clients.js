@@ -110,7 +110,7 @@ Bienvenue sur TOW TRUCK MALI 🚗💨
 Votre compte client a été créé avec succès.
 
 📞 Téléphone : ${phone}
-🔑 Mot de passe provisoire : ${motDePasseClair}
+ Mot de passe provisoire : ${motDePasseClair}
 
  Pour votre sécurité, merci de modifier ce mot de passe lors de votre première connexion.
 
@@ -336,8 +336,8 @@ Dépannage express – 24h/24
           try {
             await sendMail(
               client.email,
-              "🔑 Réinitialisation de votre mot de passe TTM",
-              `Bonjour ${client.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe: ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
+              " Réinitialisation de votre mot de passe TTM",
+              `Bonjour ${client.name},\n\nVotre mot de passe a été réinitialisé.\n\n Nouveau mot de passe: ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
             console.warn(" Erreur envoi mail:", mailErr.message);

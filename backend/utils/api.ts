@@ -50,7 +50,7 @@ export async function fetchWithTimeout(
   }
 }
 
-// ⚡ Appel API générique
+//  Appel API générique
 export async function apiRequest<T>(
   endpoint: string,
   method: string = "GET",

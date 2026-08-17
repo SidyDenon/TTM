@@ -38,7 +38,7 @@ const PERM_LABELS = {
   services_view: "Voir les services",
   services_manage: "Gérer les services",
 
-  // ⚙️ Configuration
+  // Configuration
   config_view: "Voir la configuration",
   config_manage: "Gérer la configuration",
 
@@ -477,7 +477,7 @@ export default function AdminUsers() {
 
       toast.success(
         j?.temp_password
-          ? `Admin créé  — Email envoyé. 🔑 MDP provisoire: ${j.temp_password}`
+          ? `Admin créé  — Email envoyé.  MDP provisoire: ${j.temp_password}`
           : "Admin créé  — Un email de bienvenue a été envoyé."
       );
       setShow(false);
@@ -636,7 +636,7 @@ export default function AdminUsers() {
           <p>{data.message}</p>
           {password && (
             <p>
-              🔑 Nouveau mot de passe : <b>{password}</b>
+               Nouveau mot de passe : <b>{password}</b>
             </p>
           )}
           {password && (

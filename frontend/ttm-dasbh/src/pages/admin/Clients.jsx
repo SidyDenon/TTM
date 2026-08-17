@@ -120,7 +120,7 @@ export default function Clients() {
             <p>Client ajouté </p>
             {password && (
               <p>
-                🔑 Mot de passe : <b>{password}</b>
+                 Mot de passe : <b>{password}</b>
               </p>
             )}
             {password && (
@@ -201,7 +201,7 @@ export default function Clients() {
           <p>{data.message}</p>
           {password && (
             <p>
-              🔑 Nouveau mot de passe : <b>{password}</b>
+               Nouveau mot de passe : <b>{password}</b>
             </p>
           )}
           {password && (

@@ -20,10 +20,10 @@ export default function ProtectedRoute({ children, perm, permAny, superOnly }) {
   // 🔒 Page réservée uniquement aux super-admins
   if (superOnly) return <Navigate to="/403" replace />;
 
-  // 🔑 Permission unique
+  //  Permission unique
   if (perm && !can(user, perm)) return <Navigate to="/403" replace />;
 
-  // 🔑 Une parmi plusieurs permissions possibles
+  //  Une parmi plusieurs permissions possibles
   if (permAny && !permAny.some((key) => can(user, key))) return <Navigate to="/403" replace />;
 
   //  Autorisé

@@ -47,7 +47,7 @@ export default function UserParametreScreen() {
           />
         </View>
       )}
-      <Text style={styles.header}>⚙️ Paramètres</Text>
+      <Text style={styles.header}>Paramètres</Text>
 
       {/* Carte info utilisateur */}
       <View style={styles.card}>

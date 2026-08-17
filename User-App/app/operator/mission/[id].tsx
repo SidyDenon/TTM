@@ -218,7 +218,7 @@ export default function MissionSuivi() {
         )
       : null;
 
-  // ⚙️ Config publique (commission, currency)
+  // Config publique (commission, currency)
   useEffect(() => {
     (async () => {
       try {
@@ -609,7 +609,7 @@ export default function MissionSuivi() {
     };
   }, [socket, mission?.id, router]);
 
-  // 🛰️ Suivi GPS opérateur (en foreground) quand "en_route"
+  //  Suivi GPS opérateur (en foreground) quand "en_route"
   useEffect(() => {
     const startTracking = async () => {
       if (mission?.status !== "en_route") return;

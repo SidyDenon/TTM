@@ -10,7 +10,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// ⚙️ Config storage
+// Config storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir); // 📂 sauvegarde dans /uploads/requests

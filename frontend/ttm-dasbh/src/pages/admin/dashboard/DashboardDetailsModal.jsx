@@ -144,7 +144,7 @@ export default function MissionsDetailsModal({
             )}
           </div>
 
-          {/* ⚙️ Actions */}
+          {/* Actions */}
           <div className="mt-6 flex flex-wrap gap-3">
             {mission.status === "en_attente" && canPublish && (
               <button

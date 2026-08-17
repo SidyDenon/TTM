@@ -345,7 +345,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
     }
   });
 
-  // ⚡📌 Récupérer la mission active du client (compat sans JSON_ARRAYAGG)
+  // 📌 Récupérer la mission active du client (compat sans JSON_ARRAYAGG)
   router.get("/active", authMiddleware, async (req, res) => {
     try {
       const [rows] = await req.db.query(

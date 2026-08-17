@@ -10,7 +10,7 @@ import { findIdentityConflict } from "../../utils/identityUniqueness.js";
 
 const router = express.Router();
 
-// 🔑 Génération mot de passe aléatoire
+//  Génération mot de passe aléatoire
 function genererMotDePasse(longueur = 12) {
   return crypto.randomBytes(longueur).toString("base64").slice(0, longueur);
 }
@@ -129,7 +129,7 @@ export default (db) => {
             await sendMail(
               email,
               "🚚 Vos identifiants TTM",
-              `Bonjour ${name},\n\nVotre compte opérateur a été créé.\n\n📱 Téléphone: ${phone}\n🔑 Mot de passe provisoire: ${motDePasseClair}\n\n Merci de le modifier lors de votre première connexion.\n\n L'équipe TTM`
+              `Bonjour ${name},\n\nVotre compte opérateur a été créé.\n\n📱 Téléphone: ${phone}\n Mot de passe provisoire: ${motDePasseClair}\n\n Merci de le modifier lors de votre première connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
             console.warn(" Erreur envoi email:", mailErr.message);
@@ -326,8 +326,8 @@ export default (db) => {
           try {
             await sendMail(
               user.email,
-              "🔑 Réinitialisation du mot de passe TTM",
-              `Bonjour ${user.name},\n\nVotre mot de passe a été réinitialisé.\n\n🔑 Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
+              " Réinitialisation du mot de passe TTM",
+              `Bonjour ${user.name},\n\nVotre mot de passe a été réinitialisé.\n\n Nouveau mot de passe : ${nouveauMdp}\n\n Merci de le modifier lors de votre prochaine connexion.\n\n L'équipe TTM`
             );
           } catch (mailErr) {
             console.warn(" Erreur email:", mailErr.message);

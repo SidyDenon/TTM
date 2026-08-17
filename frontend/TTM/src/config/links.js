@@ -32,7 +32,7 @@ export const buildWhatsAppLink = (message = DEFAULT_MESSAGES.generalInquiry, pho
 export const buildServiceRequestMessage = (service) => {
   const title = service?.title || "Service";
   const amount = service?.amount || "—";
-  return `Bonjour , je souhaite *demander le service* "${title}"\n\n Tarif indiqué : ${amount}\n👤 Nom : [Votre nom]\n📞 Téléphone : [Votre numéro]\n Localisation (lien GMaps) : [collez ici]\n⚡ Urgence : [Oui / Non]\n Détails : [optionnel]\n\nMerci de me recontacter rapidement.`;
+  return `Bonjour , je souhaite *demander le service* "${title}"\n\n Tarif indiqué : ${amount}\n👤 Nom : [Votre nom]\n📞 Téléphone : [Votre numéro]\n Localisation (lien GMaps) : [collez ici]\n Urgence : [Oui / Non]\n Détails : [optionnel]\n\nMerci de me recontacter rapidement.`;
 };
 
 export const buildServiceRequestLink = (service) => buildWhatsAppLink(buildServiceRequestMessage(service));

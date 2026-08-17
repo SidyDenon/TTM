@@ -202,7 +202,7 @@ export default function Operators() {
             <p>Opérateur ajouté </p>
             {password && (
               <p>
-                🔑 Mot de passe provisoire : <b>{password}</b>
+                 Mot de passe provisoire : <b>{password}</b>
               </p>
             )}
             {password && (
@@ -292,7 +292,7 @@ export default function Operators() {
           <p>{data.message}</p>
           {password && (
             <p>
-              🔑 Nouveau mot de passe : <b>{password}</b>
+               Nouveau mot de passe : <b>{password}</b>
             </p>
           )}
           {password && (

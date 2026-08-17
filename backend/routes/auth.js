@@ -85,7 +85,7 @@ export default (db) => {
     next();
   });
 
-  // ⚡ SMS (Africa's Talking)
+  //  SMS (Africa's Talking)
 
   // Enregistrement utilisateur
   router.post("/register", authLimiter, async (req, res) => {
@@ -313,7 +313,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
 });
 
 
-  // 🔑 Mot de passe oublié (OTP mail / SMS)
+  //  Mot de passe oublié (OTP mail / SMS)
   router.post("/forgot-password", authLimiter, async (req, res) => {
     try {
       const { identifier } = req.body;
@@ -444,7 +444,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
     }
   });
 
-  // 🔑 Vérification OTP
+  //  Vérification OTP
   router.post("/verify-code", authLimiter, async (req, res) => {
     try {
       const { identifier, code } = req.body;
@@ -470,7 +470,7 @@ router.post("/logout", authMiddleware, async (req, res) => {
     }
   });
 
-  // 🔑 Réinitialisation du mot de passe
+  //  Réinitialisation du mot de passe
   router.post("/reset-password", authLimiter, async (req, res) => {
     try {
       const { identifier, code, newPassword } = req.body;
@@ -572,7 +572,7 @@ router.put("/password", authMiddleware, async (req, res) => {
 });
 
 
-// 🔑 Vérification session
+//  Vérification session
 router.get("/me", authMiddleware, async (req, res) => {
   try {
     const { id, role } = req.user;

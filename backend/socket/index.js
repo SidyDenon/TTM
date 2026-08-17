@@ -81,7 +81,7 @@ function joinRoleRooms(user, socket, meta = {}) {
     }
   });
   if (rooms.size) {
-    console.log(`🛰️ ${role} ${id} rejoint les rooms:`, Array.from(rooms).join(", "));
+    console.log(` ${role} ${id} rejoint les rooms:`, Array.from(rooms).join(", "));
   }
 }
 
@@ -346,7 +346,7 @@ export function initSocket(httpServer, { allowedOrigins, db }) {
   });
 
   io.on("connection", async (socket) => {
-    console.log("⚡ Nouveau client connecté:", socket.id);
+    console.log(" Nouveau client connecté:", socket.id);
     const user = socket.user;
 
     if (!user) {

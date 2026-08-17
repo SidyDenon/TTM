@@ -229,6 +229,6 @@ async function registerForPushNotificationsAsync() {
     return null;
   }
 
-  console.log(" Expo Push Token:", result.token);
+  if (__DEV__) console.log(" Token push Expo enregistré");
   return result.token;
 }

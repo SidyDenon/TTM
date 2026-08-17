@@ -48,9 +48,17 @@ import { requireAdmin } from "./middleware/requireRole.js";
 import clientOilServiceRoutes from "./routes/client/oilService.js";
 import adminOilServiceRoutes from "./routes/admin/oilService.js";
 import feedbackRoutes from "./routes/client/feedback.js";
+import { requestContext } from "./middleware/requestContext.js";
+
+// Les traces détaillées restent disponibles en développement, mais pas en production.
+if (process.env.NODE_ENV === "production") {
+  console.log = () => {};
+  console.debug = () => {};
+}
 
 const app = express();
 app.set("trust proxy", 1);
+app.use(requestContext);
 app.use(express.json());
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -152,7 +160,8 @@ app.use((req, res, next) => {
 
 // ---------------- ERREUR GLOBALE ----------------
 app.use((err, req, res, next) => {
-  console.error(" Erreur middleware globale:", err);
+  console.error(`[${req.requestId}] Erreur middleware globale:`, err);
+  if (res.headersSent) return next(err);
   res.status(500).json({ error: "Erreur interne serveur" });
 });
 

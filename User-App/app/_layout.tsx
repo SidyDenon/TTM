@@ -6,6 +6,7 @@ import { RequestProvider } from "../context/RequestContext";
 import { SocketProvider } from "../context/SocketContext";
 import SplashScreen from "../components/SplashScreen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import AppErrorBoundary from "../components/AppErrorBoundary";
 
 /* ---------------- Root Navigator ---------------- */
 function RootNavigator() {
@@ -28,7 +29,6 @@ function RootNavigator() {
       try {
         const seen = await AsyncStorage.getItem("hasSeenOnboarding");
         if (!seen && !user) {
-          console.log(" Première ouverture : redirection vers onboarding");
           router.replace("/OnboardingScreen");
         }
       } catch (e) {
@@ -82,7 +82,8 @@ function RootNavigator() {
 /* ---------------- Root Layout ---------------- */
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <AppErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       {/*  AuthProvider d’abord pour fournir useAuth() */}
       <AuthProvider>
         {/*  Puis SocketProvider (maintenant il peut lire user/token) */}
@@ -92,6 +93,7 @@ export default function RootLayout() {
           </RequestProvider>
         </SocketProvider>
       </AuthProvider>
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
+    </AppErrorBoundary>
   );
 }

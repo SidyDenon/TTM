@@ -126,7 +126,6 @@ export default function Transactions() {
     if (!socket) return;
 
     const handleNewTransaction = (data) => {
-      console.log(" Nouvelle transaction :", data);
       const isCash = String(data?.payment_method || "").toLowerCase() === "cash";
       showSystemNotification(
         " Nouvelle transaction",
@@ -143,7 +142,6 @@ export default function Transactions() {
     };
 
     const handleTransactionConfirmed = (data) => {
-      console.log(" Transaction confirmée :", data);
       showSystemNotification(" Transaction confirmée", `Transaction #${data.id} validée`);
       toast.success(` Transaction #${data.id} validée et créditée`, {
         toastId: `tx-confirm-${data.id}`,
@@ -151,8 +149,7 @@ export default function Transactions() {
       if (canTxView) loadTransactions();
     };
 
-    const handleTransactionUpdated = (data) => {
-      console.log("♻️ Transaction mise à jour:", data);
+    const handleTransactionUpdated = () => {
       if (canTxView) loadTransactions();
     };
 

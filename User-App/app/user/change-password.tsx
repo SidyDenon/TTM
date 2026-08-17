@@ -28,8 +28,8 @@ export default function ChangePasswordScreen() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    if (newPassword.length < 8) {
+      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 8 caractères.");
       return;
     }
 
@@ -64,7 +64,7 @@ export default function ChangePasswordScreen() {
         { text: "OK", onPress: () => router.replace("/user") },
       ]);
     } catch (err: any) {
-      console.error(" Erreur:", err.message);
+      if (__DEV__) console.error("Erreur changement mot de passe:", err.message);
       Alert.alert("Erreur", err.message || "Une erreur est survenue.");
     } finally {
       setLoading(false);

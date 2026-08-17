@@ -29,8 +29,8 @@ export default function OperatorChangePassword() {
       Alert.alert("Erreur", "Tous les champs sont obligatoires.");
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 6 caractères.");
+    if (newPassword.length < 8) {
+      Alert.alert("Erreur", "Le nouveau mot de passe doit contenir au moins 8 caractères.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -67,7 +67,7 @@ export default function OperatorChangePassword() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
-      console.error(" Erreur:", err.message);
+      if (__DEV__) console.error("Erreur changement mot de passe:", err.message);
       const message = err.message || "Une erreur est survenue.";
       setErrorMsg(message);
       Alert.alert("Erreur", message);

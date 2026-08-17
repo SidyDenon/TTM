@@ -21,12 +21,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   try {
     data = JSON.parse(text);
   } catch {
-    console.error(" Réponse non-JSON:", text);
     throw new Error("Réponse invalide du serveur");
   }
 
   if (!res.ok) {
-    throw new Error(data.error || data.message || "Erreur serveur");
+    const message = data.error || data.message || "Erreur serveur";
+    const reference = data.request_id || res.headers.get("x-request-id");
+    throw new Error(reference ? `${message} (référence : ${reference})` : message);
   }
 
   return data;

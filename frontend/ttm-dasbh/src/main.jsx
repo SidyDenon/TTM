@@ -4,6 +4,7 @@ import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
 import { initApiBase } from "./config/urls";
 import "./index.css";
+import AppErrorBoundary from "./components/AppErrorBoundary";
 
 // Initialise l’API avant de monter React
 (async () => {
@@ -16,7 +17,9 @@ import "./index.css";
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
       <AuthProvider>
-        <App />
+        <AppErrorBoundary>
+          <App />
+        </AppErrorBoundary>
       </AuthProvider>
     </React.StrictMode>
   );

@@ -272,7 +272,7 @@ export function notifyUser(userId, event, data) {
     if (socketId) {
       const socket = io.sockets.sockets.get(socketId);
       if (socket) {
-        console.log(` [notifyUser] → user:${uid} event:${event} payload:`, data);
+        console.log(` [notifyUser] → user:${uid} event:${event}`);
         socket.emit(event, data);
         return true;
       } else {

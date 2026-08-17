@@ -98,8 +98,12 @@ export default function PaymentScreen() {
 
     const loadMission = async () => {
       try {
-        const res = await fetch(`${API_URL}/requests/${missionId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`${API_URL}/requests/${missionId}?refresh=${Date.now()}`, {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+          },
         });
         const data = await res.json();
         if (cancelled) return;
@@ -118,7 +122,9 @@ export default function PaymentScreen() {
             cash_received_by_operator: Boolean(m.cash_received_by_operator),
           });
           const method = String(m.payment_method || "").toLowerCase();
-          const cashReceived = Boolean(m.cash_received_by_operator);
+          const cashReceived =
+            m.cash_received_by_operator === true ||
+            Number(m.cash_received_by_operator) === 1;
           if (isConfirmedPaymentStatus(m.payment_status)) {
             setPaymentSubmitted(true);
             setCashPending(false);

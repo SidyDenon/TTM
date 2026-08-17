@@ -422,6 +422,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
   // 📌 Voir une demande précise (compat sans JSON_ARRAYAGG)
   router.get("/:id", authMiddleware, async (req, res) => {
     try {
+      res.set("Cache-Control", "no-store");
       const { id } = req.params;
       const [rows] = await req.db.query(
         `SELECT r.*,

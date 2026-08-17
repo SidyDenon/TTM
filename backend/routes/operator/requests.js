@@ -1490,21 +1490,17 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
         });
       }
 
-      try {
-        await req.db.query(
-          "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'cash_received_operator', ?, NOW())",
-          [
-            id,
-            JSON.stringify({
-              operator_id: Number(req.user.id),
-              transaction_id: Number(txId),
-              payment_method: "cash",
-            }),
-          ]
-        );
-      } catch {
-        // Non bloquant: poursuit la confirmation.
-      }
+      await req.db.query(
+        "INSERT INTO request_events (request_id, type, meta, created_at) VALUES (?, 'cash_received_operator', ?, NOW())",
+        [
+          id,
+          JSON.stringify({
+            operator_id: Number(req.user.id),
+            transaction_id: Number(txId),
+            payment_method: "cash",
+          }),
+        ]
+      );
 
       // Temps réel admin + opérateur
       try {

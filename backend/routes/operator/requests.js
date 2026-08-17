@@ -835,7 +835,11 @@ export default (db) => {
                   op.id   AS operator_profile_id,
                   ou.name AS operator_name,
                   ou.phone AS operator_phone,
-                  t.status AS payment_status,
+                  CASE
+                    WHEN LOWER(COALESCE(t.payment_method, '')) = 'mobile_money'
+                    THEN 'confirmée'
+                    ELSE t.status
+                  END AS payment_status,
                   t.payment_method AS payment_method,
                   EXISTS(
                     SELECT 1
@@ -854,7 +858,13 @@ export default (db) => {
            JOIN users u ON u.id = r.user_id
            LEFT JOIN users ou ON ou.id = r.operator_id
            LEFT JOIN operators op ON op.user_id = ou.id
-           LEFT JOIN transactions t ON t.request_id = r.id
+           LEFT JOIN transactions t ON t.id = (
+             SELECT latest_tx.id
+             FROM transactions latest_tx
+             WHERE latest_tx.request_id = r.id
+             ORDER BY latest_tx.id DESC
+             LIMIT 1
+           )
            LEFT JOIN services s ON LOWER(TRIM(s.name)) = LOWER(TRIM(r.service))
            WHERE r.id = ?
          ) AS q
@@ -1610,6 +1620,7 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
   //  Historique des événements d’une mission
   router.get("/requests/:id/events", authMiddleware, async (req, res) => {
     try {
+      res.set("Cache-Control", "no-store");
       const { id } = req.params;
       if (!isOperatorRole(req.user.role)) {
         return res.status(403).json({ error: "Accès refusé" });

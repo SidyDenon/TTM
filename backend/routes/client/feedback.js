@@ -43,6 +43,7 @@ export default function feedbackRoutes(db) {
       );
       const paymentValidated =
         String(payment?.status || "").toLowerCase() === "confirmée" ||
+        String(payment?.payment_method || "").toLowerCase() === "mobile_money" ||
         (String(payment?.payment_method || "").toLowerCase() === "cash" &&
           Boolean(payment?.cash_received));
       if (!paymentValidated) {

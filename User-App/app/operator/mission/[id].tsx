@@ -353,9 +353,13 @@ export default function MissionSuivi() {
       setFetchError(null);
       try {
         const res = await fetch(
-          `${API_URL}/operator/requests/${id}?radius=${OPERATOR_MISSION_RADIUS_KM}`,
+          `${API_URL}/operator/requests/${id}?radius=${OPERATOR_MISSION_RADIUS_KM}&refresh=${Date.now()}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Cache-Control": "no-cache",
+            },
           }
         );
 
@@ -1465,13 +1469,28 @@ export default function MissionSuivi() {
                   </View>
                 ) : null}
 
-                {(!mission.payment_method ||
-                  String(mission.payment_method).toLowerCase() === "mobile_money") && (
+                {!mission.payment_method && (
                   <View style={[styles.actionBtn, { backgroundColor: "#607D8B" }]}>
                     <MaterialIcons name="hourglass-top" size={22} color="#fff" />
                     <Text style={styles.btnText}>En attente du choix de paiement client</Text>
                   </View>
                 )}
+
+                {String(mission.payment_method || "").toLowerCase() === "mobile_money" &&
+                String(mission.payment_status || "").toLowerCase() !== "confirmée" ? (
+                  <View style={[styles.actionBtn, { backgroundColor: "#1565C0" }]}>
+                    <MaterialIcons name="phone-android" size={22} color="#fff" />
+                    <Text style={styles.btnText}>Paiement Mobile Money transmis, validation admin en attente</Text>
+                  </View>
+                ) : null}
+
+                {String(mission.payment_method || "").toLowerCase() === "mobile_money" &&
+                String(mission.payment_status || "").toLowerCase() === "confirmée" ? (
+                  <View style={[styles.actionBtn, { backgroundColor: "#1B5E20" }]}>
+                    <MaterialIcons name="verified" size={22} color="#fff" />
+                    <Text style={styles.btnText}>Paiement Mobile Money confirmé</Text>
+                  </View>
+                ) : null}
               </>
             )}
           </View>

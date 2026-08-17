@@ -399,6 +399,7 @@ export default (db, notifyOperators, emitMissionEvent) => {
              t.id IS NULL
              OR (
                LOWER(COALESCE(t.status, '')) NOT IN ('confirmée', 'confirmee')
+               AND LOWER(COALESCE(t.payment_method, '')) <> 'mobile_money'
                AND NOT (
                  LOWER(COALESCE(t.payment_method, '')) = 'cash'
                  AND EXISTS(
@@ -448,12 +449,14 @@ export default (db, notifyOperators, emitMissionEvent) => {
       const [[payment]] = await req.db.query(
         `SELECT t.id AS transaction_id,
                 CASE
+                  WHEN LOWER(COALESCE(t.payment_method, '')) = 'mobile_money'
+                  THEN 'confirmée'
                   WHEN LOWER(COALESCE(t.payment_method, '')) = 'cash'
-                   AND EXISTS(
-                     SELECT 1 FROM request_events cash_event
-                     WHERE cash_event.request_id = ?
-                       AND cash_event.type = 'cash_received_operator'
-                   )
+                    AND EXISTS(
+                      SELECT 1 FROM request_events cash_event
+                      WHERE cash_event.request_id = ?
+                        AND cash_event.type = 'cash_received_operator'
+                    )
                   THEN 'confirmée'
                   ELSE t.status
                 END AS payment_status,
@@ -1095,7 +1098,7 @@ router.post("/", authMiddleware, requireClient, upload.array("photos", 5), valid
           req.app?.get?.("io")?.to(`operator:${Number(mission.operator_id)}`).emit("payment_confirmed", {
             request_id: Number(id),
             transaction_id: tx.id,
-            status: "en_attente",
+            status: paymentMethod === "mobile_money" ? "confirmée" : "en_attente",
             payment_method: paymentMethod,
             message: body,
           });
@@ -1114,8 +1117,12 @@ router.post("/", authMiddleware, requireClient, upload.array("photos", 5), valid
         message:
           paymentMethod === "cash"
             ? "Paiement espèces enregistré, en attente de confirmation opérateur"
-            : "Paiement transmis, en attente de validation ",
-        data: { transaction_id: tx.id, status: "en_attente", payment_method: paymentMethod },
+            : "Paiement Mobile Money enregistré, mission finalisée",
+        data: {
+          transaction_id: tx.id,
+          status: paymentMethod === "mobile_money" ? "confirmée" : "en_attente",
+          payment_method: paymentMethod,
+        },
       });
     } catch (err) {
       console.error(" Erreur POST /requests/:id/confirm-payment:", err);

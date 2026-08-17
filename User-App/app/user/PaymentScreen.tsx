@@ -19,6 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 import { API_URL } from "../../utils/api";
 import { MaterialIcons } from "@expo/vector-icons";
 import LottieView from "../../components/Lottie";
+import Toast from "react-native-toast-message";
 import Loader from "../../components/Loader";
 
 type MissionPayment = {
@@ -225,12 +226,12 @@ export default function PaymentScreen() {
       setPaid(false);
     }
     setPayModalVisible(false);
-    Alert.alert(
-      " Paiement transmis",
-      paymentMethod === "cash"
-        ? "Le client a signalé un paiement espèces. L'opérateur doit maintenant confirmer \"argent reçu\"."
-        : "Ton paiement est envoyé. Il sera validé par notre équipe."
-    );
+    Toast.show({
+      type: "success",
+      text1: "Paiement espèces enregistré",
+      text2: "En attente de la confirmation de l’opérateur.",
+      visibilityTime: 3500,
+    });
   } catch (err: any) {
     Alert.alert(
       " Erreur",

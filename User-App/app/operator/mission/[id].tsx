@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from "expo-router";
+import { fetch } from "expo/fetch";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { API_URL } from "../../../utils/api";
@@ -349,13 +350,17 @@ export default function MissionSuivi() {
   //  Charger mission + events
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
+    let active = true;
+    let missionRequestInFlight = false;
+
     const fetchMission = async () => {
+      if (!active || missionRequestInFlight) return;
+      missionRequestInFlight = true;
       setFetchError(null);
       try {
         const res = await fetch(
           `${API_URL}/operator/requests/${id}?radius=${OPERATOR_MISSION_RADIUS_KM}&refresh=${Date.now()}`,
           {
-            cache: "no-store",
             headers: {
               Authorization: `Bearer ${token}`,
               "Cache-Control": "no-cache",
@@ -399,6 +404,7 @@ export default function MissionSuivi() {
           router.replace("/operator");
           return;
         }
+        if (!active) return;
         setMission({
           id: m.id,
           ville: m.ville,
@@ -433,6 +439,7 @@ export default function MissionSuivi() {
               : null,
         });
       } catch (err) {
+        if (!active) return;
         const message = err instanceof Error ? err.message : "Erreur inconnue";
         setFetchError(message);
         console.warn(" Erreur fetch mission:", message);
@@ -444,19 +451,31 @@ export default function MissionSuivi() {
         setMission(null);
         router.replace("/operator");
       } finally {
-        setLoading(false);
+        missionRequestInFlight = false;
+        if (active) setLoading(false);
       }
     };
 
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${API_URL}/operator/requests/${id}/events`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`${API_URL}/operator/requests/${id}/events?refresh=${Date.now()}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+          },
         });
-        const data = await res.json();
-        setEvents(data.data || []);
+        const text = await res.text();
+        if (!active || !text.trim()) return;
+        const data = JSON.parse(text);
+        if (!res.ok) {
+          throw new Error(data?.error || `Erreur serveur (${res.status})`);
+        }
+        if (active) setEvents(data.data || []);
       } catch (err) {
-        console.error(" Erreur fetch events:", err);
+        if (active) {
+          const message = err instanceof Error ? err.message : "Erreur inconnue";
+          console.warn(" Erreur fetch events:", message);
+        }
       }
     };
 
@@ -467,9 +486,29 @@ export default function MissionSuivi() {
       fetchMission();
     }, 2000);
     return () => {
+      active = false;
       if (interval) clearInterval(interval);
     };
   }, [id, token, router]);
+
+  useEffect(() => {
+    if (!mission || String(mission.status || "").toLowerCase() !== "terminee") return;
+
+    const method = String(mission.payment_method || "").toLowerCase();
+    const status = String(mission.payment_status || "").toLowerCase();
+    const paymentFinalized =
+      (method === "mobile_money" && (status === "confirmée" || status === "confirmee")) ||
+      (method === "cash" && mission.cash_received_by_operator === true);
+
+    if (!paymentFinalized) return;
+
+    allowLeaveRef.current = true;
+    const redirectTimer = setTimeout(() => {
+      router.replace("/operator");
+    }, 1500);
+
+    return () => clearTimeout(redirectTimer);
+  }, [mission, router]);
 
   // Calcul kilométrage total (opérateur -> client -> destination)
   useEffect(() => {
@@ -831,7 +870,6 @@ export default function MissionSuivi() {
           : prev
       );
 
-      setTimeout(() => router.replace("/operator"), 1000);
     } catch (err) {
       Toast.show({
         type: "error",

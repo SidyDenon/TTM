@@ -1594,6 +1594,15 @@ router.post("/requests/:id/:action", authMiddleware, async (req, res, next) => {
         operator_id: Number(req.user?.id || 0),
         message: err?.message || String(err),
       });
+      if (
+        err?.code === "WARN_DATA_TRUNCATED" ||
+        String(err?.message || "").includes("Data truncated for column 'type'")
+      ) {
+        return res.status(503).json({
+          error: "La base de données doit être mise à jour avant de confirmer ce paiement.",
+          code: "REQUEST_EVENT_TYPE_MIGRATION_REQUIRED",
+        });
+      }
       res.status(500).json({ error: "Erreur serveur" });
     }
   });
